@@ -174,3 +174,4 @@ cython_debug/
 .db/data
 db/data/*
 db/plugins/*
+key.txt
