@@ -19,7 +19,7 @@ docker run -d --env-file .env -u {$LINUX_USER} -p 7474:7474 -p 7687:7687 -v ./da
 
 # Ejemplo sin env File
 docker run -d -p 7474:7474 -p 7687:7687 -v ./data:/data -v ./logs:/logs -v ./import:/var/lib/neo4j/import -v ./plugins:/plugins  -e NEO4J_AUTH="neo4j/Luca1234!" -e NEO4J_apoc_export_file_enabled=true -e NEO4J_apoc_import_file_enabled=true -e NEO4J_apoc_import_file_use__neo4j__config=true -e NEO4JLABS_PLUGINS=\[\"apoc\",\"graph-data-science\"\] -e NEO4J_dbms_security_procedures_unrestricted=apoc.\\\* --name neo4j neo4j:5.26.1
-    
+
 Crear el entorno conda luca
 
 conda activate luca

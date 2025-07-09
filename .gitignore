@@ -175,3 +175,6 @@ cython_debug/
 db/data/*
 db/plugins/*
 key.txt
+.envrc
+db/datasources/Programa.xlsx
+db/datasources/Prácticas Bases de Datos.xlsx
