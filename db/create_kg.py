@@ -2,8 +2,9 @@ import os
 import ast
 import pickle
 import pandas as pd
-from neo4j import GraphDatabase
+import json
 import openai
+from neo4j import GraphDatabase
 
 def crear_kg(
     neo4j_uri: str,
@@ -106,14 +107,21 @@ def crear_kg(
                 "MERGE (u)-[:HAS_TEMA]->(t)",
                 {"num": int(row["NumeroUnidadTematica"]), "texto": row["Tema"]}
             )
-            # ApunteRelacionado es lista de strings
-            referencias = ast.literal_eval(row["Apunte Relacionado"])
-            for doc in referencias:
-                session.run(
-                    "MATCH (t:Tema {descripcion: $texto}), (d:Document {fileName: $file}) "
-                    "MERGE (t)-[:APUNTE]->(d)",
-                    {"texto": row["Tema"], "file": doc}
-                )
+            # ApunteRelacionado es lista de strings, puede estar vacío o NaN
+            referencias = row.get("Apunte Relacionado")
+            if pd.notna(referencias) and str(referencias).strip():
+                try:
+                    referencias = ast.literal_eval(referencias)
+                except Exception:
+                    referencias = [referencias]
+                if not isinstance(referencias, list):
+                    referencias = [referencias]
+                for doc in referencias:
+                    session.run(
+                        "MATCH (t:Tema {descripcion: $texto}), (d:Document {fileName: $file}) "
+                        "MERGE (t)-[:APUNTE]->(d)",
+                        {"texto": row["Tema"], "file": doc}
+                    )
 
         # 3. Procesar Prácticas Bases de Datos.xlsx
         excel_prac = pd.ExcelFile(practicas_path)
@@ -127,7 +135,7 @@ def crear_kg(
             temas_rel = ast.literal_eval(row["Teoría Relacionada"])
             for tema in temas_rel:
                 session.run(
-                    "MATCH (p:Practica {numero: $num}), (t:Tema {descripcion: $tema}) "
+                    "MATCH (p:Practica {numeropractica: $num}), (t:Tema {descripcion: $tema}) "
                     "MERGE (p)-[:HAS_TEMA]->(t)",
                     {"num": row["NumeroPractica"], "tema": tema}
                 )
@@ -140,7 +148,7 @@ def crear_kg(
                 {"texto": row["Tip"]}
             )
             session.run(
-                "MATCH (p:Practica {numero: $num}), (tip:Tip {texto: $texto}) "
+                "MATCH (p:Practica {numeropractica: $num}), (tip:Tip {texto: $texto}) "
                 "MERGE (p)-[:HAS_TIP]->(tip)",
                 {"num": row["NumeroPractica"], "texto": row["Tip"]}
             )
@@ -152,38 +160,48 @@ def crear_kg(
                 # SeccionPractica
                 session.run(
                     "CREATE (s:SeccionPractica {numero: $sec, enunciado: $enc})",
-                    {"sec": row["Seccion"], "enc": row["Enunciado"]}
+                    {"sec": str(row["Seccion"]), "enc": row["Enunciado"]}
                 )
                 session.run(
-                    "MATCH (p:Practica {numero: $num}), (s:SeccionPractica {numero: $sec}) "
+                    "MATCH (p:Practica {numeropractica: $num}), (s:SeccionPractica {numero: $sec}) "
                     "MERGE (p)-[:HAS_SECCION]->(s)",
-                    {"num": row["NumeroPractica"], "sec": row["Seccion"]}
+                    {"num": row["NumeroPractica"], "sec": str(row["Seccion"])}
                 )
                 # Tips nivel sección
-                tips_sec = ast.literal_eval(row["Tips Nivel Ejercicio"])
-                for tip in tips_sec:
-                    session.run(
-                        "CREATE (t:Tip {texto: $texto})",
-                        {"texto": tip}
-                    )
-                    session.run(
-                        "MATCH (s:SeccionPractica {numero: $sec}), (t:Tip {texto: $texto}) "
-                        "MERGE (s)-[:HAS_TIP]->(t)",
-                        {"sec": row["Seccion"], "texto": tip}
-                    )
+                tips_sec = row.get("Tips Nivel Ejercicio")
+                if pd.notna(tips_sec) and str(tips_sec).strip():
+                    try:
+                        tips_sec = ast.literal_eval(tips_sec)
+                    except Exception:
+                        tips_sec = [tips_sec]
+                    if not isinstance(tips_sec, list):
+                        tips_sec = [tips_sec]
+                    for tip in tips_sec:
+                        session.run(
+                            "CREATE (t:Tip {texto: $texto})",
+                            {"texto": tip}
+                        )
+                        session.run(
+                            "MATCH (s:SeccionPractica {numero: $sec}), (t:Tip {texto: $texto}) "
+                            "MERGE (s)-[:HAS_TIP]->(t)",
+                            {"sec": str(row["Seccion"]), "texto": tip}
+                        )
             else:
                 # Ejercicio
                 session.run(
                     "CREATE (e:Ejercicio {numero: $ej, enunciado: $enc})",
-                    {"ej": row["Ejercicio"], "enc": row["Enunciado"]}
+                    {"ej": str(row["Ejercicio"]), "enc": row["Enunciado"]}
                 )
                 session.run(
                     "MATCH (s:SeccionPractica {numero: $sec}), (e:Ejercicio {numero: $ej}) "
                     "MERGE (s)-[:HAS_EJERCICIO]->(e)",
-                    {"sec": row["Seccion"], "ej": row["Ejercicio"]}
+                    {"sec": str(row["Seccion"]), "ej": str(row["Ejercicio"])}
                 )
                 # Respuestas
-                respuestas = ast.literal_eval(row["Respuesta"])
+                try:
+                    respuestas = json.loads(row["Respuesta"])
+                except Exception:
+                    respuestas = [row["Respuesta"]]
                 for resp in respuestas:
                     session.run(
                         "CREATE (r:Respuesta {texto: $texto})",
@@ -192,25 +210,30 @@ def crear_kg(
                     session.run(
                         "MATCH (e:Ejercicio {numero: $ej}), (r:Respuesta {texto: $texto}) "
                         "MERGE (e)-[:HAS_RESPUESTA]->(r)",
-                        {"ej": row["Ejercicio"], "texto": resp}
+                        {"ej": str(row["Ejercicio"]), "texto": resp}
                     )
                 # Tips nivel ejercicio
-                tips_ej = ast.literal_eval(row["Tips Nivel Ejercicio"])
-                for tip in tips_ej:
-                    session.run(
-                        "CREATE (t:Tip {texto: $texto})",
-                        {"texto": tip}
-                    )
-                    session.run(
-                        "MATCH (e:Ejercicio {numero: $ej}), (t:Tip {texto: $texto}) "
-                        "MERGE (e)-[:HAS_TIP]->(t)",
-                        {"ej": row["Ejercicio"], "texto": tip}
-                    )
+                tips_ej = row.get("Tips Nivel Ejercicio")
+                if pd.notna(tips_ej) and str(tips_ej).strip():
+                    try:
+                        tips_ej = ast.literal_eval(tips_ej)
+                    except Exception:
+                        tips_ej = [tips_ej]
+                    if not isinstance(tips_ej, list):
+                        tips_ej = [tips_ej]
+                    for tip in tips_ej:
+                        session.run(
+                            "CREATE (t:Tip {texto: $texto})",
+                            {"texto": tip}
+                        )
+                        session.run(
+                            "MATCH (e:Ejercicio {numero: $ej}), (t:Tip {texto: $texto}) "
+                            "MERGE (e)-[:HAS_TIP]->(t)",
+                            {"ej": str(row["Ejercicio"]), "texto": tip}
+                        )
 
         # 4. Crear embeddings y vector index
         create_embeddings(session, embedding_cache_path)
-        create_vector_indexes(session)
-
     driver.close()
 
 def create_embeddings(session, cache_path):
@@ -237,29 +260,25 @@ def create_embeddings(session, cache_path):
         results = session.run(f"MATCH (n:{label}) RETURN n.{prop} AS text, id(n) AS id")
         for record in results:
             text = record["text"]
-            node_id = record["id"]
-            cache_key = f"{label}:{node_id}:{prop}"
-            if cache_key not in cache:
-                emb = openai.Embedding.create(input=text, model="text-embedding-ada-002")["data"][0]["embedding"]
-                session.run(
-                    f"MATCH (n:{label}) WHERE id(n) = $id SET n.embedding = $emb",
-                    {"id": node_id, "emb": emb}
-                )
-                cache[cache_key] = emb
+            if text is not None:
+                node_id = record["id"]
+                cache_key = f"{label}:{prop}:{text}"
+                if cache_key not in cache:
+                    response = openai.embeddings.create(input=[text], model="text-embedding-ada-002")
+                    emb = response.data[0].embedding
+                    session.run(
+                        f"MATCH (n:{label}) WHERE id(n) = $id SET n.embedding_{prop} = $emb",
+                        {"id": node_id, "emb": emb}
+                    )
+                    session.run(
+                        "CREATE VECTOR INDEX idx_" + label + "_" + prop + " IF NOT EXISTS FOR (n:" + label + ") ON (n.embedding_" + prop + ") "
+                        "OPTIONS { indexConfig: {`vector.dimensions`: 1536,`vector.similarity_function`: 'cosine'}}"
+                    )
+                    cache[cache_key] = emb
 
     # Guardar cache
     with open(cache_path, "wb") as f:
         pickle.dump(cache, f)
-
-def create_vector_indexes(session):
-    # Ejemplo de creación de índice vectorial en Neo4j 5.x
-    idx_name = "idx_embedding"
-    check = session.run("SHOW INDEXES YIELD name WHERE name = $name RETURN name", {"name": idx_name})
-    if not any(check):
-        session.run(
-            "CREATE INDEX idx_embedding FOR (n) ON (n.embedding) "
-            "OPTIONS {indexProvider: 'vector-1.0', similarityFunction: 'cosine', dimensions: 1536}"
-        )
 
 # Ejemplo de uso
 if __name__ == "__main__":

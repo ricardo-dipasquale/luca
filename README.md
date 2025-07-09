@@ -51,3 +51,13 @@ To host the whole llm-graph-builder solution (to build KG):
                 - (sudo) yarn
                 - (sudo) yarn run dev
         - Browse: http://localhost:5173/
+
+To run some code:
+    - Create a .envrc
+        export NEO4J_URI="xxx"
+        export NEO4J_USER="xxx"
+        export NEO4J_PASSWORD="xxx"
+        export OPENAI_API_KEY="xxx"
+    - Install direnv
+    - Configure direnv extension in vscode.
+    
