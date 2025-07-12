@@ -76,12 +76,11 @@ class CurrencyAgent:
     )
 
     def __init__(self):
-        model_source = os.getenv('model_source', 'google')
+        # Use OpenAI as default provider
         self.model = ChatOpenAI(
-            model=os.getenv('TOOL_LLM_NAME'),
-            openai_api_key=os.getenv('API_KEY', 'EMPTY'),
-            openai_api_base=os.getenv('TOOL_LLM_URL'),
-            temperature=0,
+            model=os.getenv('DEFAULT_LLM_MODEL', 'gpt-4o-mini'),
+            api_key=os.getenv('OPENAI_API_KEY'),
+            temperature=float(os.getenv('DEFAULT_LLM_TEMPERATURE', '0.1')),
         )
         self.tools = [get_exchange_rate]
 

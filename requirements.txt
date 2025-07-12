@@ -5,7 +5,7 @@ a2a-sdk
 uvicorn
 langchain
 langgraph
-langchain[openai]
+langchain-openai
 python-dotenv
 uv
 pytest

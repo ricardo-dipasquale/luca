@@ -36,20 +36,11 @@ class MissingAPIKeyError(Exception):
 def main(host, port):
     """Starts the Currency Agent server."""
     try:
-        if os.getenv('model_source', 'google') == 'google':
-            if not os.getenv('GOOGLE_API_KEY'):
-                raise MissingAPIKeyError(
-                    'GOOGLE_API_KEY environment variable not set.'
-                )
-        else:
-            if not os.getenv('TOOL_LLM_URL'):
-                raise MissingAPIKeyError(
-                    'TOOL_LLM_URL environment variable not set.'
-                )
-            if not os.getenv('TOOL_LLM_NAME'):
-                raise MissingAPIKeyError(
-                    'TOOL_LLM_NAME environment not variable not set.'
-                )
+        # Check for OpenAI API key (default provider)
+        if not os.getenv('OPENAI_API_KEY'):
+            raise MissingAPIKeyError(
+                'OPENAI_API_KEY environment variable not set.'
+            )
 
         capabilities = AgentCapabilities(streaming=True, pushNotifications=True)
         skill = AgentSkill(

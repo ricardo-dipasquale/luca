@@ -8,7 +8,9 @@ Luca is a GenAI Learning Project that serves as an intelligent, interactive tuto
 
 The system consists of:
 - **Knowledge Graph (Neo4j)**: Stores structured course data including subjects, topics, practices, exercises, and their relationships
-- **AI Agent (gapanalyzer/)**: A currency conversion agent built with the A2A (Agent-to-Agent) framework using LangChain and LangGraph
+- **KG Abstraction Layer (kg/)**: Connection management and query interface for Neo4j interactions
+- **Centralized Tools (tools/)**: Shared LangChain tools for all agents including KG and utility operations
+- **AI Agents**: Multiple agents built with the A2A framework (e.g., gapanalyzer/)
 - **Database Scripts**: Knowledge graph creation and management utilities
 
 ## Development Commands
@@ -83,18 +85,30 @@ docker run -p 10000:10000 luca-agent
 
 ## Code Architecture
 
-### gapanalyzer/ - AI Agent Module
-- **`agent.py`**: Core `CurrencyAgent` class implementing currency conversion functionality using LangChain/LangGraph
-- **`agent_executor.py`**: `CurrencyAgentExecutor` that handles A2A protocol request/response lifecycle
-- **`__main__.py`**: CLI entry point and server setup using A2A Starlette application
-- **`test_client.py`**: Test client demonstrating A2A client usage patterns
+### kg/ - Knowledge Graph Abstraction Layer
+- **`connection.py`**: `KGConnection` class for Neo4j connection management using environment variables
+- **`queries.py`**: `KGQueryInterface` class providing high-level functional interface to KG operations
+- **`__init__.py`**: Module exports and documentation
+- **`example.py`**: Usage examples and demonstrations
+
+### tools/ - Centralized LangChain Tools
+- **`kg_tools.py`**: Knowledge graph interaction tools (search, get subjects, practices, etc.)
+- **`utility_tools.py`**: General utility tools (text processing, calculations, formatting)
+- **`registry.py`**: Tool registry and factory pattern for tool discovery and management
+- **`__init__.py`**: Package exports and convenience functions
 
 ### Agent Architecture Pattern
-The agent follows the A2A (Agent-to-Agent) framework pattern:
-1. **Agent Class**: Implements core business logic with streaming responses
+All agents follow the A2A (Agent-to-Agent) framework pattern:
+1. **Agent Class**: Implements core business logic with streaming responses and uses centralized tools
 2. **Agent Executor**: Handles A2A protocol integration and task management  
 3. **Request Handler**: Manages HTTP requests and agent card serving
 4. **Server Application**: Starlette-based HTTP server with A2A endpoints
+
+### gapanalyzer/ - Example AI Agent Module
+- **`agent.py`**: Core `CurrencyAgent` class implementing currency conversion functionality
+- **`agent_executor.py`**: `CurrencyAgentExecutor` that handles A2A protocol request/response lifecycle
+- **`__main__.py`**: CLI entry point and server setup using A2A Starlette application
+- **`test_client.py`**: Test client demonstrating A2A client usage patterns
 
 ### Knowledge Graph Schema
 - **Materia** → **Carrera**, **Profesor**, **ObjetivoMateria**, **UnidadTematica**
@@ -114,15 +128,17 @@ NEO4J_URI="bolt://localhost:7687"
 NEO4J_USER="neo4j"
 NEO4J_PASSWORD="your_password"
 
-# OpenAI for embeddings
+# OpenAI Configuration
 OPENAI_API_KEY="your_openai_key"
 
-# Agent Configuration
-GOOGLE_API_KEY="your_google_api_key"  # For Google models
-# OR
-TOOL_LLM_URL="http://localhost:11434"  # For local LLM
-TOOL_LLM_NAME="llama3"
-model_source="google"  # or "local"
+# Default LLM Configuration for Agents
+DEFAULT_LLM_MODEL="gpt-4o-mini"      # OpenAI's efficient model (recommended)
+DEFAULT_LLM_PROVIDER="openai"        # Provider: currently only OpenAI supported
+DEFAULT_LLM_TEMPERATURE="0.1"        # Low temperature for consistent responses
+
+# Optional: Advanced LLM settings
+DEFAULT_LLM_MAX_TOKENS="4096"        # Maximum response tokens
+DEFAULT_LLM_TIMEOUT="60"             # Request timeout in seconds
 ```
 
 ## Data Sources
@@ -142,10 +158,89 @@ Knowledge graph is populated from Excel files in `db/datasources/`:
 - **click**: CLI interface
 - **pandas**: Data processing for Excel files
 
+## Tool Usage in Agents
+
+### Using Centralized Tools and LLM Configuration
+```python
+from tools import (
+    create_default_llm,           # LLM from environment config
+    get_kg_tools, 
+    get_utility_tools
+)
+from tools.registry import ToolRegistry
+from langgraph.prebuilt import create_react_agent
+
+# Create LLM using environment variables
+llm = create_default_llm()  # Uses DEFAULT_LLM_* env vars
+
+# Get tools by category
+kg_tools = get_kg_tools()
+utility_tools = get_utility_tools()
+
+# Get tools for specific agent types
+registry = ToolRegistry()
+tutor_tools = registry.get_tools_for_agent("tutor")
+practice_tools = registry.get_tools_for_agent("practice_helper")
+
+# Create agent with centralized LLM and tools
+agent = create_react_agent(llm, tools=kg_tools + utility_tools)
+```
+
+### LLM Configuration Options
+```python
+from tools.llm_config import (
+    create_default_llm,
+    create_openai_llm,
+    get_model_info,
+    validate_model_compatibility
+)
+
+# Use default configuration (uses DEFAULT_LLM_* environment variables)
+llm = create_default_llm()
+
+# Override specific parameters
+llm = create_default_llm(temperature=0.2, max_tokens=2048)
+
+# Use specific OpenAI model
+llm = create_openai_llm(model="gpt-4o", temperature=0.0)
+
+# Check model compatibility
+is_compatible = validate_model_compatibility("openai", "gpt-4o-mini")
+
+# Get current configuration info
+info = get_model_info()
+print(f"Using: {info['provider']} - {info['model']}")
+```
+
+### Available OpenAI Models
+- **gpt-4o-mini**: Efficient, fast model (recommended default for most use cases)
+- **gpt-4o**: Most capable model for complex reasoning tasks
+- **gpt-4-turbo**: High performance model with fast response times
+- **gpt-3.5-turbo**: Legacy efficient model for simple tasks
+
+### Available Tool Categories
+- **Knowledge Graph Tools**: Search KG, get subjects/topics/practices, find related content
+- **Utility Tools**: Text processing, calculations, data formatting, validation
+- **Tool Registry**: Centralized discovery, categorization, and agent-specific tool selection
+
 ## Testing
 
-Run the test client to verify agent functionality:
+### KG Module Tests
 ```bash
+# Run all KG tests
+pytest test/ -v
+
+# Run with coverage
+pytest test/ --cov=kg --cov-report=html
+
+# Run specific test categories
+pytest -m integration  # Integration tests with database
+pytest -m "not slow"   # Skip slow tests
+```
+
+### Agent Testing
+```bash
+# Test example agent
 python gapanalyzer/test_client.py
 ```
 
