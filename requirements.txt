@@ -1,3 +1,13 @@
 pandas
 neo4j
 openai
+a2a-sdk
+uvicorn
+langchain
+langgraph
+langchain[openai]
+python-dotenv
+uv
+pytest
+pytest-cov
+pytest-mock
