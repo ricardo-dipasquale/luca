@@ -179,3 +179,4 @@ key.txt
 .envrc
 db/datasources/*
 
+.vscode/settings.json

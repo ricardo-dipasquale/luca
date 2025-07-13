@@ -20,6 +20,110 @@ logger = logging.getLogger(__name__)
 _kg_interface: Optional[KGQueryInterface] = None
 
 
+def _is_meaningful_response(message: str, topic_description: str) -> bool:
+    """
+    Check if the API response contains meaningful theoretical content.
+    
+    Args:
+        message: Response message from the API
+        topic_description: Original topic description
+        
+    Returns:
+        True if the response seems meaningful, False otherwise
+    """
+    if not message or len(message.strip()) < 20:
+        return False
+    
+    # Check for generic "no information" responses
+    no_info_indicators = [
+        "no puedo proporcionar",
+        "no tengo información",
+        "no se encuentra información",
+        "no hay datos",
+        "información no disponible",
+        "no está disponible",
+        "no conozco",
+        "no sé",
+        "disculpa, pero no",
+        "lo siento, no"
+    ]
+    
+    message_lower = message.lower()
+    
+    # If message contains generic "no info" responses
+    if any(indicator in message_lower for indicator in no_info_indicators):
+        return False
+    
+    # Check if response is too generic (less than 50 characters)
+    if len(message.strip()) < 50:
+        return False
+    
+    return True
+
+
+def _get_fallback_theoretical_content(topic_description: str) -> str:
+    """
+    Get theoretical content using direct LLM call as fallback.
+    
+    Args:
+        topic_description: Description of the topic to get theory for
+        
+    Returns:
+        Formatted string with theoretical content from LLM
+    """
+    import os
+    from openai import OpenAI
+    
+    try:
+        # Get configuration from environment
+        api_key = os.getenv('OPENAI_API_KEY')
+        model = os.getenv('DEFAULT_LLM_MODEL', 'gpt-4o-mini')
+        temperature = float(os.getenv('DEFAULT_LLM_TEMPERATURE', '0.1'))
+        
+        if not api_key:
+            return f"Error: No se pudo obtener contenido teórico para {topic_description} (falta configuración)"
+        
+        # Initialize OpenAI client
+        client = OpenAI(api_key=api_key)
+        
+        # Create concise prompt
+        prompt = f"""Explicá de manera muy concisa (máximo 1 párrafo) los conceptos teóricos fundamentales sobre "{topic_description}".
+
+Incluí:
+- Definición básica
+- Principios clave
+- Relación con otros conceptos
+
+Mantené la respuesta en español argentino y sé específico pero breve."""
+
+        # Make API call
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "Sos un tutor experto en Ingeniería. Respondé de manera concisa y clara."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=temperature,
+            max_tokens=300  # Limit for conciseness
+        )
+        
+        content = response.choices[0].message.content.strip()
+        
+        if content:
+            result = [f"Contenido teórico para '{topic_description}' (fuente: LLM):"]
+            result.append("")
+            result.append(content)
+            
+            logger.info(f"Successfully retrieved fallback theoretical content for: {topic_description}")
+            return "\n".join(result)
+        else:
+            return f"No se pudo generar contenido teórico para: {topic_description}"
+            
+    except Exception as e:
+        logger.error(f"Error in fallback theoretical content: {e}")
+        return f"Error al generar contenido teórico alternativo para {topic_description}: {str(e)}"
+
+
 def get_kg_interface() -> KGQueryInterface:
     """
     Get or create a shared KGQueryInterface instance.
@@ -320,6 +424,107 @@ def get_related_topics_tool(topic_description: str) -> str:
         return f"Error finding related topics: {str(e)}"
 
 
+@tool("get_theoretical_content", args_schema=TopicQuery)
+def get_theoretical_content_tool(topic_description: str) -> str:
+    """
+    Get theoretical content and background for a given topic using LLM Graph Builder API.
+    
+    Retrieves comprehensive theoretical information including definitions,
+    concepts, and explanations for better understanding of topics.
+    
+    Args:
+        topic_description: Description of the topic to get theory for
+        
+    Returns:
+        Formatted string with theoretical content
+    """
+    import os
+    import requests
+    import threading
+    from urllib.parse import quote
+    
+    try:
+        # Get configuration from environment
+        graphbuilder_uri = os.getenv('GRAPHBUILDER_URI', 'http://127.0.0.1:8000/chat_bot')
+        neo4j_uri = os.getenv('INTERNAL_NEO4J_URI', 'bolt://localhost:7687')
+        neo4j_user = os.getenv('NEO4J_USER', 'neo4j')
+        neo4j_password = os.getenv('NEO4J_PASSWORD', 'password')
+        
+        # Generate thread-safe session ID
+        thread_id = threading.current_thread().ident or 0
+        session_id = f"theory_tool_{thread_id}_{hash(topic_description) % 10000:04d}"
+        
+        # Prepare the question with theoretical focus
+        #question = f"Explicá los conceptos teóricos fundamentales sobre {topic_description}. Incluí definiciones, principios y fundamentos teóricos."
+        question = f"{topic_description}"
+        
+        # Prepare form data
+        form_data = {
+            'mode': 'graph',
+            'document_names': '',
+            'session_id': session_id,
+            'question': question,
+            'model': 'openai_gpt_4o_mini',
+            'uri': neo4j_uri,
+            'userName': neo4j_user,
+            'database': 'neo4j',
+            'password': neo4j_password,
+            'email': ''  # Empty as requested
+        }
+        
+        # Make POST request
+        headers = {
+            'accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        
+        logger.info(f"Requesting theoretical content for: {topic_description}")
+        response = requests.post(
+            graphbuilder_uri,
+            data=form_data,
+            headers=headers,
+            timeout=30
+        )
+        
+        # Check response
+        if response.status_code == 200:
+            response_data = response.json()
+            
+            if response_data.get('status') == 'Success':
+                data = response_data.get('data', {})
+                message = data.get('message', '')
+                
+                if message and _is_meaningful_response(message, topic_description):
+                    result = [f"Contenido teórico para '{topic_description}':"]
+                    result.append("")
+                    result.append(message)
+                    
+                    logger.info(f"Successfully retrieved theoretical content for: {topic_description}")
+                    return "\n".join(result)
+                else:
+                    # Fallback to direct LLM if API response is insufficient
+                    logger.info(f"API response insufficient for {topic_description}, using fallback LLM")
+                    return _get_fallback_theoretical_content(topic_description)
+            else:
+                logger.error(f"API returned error status: {response_data.get('status')}")
+                # Try fallback on API error
+                return _get_fallback_theoretical_content(topic_description)
+        else:
+            logger.error(f"HTTP error {response.status_code}: {response.text}")
+            # Try fallback on HTTP error
+            return _get_fallback_theoretical_content(topic_description)
+        
+    except requests.exceptions.Timeout:
+        logger.error("Timeout connecting to LLM Graph Builder API, trying fallback")
+        return _get_fallback_theoretical_content(topic_description)
+    except requests.exceptions.ConnectionError:
+        logger.error("Connection error to LLM Graph Builder API, trying fallback")
+        return _get_fallback_theoretical_content(topic_description)
+    except Exception as e:
+        logger.error(f"Error in get_theoretical_content_tool: {e}, trying fallback")
+        return _get_fallback_theoretical_content(topic_description)
+
+
 @tool("get_learning_path", args_schema=TopicQuery)
 def get_learning_path_tool(topic_description: str) -> str:
     """
@@ -389,5 +594,6 @@ def get_kg_tools() -> List:
         get_practice_tips_tool,
         search_knowledge_graph_tool,
         get_related_topics_tool,
+        get_theoretical_content_tool,
         get_learning_path_tool
     ]

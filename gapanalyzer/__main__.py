@@ -16,8 +16,8 @@ from a2a.types import (
 )
 from dotenv import load_dotenv
 
-from gapanalyzer.agent import CurrencyAgent
-from gapanalyzer.agent_executor import CurrencyAgentExecutor
+from gapanalyzer.agent import GapAnalyzerAgent
+from gapanalyzer.agent_executor import GapAnalyzerAgentExecutor
 
 
 load_dotenv()
@@ -34,7 +34,7 @@ class MissingAPIKeyError(Exception):
 @click.option('--host', 'host', default='localhost')
 @click.option('--port', 'port', default=10000)
 def main(host, port):
-    """Starts the Currency Agent server."""
+    """Starts the Gap Analyzer Agent server."""
     try:
         # Check for OpenAI API key (default provider)
         if not os.getenv('OPENAI_API_KEY'):
@@ -44,19 +44,23 @@ def main(host, port):
 
         capabilities = AgentCapabilities(streaming=True, pushNotifications=True)
         skill = AgentSkill(
-            id='convert_currency',
-            name='Currency Exchange Rates Tool',
-            description='Helps with exchange values between various currencies',
-            tags=['currency conversion', 'currency exchange'],
-            examples=['What is exchange rate between USD and GBP?'],
+            id='analyze_learning_gaps',
+            name='Educational Gap Analyzer',
+            description='Analyzes student questions about practice exercises to identify learning gaps and provide prioritized recommendations',
+            tags=['education', 'learning analysis', 'gap analysis', 'pedagogical assessment'],
+            examples=[
+                'No entiendo por qué esta consulta SQL no devuelve los resultados esperados',
+                'Tengo dudas sobre el ejercicio 3 de la práctica 2 de bases de datos',
+                '¿Por qué mi JOIN no funciona correctamente?'
+            ],
         )
         agent_card = AgentCard(
-            name='Currency Agent',
-            description='Helps with exchange rates for currencies',
+            name='Gap Analyzer Agent',
+            description='Educational AI tutor that analyzes student questions to identify learning gaps and provides prioritized recommendations for improvement',
             url=f'http://{host}:{port}/',
             version='1.0.0',
-            defaultInputModes=CurrencyAgent.SUPPORTED_CONTENT_TYPES,
-            defaultOutputModes=CurrencyAgent.SUPPORTED_CONTENT_TYPES,
+            defaultInputModes=GapAnalyzerAgent.SUPPORTED_CONTENT_TYPES,
+            defaultOutputModes=GapAnalyzerAgent.SUPPORTED_CONTENT_TYPES,
             capabilities=capabilities,
             skills=[skill],
         )
@@ -64,7 +68,7 @@ def main(host, port):
         # --8<-- [start:DefaultRequestHandler]
         httpx_client = httpx.AsyncClient()
         request_handler = DefaultRequestHandler(
-            agent_executor=CurrencyAgentExecutor(),
+            agent_executor=GapAnalyzerAgentExecutor(),
             task_store=InMemoryTaskStore(),
             push_notifier=InMemoryPushNotifier(httpx_client),
         )

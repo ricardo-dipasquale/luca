@@ -18,18 +18,18 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 
-from gapanalyzer.agent import CurrencyAgent
+from gapanalyzer.agent import GapAnalyzerAgent
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class CurrencyAgentExecutor(AgentExecutor):
-    """Currency Conversion AgentExecutor Example."""
+class GapAnalyzerAgentExecutor(AgentExecutor):
+    """Educational Gap Analyzer AgentExecutor."""
 
     def __init__(self):
-        self.agent = CurrencyAgent()
+        self.agent = GapAnalyzerAgent()
 
     async def execute(
         self,
@@ -74,7 +74,7 @@ class CurrencyAgentExecutor(AgentExecutor):
                 else:
                     await updater.add_artifact(
                         [Part(root=TextPart(text=item['content']))],
-                        name='conversion_result',
+                        name='gap_analysis_result',
                     )
                     await updater.complete()
                     break

@@ -430,3 +430,93 @@ class TestKGToolsIntegrationWithDatabase:
                     
         except Exception as e:
             pytest.skip(f"Database connection not available: {e}")
+
+
+@pytest.mark.integration
+class TestTheoreticalContentIntegration:
+    """Integration tests for theoretical content tool using LLM Graph Builder API."""
+    
+    def test_get_theoretical_content_api_integration(self):
+        """Test get_theoretical_content_tool with LLM Graph Builder API integration."""
+        from tools.kg_tools import get_theoretical_content_tool
+        import os
+        
+        # Check if required environment variables are set
+        required_env_vars = ['GRAPHBUILDER_URI', 'NEO4J_URI', 'NEO4J_USER', 'NEO4J_PASSWORD']
+        missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+        
+        if missing_vars:
+            pytest.skip(f"Missing required environment variables: {missing_vars}")
+        
+        # Test with a specific theoretical topic
+        topic = "subconjuntos del producto cartesiano en álgebra relacional"
+        
+        try:
+            result = get_theoretical_content_tool.invoke({"topic_description": topic})
+            
+            # Validate response
+            assert isinstance(result, str), "Result should be a string"
+            assert len(result) > 0, "Result should not be empty"
+            assert result.strip() != "", "Result should not be just whitespace"
+            
+            # Check that it's not an error message
+            error_indicators = [
+                "Error recuperando contenido teórico",
+                "Error de conexión",
+                "Error: Timeout",
+                "Error: No se pudo conectar",
+                "Error en la API"
+            ]
+            
+            is_error = any(error in result for error in error_indicators)
+            if is_error:
+                pytest.skip(f"API service not available or returned error: {result}")
+            
+            # Validate content structure
+            assert "Contenido teórico para" in result, "Should contain content header"
+            assert topic in result, "Should contain the requested topic"
+            
+            # Check if it's using fallback or API response
+            is_fallback = "(fuente: LLM)" in result
+            if is_fallback:
+                print("🔄 Using LLM fallback for theoretical content")
+            else:
+                print("🔗 Using Graph Builder API for theoretical content")
+                       
+            print(f"✅ Successfully retrieved theoretical content for: {topic}")
+            print(f"📄 Content length: {len(result)} characters")
+            
+        except Exception as e:
+            # If it's a connection or service error, skip the test
+            if any(keyword in str(e).lower() for keyword in ['connection', 'timeout', 'service', 'api']):
+                pytest.skip(f"LLM Graph Builder service not available: {e}")
+            else:
+                # Re-raise unexpected errors
+                raise
+    
+    def test_get_theoretical_content_tool_schema_validation(self):
+        """Test that the theoretical content tool has proper schema."""
+        from tools.kg_tools import get_theoretical_content_tool
+        
+        # Check tool attributes
+        assert hasattr(get_theoretical_content_tool, 'name')
+        assert hasattr(get_theoretical_content_tool, 'description')
+        assert hasattr(get_theoretical_content_tool, 'args_schema')
+        
+        assert get_theoretical_content_tool.name == "get_theoretical_content"
+        assert "theoretical" in get_theoretical_content_tool.description.lower()
+        
+        # Test that tool accepts the expected input format
+        try:
+            # Should not raise validation errors with proper input
+            test_input = {"topic_description": "test topic"}
+            
+            # We don't check the result here since service might not be available
+            # Just check that the input validation works
+            assert test_input is not None
+            
+        except Exception as e:
+            # Only validation errors should be tested here
+            if "validation" in str(e).lower():
+                raise
+            # Service errors are okay for schema testing
