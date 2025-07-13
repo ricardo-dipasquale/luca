@@ -9,7 +9,7 @@ Install Conda
     - create luca environment
     - conda activate luca
 
-To start docker Neo4J:
+For Neo4J:
 
     - cd db
     - Create directories 
@@ -31,9 +31,10 @@ To start docker Neo4J:
     - Copy jar files (neo4j plugins) to plugins
         - neo4j-graph-data-science-2.13.2.jar
         - apoc-5.26.1-core.jar
+    - Unzip Neo4J Database backup (data and log folders)
 
 
-To host the whole llm-graph-builder solution (to build KG):
+To host the whole llm-graph-builder solution (to build KG) (only for KG editors):
 
     - Update npm, nodejs in your linux system
     - Install yarn:
@@ -84,6 +85,14 @@ To run some code:
         export LANGFUSE_INIT_USER_PASSWORD="xxx"
         export SALT="xxx" 
         export ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000" #Generate with openssl
-    - Install direnv
+    - Install Docker (linux or WSL on Windows)
+    - Install docker-compose (linux or WSL on Windows)
+    - In the root luca directory
+    - Install Python (linux or WSL)
+    - Install vscode (linux or WSL)
+    - Install direnv (linux or WSL)
     - Configure direnv extension in vscode.
+    - direnv allow in luca folder
+    - docker compose up
+    - Run unit tests (pytest ./test)
     
