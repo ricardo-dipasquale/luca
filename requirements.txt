@@ -6,6 +6,7 @@ uvicorn
 langchain
 langgraph
 langchain-openai
+langfuse
 python-dotenv
 uv
 pytest

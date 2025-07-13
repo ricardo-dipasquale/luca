@@ -12,8 +12,11 @@ from typing import Optional, Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseLanguageModel
 
-
 logger = logging.getLogger(__name__)
+
+# NOTE: Temporarily commenting out Pydantic fix due to compatibility issues
+# This may require updating LangChain/OpenAI packages in the project
+# For now, observability will gracefully fall back to unobserved LLMs
 
 
 class LLMConfigError(Exception):

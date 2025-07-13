@@ -5,7 +5,7 @@ from collections.abc import AsyncIterable
 from typing import Any, Dict, Optional, List
 from uuid import uuid4
 
-from tools import create_default_llm
+from tools.observability import create_observed_llm
 from .workflow import GapAnalysisWorkflow
 from .schemas import (
     StudentContext,
@@ -45,9 +45,9 @@ class GapAnalyzerAgent:
     def __init__(self):
         """Initialize the GapAnalyzer agent with workflow and LLM."""
         try:
-            self.llm = create_default_llm()
+            self.llm = create_observed_llm()
             self.workflow = GapAnalysisWorkflow()
-            logger.info("GapAnalyzer agent initialized successfully")
+            logger.info("GapAnalyzer agent initialized successfully with Langfuse observability")
         except Exception as e:
             logger.error(f"Failed to initialize GapAnalyzer agent: {e}")
             raise

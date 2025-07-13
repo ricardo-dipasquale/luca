@@ -19,6 +19,7 @@ from tools import get_kg_tools, create_default_llm
 from tools.kg_tools import (
     get_theoretical_content_tool
 )
+from tools.observability import create_observed_llm
 from .schemas import (
     WorkflowState,
     StudentContext,
@@ -50,7 +51,7 @@ class GapAnalysisWorkflow:
     
     def __init__(self):
         """Initialize the workflow with LLM and tools."""
-        self.llm = create_default_llm()
+        self.llm = create_observed_llm()
         self.memory = MemorySaver()
         self.graph = self._create_workflow()
     
@@ -280,7 +281,7 @@ Analizá esta pregunta e identificá los gaps de aprendizaje específicos.""")
                 conversation_history="\n".join(ctx.conversation_history) if ctx.conversation_history else "No hay historial previo"
             )
             
-            # Get LLM response
+            # Get LLM response (automatically observed via Langfuse callback)
             response = await self.llm.ainvoke(formatted_prompt)
             
             # Parse JSON response
@@ -383,6 +384,7 @@ Evalúa cada gap según los criterios pedagógicos.""")
                 gaps_json=json.dumps(gaps_for_eval, indent=2, ensure_ascii=False)
             )
             
+            # Get LLM response (automatically observed via Langfuse callback)
             response = await self.llm.ainvoke(formatted_prompt)
             
             # Parse evaluation results
@@ -495,6 +497,7 @@ Generá recomendaciones específicas para cada gap.""")
                 exercise_context=state.student_context.exercise_context
             )
             
+            # Get LLM response (automatically observed via Langfuse callback)
             response = await self.llm.ainvoke(formatted_prompt)
             
             # Parse recommendations

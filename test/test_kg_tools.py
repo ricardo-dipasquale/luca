@@ -449,7 +449,7 @@ class TestTheoreticalContentIntegration:
             pytest.skip(f"Missing required environment variables: {missing_vars}")
         
         # Test with a specific theoretical topic
-        topic = "subconjuntos del producto cartesiano en álgebra relacional"
+        topic = "operadores de álgebra relacional"
         
         try:
             result = get_theoretical_content_tool.invoke({"topic_description": topic})

@@ -72,7 +72,9 @@ def _get_fallback_theoretical_content(topic_description: str) -> str:
         Formatted string with theoretical content from LLM
     """
     import os
+    import threading
     from openai import OpenAI
+    from .observability import observe_openai_call
     
     try:
         # Get configuration from environment
@@ -96,15 +98,30 @@ Incluí:
 
 Mantené la respuesta en español argentino y sé específico pero breve."""
 
-        # Make API call
-        response = client.chat.completions.create(
+        # Prepare messages
+        messages = [
+            {"role": "system", "content": "Sos un tutor experto en Ingeniería. Respondé de manera concisa y clara."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        # Generate thread-safe session ID
+        thread_id = threading.current_thread().ident or 0
+        session_id = f"theoretical_content_{thread_id}"
+        
+        # Make observed API call
+        response = observe_openai_call(
+            client=client,
+            messages=messages,
             model=model,
-            messages=[
-                {"role": "system", "content": "Sos un tutor experto en Ingeniería. Respondé de manera concisa y clara."},
-                {"role": "user", "content": prompt}
-            ],
+            operation_name="theoretical_content_fallback",
+            session_id=session_id,
+            metadata={
+                "topic": topic_description,
+                "source": "fallback_llm",
+                "tool": "get_theoretical_content"
+            },
             temperature=temperature,
-            max_tokens=300  # Limit for conciseness
+            max_tokens=300
         )
         
         content = response.choices[0].message.content.strip()
