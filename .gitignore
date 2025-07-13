@@ -178,5 +178,7 @@ db/plugins/*
 key.txt
 .envrc
 db/datasources/*
+db/langfuse*/*
+
 
 .vscode/settings.json

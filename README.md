@@ -13,22 +13,25 @@ To start docker Neo4J:
 
     - cd db
     - Create directories 
-        - ./data
-        - ./plugins
-        - ./logs
-        - ./import
+        - data
+        - plugins
+        - logs
+        - import
+        - langfuse_clickhouse_data
+        - langfuse_clickhouse_logs
+        - langfuse_minio_data
+        - postgres
     - Don't do thin in prod
         sudo chmod -R a+rw ./data
         sudo chmod -R a+rw ./plugins
         sudo chmod -R a+rw ./logs
         sudo chmod -R a+rw ./import
+        sudo chmod -R a+rw ./langfuse_clickhouse_data
+        sudo chmod -R a+rw ./langfuse_clickhouse_logs
     - Copy jar files (neo4j plugins) to plugins
         - neo4j-graph-data-science-2.13.2.jar
         - apoc-5.26.1-core.jar
-    - If you have an env File:
-        docker run -d --env-file .env -u {$LINUX_USER} -p 7474:7474 -p 7687:7687 -v ./data:/data -v ./logs:/logs -v ./import:/var/lib/neo4j/import -v ./plugins:/plugins -e NEO4J_AUTH={$NEO4J_AUTH_ENV} -e NEO4J_apoc_export_file_enabled=true -e NEO4J_apoc_import_file_enabled=true -e NEO4J_apoc_import_file_use__neo4j__config=true --name neo4j neo4j:5.26.1
-    - If you don't:
-        docker run -d -p 7474:7474 -p 7687:7687 -v ./data:/data -v ./logs:/logs -v ./import:/var/lib/neo4j/import -v ./plugins:/plugins  -e NEO4J_AUTH="neo4jusr/neo4jpassword" -e NEO4J_apoc_export_file_enabled=true -e NEO4J_apoc_import_file_enabled=true -e NEO4J_apoc_import_file_use__neo4j__config=true -e NEO4JLABS_PLUGINS=\[\"apoc\",\"graph-data-science\"\] -e NEO4J_dbms_security_procedures_unrestricted=apoc.\\\* --name neo4j neo4j:5.26.1
+
 
 To host the whole llm-graph-builder solution (to build KG):
 
@@ -63,6 +66,24 @@ To run some code:
         export NEO4J_USER="xxx"
         export NEO4J_PASSWORD="xxx"
         export OPENAI_API_KEY="xxx"
+        export GRAPHBUILDER_URI="http://127.0.0.1:8000/chat_bot"
+        export POSTGRES_USER="postgres"
+        export POSTGRES_PASSWORD="xxxx"
+        export POSTGRES_DB="postgres"
+        export REDIS_AUTH="xxx"
+        export CLICKHOUSE_PASSWORD="xxx"
+        export NEXTAUTH_SECRET="xxx"
+        export LANGFUSE_INIT_ORG_ID="1"
+        export LANGFUSE_INIT_ORG_NAME="UCA"
+        export LANGFUSE_INIT_PROJECT_ID="1"
+        export LANGFUSE_INIT_PROJECT_NAME="LUCA"
+        export LANGFUSE_INIT_PROJECT_PUBLIC_KEY="xxx"
+        export LANGFUSE_INIT_PROJECT_SECRET_KEY="xxx"
+        export LANGFUSE_INIT_USER_EMAIL="xxx@uca.edu.ar"
+        export LANGFUSE_INIT_USER_NAME="admin"
+        export LANGFUSE_INIT_USER_PASSWORD="xxx"
+        export SALT="xxx" 
+        export ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000" #Generate with openssl
     - Install direnv
     - Configure direnv extension in vscode.
     
