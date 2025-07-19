@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "GapAnalyzer Local Runner",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "gapanalyzer.local_runner",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": ["No sé cómo hacer bien un left join que traiga de clientes todos los registros y que del lado de ventas traiga los que tienen nulo, así me quedo con los clientes que no compraron cosas, no?"]
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}
