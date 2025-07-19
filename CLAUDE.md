@@ -92,9 +92,11 @@ docker run -p 10000:10000 luca-agent
 - **`example.py`**: Usage examples and demonstrations
 
 ### tools/ - Centralized LangChain Tools
-- **`kg_tools.py`**: Knowledge graph interaction tools (search, get subjects, practices, etc.)
+- **`kg_tools.py`**: Knowledge graph interaction tools (search, get subjects, practices, theoretical content, etc.)
 - **`utility_tools.py`**: General utility tools (text processing, calculations, formatting)
 - **`registry.py`**: Tool registry and factory pattern for tool discovery and management
+- **`llm_config.py`**: Centralized LLM configuration and model management
+- **`observability.py`**: Langfuse integration for LLM call observability and tracing
 - **`__init__.py`**: Package exports and convenience functions
 
 ### Agent Architecture Pattern
@@ -139,6 +141,15 @@ DEFAULT_LLM_TEMPERATURE="0.1"        # Low temperature for consistent responses
 # Optional: Advanced LLM settings
 DEFAULT_LLM_MAX_TOKENS="4096"        # Maximum response tokens
 DEFAULT_LLM_TIMEOUT="60"             # Request timeout in seconds
+
+# LLM Graph Builder API (for theoretical content tool)
+GRAPHBUILDER_URI="http://127.0.0.1:8000/chat_bot"
+INTERNAL_NEO4J_URI="bolt://localhost:7687"
+
+# Langfuse Observability (Optional)
+LANGFUSE_HOST="http://localhost:3000"
+LANGFUSE_PUBLIC_KEY="pk-lf-your-public-key"
+LANGFUSE_SECRET_KEY="sk-lf-your-secret-key"
 ```
 
 ## Data Sources
@@ -153,7 +164,8 @@ Knowledge graph is populated from Excel files in `db/datasources/`:
 - **a2a-sdk**: Agent-to-Agent communication framework
 - **langchain/langgraph**: LLM orchestration and agent workflows
 - **neo4j**: Graph database driver
-- **openai**: Embeddings generation
+- **openai**: Embeddings generation and LLM API
+- **langfuse**: LLM observability and tracing
 - **uvicorn**: ASGI server for agent endpoints
 - **click**: CLI interface
 - **pandas**: Data processing for Excel files
@@ -167,11 +179,15 @@ from tools import (
     get_kg_tools, 
     get_utility_tools
 )
+from tools.observability import create_observed_llm  # LLM with Langfuse tracing
 from tools.registry import ToolRegistry
 from langgraph.prebuilt import create_react_agent
 
 # Create LLM using environment variables
 llm = create_default_llm()  # Uses DEFAULT_LLM_* env vars
+
+# Create LLM with automatic Langfuse observability (recommended)
+observed_llm = create_observed_llm()  # Includes automatic tracing
 
 # Get tools by category
 kg_tools = get_kg_tools()
@@ -182,8 +198,8 @@ registry = ToolRegistry()
 tutor_tools = registry.get_tools_for_agent("tutor")
 practice_tools = registry.get_tools_for_agent("practice_helper")
 
-# Create agent with centralized LLM and tools
-agent = create_react_agent(llm, tools=kg_tools + utility_tools)
+# Create agent with observed LLM and tools (recommended for production)
+agent = create_react_agent(observed_llm, tools=kg_tools + utility_tools)
 ```
 
 ### LLM Configuration Options
@@ -219,9 +235,64 @@ print(f"Using: {info['provider']} - {info['model']}")
 - **gpt-3.5-turbo**: Legacy efficient model for simple tasks
 
 ### Available Tool Categories
-- **Knowledge Graph Tools**: Search KG, get subjects/topics/practices, find related content
+- **Knowledge Graph Tools**: Search KG, get subjects/topics/practices, theoretical content, find related content
 - **Utility Tools**: Text processing, calculations, data formatting, validation
 - **Tool Registry**: Centralized discovery, categorization, and agent-specific tool selection
+
+### Observability and Monitoring
+
+The project includes comprehensive LLM observability using Langfuse:
+
+#### Automatic LLM Tracing
+```python
+from tools.observability import create_observed_llm
+
+# Create LLM with automatic tracing
+llm = create_observed_llm()
+
+# All LLM calls are automatically traced to Langfuse
+response = llm.invoke("Your prompt here")
+```
+
+#### Direct OpenAI Call Observability
+```python
+from tools.observability import observe_openai_call
+from openai import OpenAI
+
+client = OpenAI()
+messages = [{"role": "user", "content": "Hello"}]
+
+# Observed OpenAI call
+response = observe_openai_call(
+    client=client,
+    messages=messages,
+    model="gpt-4o-mini",
+    operation_name="test_call",
+    metadata={"purpose": "testing"}
+)
+```
+
+#### LangChain Integration
+All agents using `create_observed_llm()` automatically get:
+- Request/response tracing
+- Token usage tracking
+- Error monitoring
+- Session grouping
+- Performance metrics
+
+#### Langfuse Setup
+1. Configure environment variables in `.envrc`:
+   ```bash
+   LANGFUSE_HOST="http://localhost:3000"
+   LANGFUSE_PUBLIC_KEY="pk-lf-your-key"
+   LANGFUSE_SECRET_KEY="sk-lf-your-key"
+   ```
+
+2. Start Langfuse (via docker-compose or hosted service)
+
+3. Use `create_observed_llm()` instead of `create_default_llm()` in agents
+
+The system gracefully falls back to unobserved LLMs when Langfuse is not configured.
 
 ## Testing
 
