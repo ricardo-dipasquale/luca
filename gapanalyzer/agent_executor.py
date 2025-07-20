@@ -40,12 +40,16 @@ class GapAnalyzerAgentExecutor(AgentExecutor):
         if error:
             raise ServerError(error=InvalidParamsError())
 
+        # Extract user input - can be plain text or structured JSON
         query = context.get_user_input()
         task = context.current_task
         if not task:
             task = new_task(context.message) # type: ignore
             await event_queue.enqueue_event(task)
         updater = TaskUpdater(event_queue, task.id, task.contextId)
+        
+        # Log the type of input received for debugging
+        logger.info(f"Received input type: {type(query)}, content preview: {str(query)[:100]}...")
         try:
             async for item in self.agent.stream(query, task.contextId):
                 is_task_complete = item['is_task_complete']

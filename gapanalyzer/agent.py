@@ -56,46 +56,81 @@ class GapAnalyzerAgent:
         """
         Parse student input to extract context information.
         
-        Now expects a structured input with all context already provided.
-        The query should be a JSON string or the system should provide
-        structured context separately.
+        Accepts either:
+        1. A JSON string containing the complete StudentContext
+        2. A plain text question (creates default context)
+        3. A StudentContext object directly (for local usage)
+        
+        Args:
+            query: Either JSON string with StudentContext or plain text question
+            context_id: Conversation context ID for tracking
+            
+        Returns:
+            StudentContext object with all necessary information
         """
         try:
-            import json
+            # Handle direct StudentContext object (for local runner)
+            if isinstance(query, StudentContext):
+                logger.info("Received StudentContext object directly")
+                return query
             
-            # Try to parse as JSON first
-            try:
-                if isinstance(query, str) and query.startswith('{'):
-                    parsed_data = json.loads(query)
-                    return StudentContext(**parsed_data)
-            except json.JSONDecodeError:
-                pass
+            # Try to parse as JSON for A2A structured input
+            if isinstance(query, str):
+                query = query.strip()
+                
+                # Check if it's JSON structured input
+                if query.startswith('{') and query.endswith('}'):
+                    try:
+                        parsed_data = json.loads(query)
+                        logger.info("Parsed structured JSON input for StudentContext")
+                        
+                        # Validate required fields
+                        if 'student_question' not in parsed_data:
+                            logger.warning("JSON input missing required 'student_question' field")
+                            parsed_data['student_question'] = "Pregunta del estudiante no especificada"
+                        
+                        return StudentContext(**parsed_data)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse JSON input: {e}. Treating as plain text.")
+                    except Exception as e:
+                        logger.error(f"Error creating StudentContext from JSON: {e}")
+                        # Fall through to plain text handling
+                
+                # Handle plain text input - create default context
+                logger.info("Creating default context for plain text input")
+                return StudentContext(
+                    student_question=query,
+                    conversation_history=[],
+                    subject_name="Bases de Datos Relacionales",
+                    practice_context="Práctica: Ejercicios de bases de datos relacionales. Objetivo: Aplicar conceptos fundamentales de bases de datos.",
+                    exercise_context="Ejercicio: Consulta o problema relacionado con bases de datos",
+                    solution_context="Consultar material de práctica correspondiente",
+                    tips_context="Revisar conceptos teóricos relevantes"
+                )
             
-            # If not JSON, create a basic context with defaults
-            # In production, this should be enhanced to accept structured input
-            logger.warning("Received unstructured input, using defaults")
-            
+            # Handle unexpected input types
+            logger.error(f"Unexpected input type: {type(query)}. Converting to string.")
             return StudentContext(
-                student_question=query,
+                student_question=str(query),
                 conversation_history=[],
                 subject_name="Bases de Datos Relacionales",
-                practice_context="Práctica: 1 - Ejercicios básicos de bases de datos",
-                exercise_context="Ejercicio: 1 - Consulta básica",
+                practice_context="Práctica: Ejercicios de bases de datos relacionales",
+                exercise_context="Ejercicio: Problema no especificado",
                 solution_context="Consultar material de práctica",
                 tips_context="Revisar conceptos teóricos"
             )
             
         except Exception as e:
-            logger.error(f"Error parsing student input: {e}")
-            # Return default context
+            logger.error(f"Critical error parsing student input: {e}")
+            # Return safe default context
             return StudentContext(
-                student_question=query,
+                student_question="Error al procesar la entrada del estudiante",
                 conversation_history=[],
-                subject_name="Bases de Datos Relacionales", 
-                practice_context="Práctica: 1 - Ejercicios básicos",
-                exercise_context="Ejercicio: 1 - Consulta básica",
-                solution_context="Consultar material de práctica",
-                tips_context="Revisar conceptos teóricos"
+                subject_name="Bases de Datos Relacionales",
+                practice_context="Práctica: Error en el procesamiento",
+                exercise_context="Ejercicio: Error en el procesamiento",
+                solution_context="Error al cargar contexto",
+                tips_context="Contactar soporte técnico"
             )
 
     def format_gap_analysis_response(self, result: GapAnalysisResult) -> str:
@@ -138,10 +173,11 @@ class GapAnalyzerAgent:
                     if gap.affected_concepts:
                         response_parts.append(f"   Conceptos afectados: {', '.join(gap.affected_concepts)}")
                     
-                    if pg.recommended_actions:
-                        response_parts.append("   **Acciones recomendadas:**")
-                        for action in pg.recommended_actions:
-                            response_parts.append(f"      • {action}")
+                    # Individual gap recommendations handled by separate agent
+                    # if pg.recommended_actions:
+                    #     response_parts.append("   **Acciones recomendadas:**")
+                    #     for action in pg.recommended_actions:
+                    #         response_parts.append(f"      • {action}")
                     
                     response_parts.append("")
             else:
@@ -167,16 +203,16 @@ class GapAnalyzerAgent:
             logger.error(f"Error formatting response: {e}")
             return f"Error al formatear la respuesta del análisis: {str(e)}"
 
-    async def stream(self, query: str, context_id: str) -> AsyncIterable[Dict[str, Any]]:
+    async def stream(self, query: str | StudentContext, context_id: str) -> AsyncIterable[Dict[str, Any]]:
         """
         Stream the gap analysis process to provide real-time feedback.
         
         Args:
-            query: Student's question
+            query: Either a JSON string with StudentContext, plain text question, or StudentContext object
             context_id: Conversation context ID
             
         Yields:
-            Progress updates during the analysis
+            Progress updates during the analysis with structured responses
         """
         try:
             # Step 1: Parse input and show progress

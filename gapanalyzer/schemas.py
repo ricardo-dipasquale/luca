@@ -157,7 +157,7 @@ class PrioritizedGap(BaseModel):
     gap: IdentifiedGap = Field(description="The identified gap")
     evaluation: GapEvaluation = Field(description="Evaluation of the gap")
     rank: int = Field(description="Priority ranking (1 = highest priority)")
-    recommended_actions: List[str] = Field(description="Specific actions to address this gap")
+    recommended_actions: List[str] = Field(default=[], description="Specific actions to address this gap")
     
     class Config:
         json_schema_extra = {

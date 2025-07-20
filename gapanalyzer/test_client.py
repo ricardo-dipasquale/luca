@@ -111,11 +111,25 @@ async def main() -> None:
         )
         logger.info('A2AClient initialized.')
 
+        # Example with structured StudentContext for gap analysis
+        student_context_json = '''{
+            "student_question": "No entiendo por qué mi consulta SQL con LEFT JOIN no me trae los clientes que no han comprado nada",
+            "conversation_history": [
+                "Estoy trabajando en el ejercicio 1.d de la práctica 2",
+                "Mi consulta devuelve filas duplicadas y no los resultados esperados"
+            ],
+            "subject_name": "Bases de Datos Relacionales",
+            "practice_context": "Práctica: 2 - Algebra Relacional: Resolución de ejercicios en Algebra Relacional. Existen preguntas conceptuales que están relacionados. Objetivo: Que los alumnos sean capaces de resolver situaciones problemáticas con álgebra relacional utilizando los preceptos dados en clase. Temas cubiertos: - Modelo Relacional - Algebra relacional: Operaciones, Práctica - Lenguajes relacionalmente completos - Consultas Algebra relacional",
+            "exercise_context": "Ejercicio: 1.d - Nombre de los clientes que no han comprado nada. Enunciado: Dado el siguiente esquema relacional de base de datos, resolver en álgebra relacional. Las claves de denotan con (clave): - CLIENTES (Nº Cliente (clave), Nombre, Dirección, Teléfono, Ciudad) - PRODUCTO(Cod Producto (clave), Descripción, Precio) - VENTA(Cod Producto, Nº Cliente, Cantidad, Id Venta (clave))",
+            "solution_context": "Solución esperada: [π_{Nombre} (π_{Nº Cliente,Nombre} (CLIENTES) − π_{Nº Cliente,Nombre} (CLIENTES ⋈_{CLIENTES.Nº Cliente=VENTA.Nº Cliente} VENTA))]",
+            "tips_context": "Tips nivel práctica: - Pensar bien qué operación (o juego de operaciones) es central en la resolución del ejercicio. - No confundir la semántica de las operaciones: Por ejemplo, si un problema tiene en su esencia la resolución de una diferencia de conjuntos, se espera que que el alumno utilice la diferencia de conjuntos y no otros caminos como por ejemplo la selección sobre un subconjunto del producto cartesiano, la selección de los outer join nulos, etc. Tips nivel ejercicio: - Tener en cuenta que puede haber varias respuestas similares y están bien - Los alumnos tienden a simplificar y a hacer una diferencia de conjuntos utilizando únicamente la proyección por el nombre del cliente. Esto presenta un problema porque en ningún lugar dijimos que el Nombre es único."
+        }'''
+
         send_message_payload: dict[str, Any] = {
             'message': {
                 'role': 'user',
                 'parts': [
-                    {'kind': 'text', 'text': 'how much is 10 USD in INR?'}
+                    {'kind': 'text', 'text': student_context_json}
                 ],
                 'messageId': uuid4().hex,
             },

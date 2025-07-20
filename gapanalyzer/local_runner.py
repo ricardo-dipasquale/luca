@@ -83,6 +83,7 @@ class LocalGapAnalyzerRunner:
             - Tener en cuenta que los alumnos pueden llegar al mismo resultado descomponiendo las partes, es decir ir haciendo asignaciones a Relaciones parciales y expresando la solución en función de las Relaciones parciales, una vez que lleguen a un buen resultado así, es conveniente sugerirles como práctica adicional que intenten consolidar una única sentencia de Algebra Relacional para que vean cómo quedaría.
             - En una suceción de operaciones de junta, cuando en alguna de las relaciones se aplica una selección, preferimos que la selección se aplique al conjunto de las juntas completo, ya que luego cuando los alumnos representan en SQL tienden a hacer sub-queries dentro de las juntas, lo que puede ser contraproducente. Igualmente damos por válida en Algebra Relacional cualquiera de las dos maneras.
             - Desaconsejamos el uso de la junta natural (NATURAL JOIN) por lo que expresaremos todas las recomendaciones y soluciones especificando el criterio de junta. El motivo para desaconsejar el uso de Natural Join es el de mantenibilidad de los sistemas: Hoy funciona, pero no sabemos si mañana se introducen campos nuevos en las relaciones, lo que destruiría el buen funcionamiento de las expresiones AR/SQL)
+            - Permitimos el abuso de notación cruzada entre SQL y Álgebra Relacional, no debemos marcar un gap de conocimiento si el alumno se refiere a operaciones de álgebra relacional con su equivalente en SQL o vice versa.
             
             Tips nivel ejercicio:
             - Tener en cuenta que puede haber varias respuestas similares y están bien
@@ -148,7 +149,7 @@ class LocalGapAnalyzerRunner:
             print("\n=== PROGRESO DEL ANÁLISIS ===")
             final_result = None
             
-            async for chunk in self.agent.stream(context.student_question, self.context_id):
+            async for chunk in self.agent.stream(context, self.context_id):
                 if chunk.get('is_task_complete', False):
                     final_result = chunk
                     print(f"\n✅ {chunk.get('content', 'Análisis completado')}")
@@ -189,7 +190,40 @@ class LocalGapAnalyzerRunner:
             print(f"   • Gaps encontrados: {len(analysis.identified_gaps)}")
             print(f"   • Confianza: {analysis.confidence_score:.1%}")
             print(f"   • Iteraciones de feedback: {getattr(analysis, 'feedback_iterations', 0)}")
-    
+            print("-------------------------")
+            print(f"\n Summary: {structured.detailed_analysis.summary}")
+            if structured.detailed_analysis.educational_context:
+                print(f"\n Contexto Educativo/Teórico: {structured.detailed_analysis.educational_context}")
+            if structured.detailed_analysis.identified_gaps:
+                print("\nGaps identificados:")
+                for gap in structured.detailed_analysis.identified_gaps:
+                    print(f"  - {gap.title}: {gap.description}")
+                    print(f"    Categoría: {gap.category.value} | Severidad: {gap.severity.value}")
+                    if gap.evidence:
+                        print(f"    Evidencia: {gap.evidence}")
+                    if gap.affected_concepts:
+                        print(f"    Conceptos afectados: {', '.join(gap.affected_concepts)}")
+                    print()
+
+            if structured.detailed_analysis.prioritized_gaps:
+                print("\nGaps priorizados:")
+                for pg in structured.detailed_analysis.prioritized_gaps:
+                    gap = pg.gap
+                    eval = pg.evaluation
+                    
+                    print(f"  - {gap.title}: {gap.description}")
+                    print(f"    Categoría: {gap.category.value} | Severidad: {gap.severity.value} | Rank: {pg.rank}")
+                    print(f"    Prioridad: {eval.priority_score:.2f} | Relevancia pedagógica: {eval.pedagogical_relevance:.2f}")
+                    if gap.evidence:
+                        print(f"    Evidencia: {gap.evidence}")
+                    if gap.affected_concepts:
+                        print(f"    Conceptos afectados: {', '.join(gap.affected_concepts)}")
+                    print()
+            if hasattr(structured.detailed_analysis, 'recommendations') and structured.detailed_analysis.recommendations:
+                print("\nRecomendaciones generales:")
+                for action in structured.detailed_analysis.recommendations:
+                    print(f"  - {action}")
+            
     async def interactive_mode(self):
         """Run the agent in interactive mode for continuous testing."""
         print("\n🔍 MODO INTERACTIVO - GapAnalyzer Local Runner")

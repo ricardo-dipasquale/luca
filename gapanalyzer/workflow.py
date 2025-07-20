@@ -164,7 +164,7 @@ class GapAnalysisWorkflow:
             
             # Validate required context fields
             context_complete = True
-            needs_theory = False
+            needs_theory = True
             
             if not ctx.practice_context or len(ctx.practice_context) < 20:
                 context_complete = False
@@ -175,12 +175,12 @@ class GapAnalysisWorkflow:
                 logger.warning("Exercise context appears incomplete")
             
             # Check if theoretical context might be needed based on question complexity
-            question_lower = ctx.student_question.lower()
-            theory_keywords = ['concepto', 'teoria', 'definicion', 'por que', 'como funciona', 'diferencia', 'que es']
+            #question_lower = ctx.student_question.lower()
+            #theory_keywords = ['concepto', 'teoria', 'definicion', 'por que', 'como funciona', 'diferencia', 'que es']
             
-            if any(keyword in question_lower for keyword in theory_keywords):
-                needs_theory = True
-                logger.info("Question suggests theoretical context might be beneficial")
+            #if any(keyword in question_lower for keyword in theory_keywords):
+            #    needs_theory = True
+            #    logger.info("Question suggests theoretical context might be beneficial")
             
             # Create educational context
             educational_context = EducationalContext(
@@ -423,13 +423,13 @@ Evalúa cada gap según los criterios pedagógicos.""")
     
     async def _prioritize_gaps(self, state: WorkflowState) -> WorkflowState:
         """
-        Node 4: Prioritize gaps by pedagogical importance and generate recommendations.
+        Node 4: Prioritize gaps by pedagogical importance.
         
-        This node combines the gaps with their evaluations, ranks them by priority,
-        and generates specific recommendations for addressing each gap.
+        This node combines the gaps with their evaluations and ranks them by priority.
+        Recommendation generation is handled by a separate agent.
         """
         try:
-            logger.info("Prioritizing gaps and generating recommendations")
+            logger.info("Prioritizing gaps by pedagogical importance")
             
             # Create gap-evaluation pairs
             gap_eval_pairs = []
@@ -445,103 +445,19 @@ Evalúa cada gap según los criterios pedagógicos.""")
             # Sort by priority score (highest first)
             gap_eval_pairs.sort(key=lambda x: x[1].priority_score, reverse=True)
             
-            # Generate recommendations for each gap
-            recommendations_prompt = ChatPromptTemplate.from_messages([
-                ("system", """Sos un tutor experto generando recomendaciones específicas para abordar gaps de aprendizaje.
-
-Para cada gap, generá 2-4 acciones específicas y prácticas que el estudiante puede tomar para abordar el gap.
-
-Las recomendaciones deben ser:
-- Específicas y accionables
-- Apropiadas para el nivel del curso
-- Secuenciales (de básico a avanzado)
-- Centradas en el contexto actual
-- En español argentino
-
-Respondé en formato JSON:
-{{
-  "recommendations": [
-    {{
-      "gap_id": "gap_id_from_input",
-      "actions": ["acción 1", "acción 2", "acción 3"]
-    }}
-  ]
-}}"""),
-                ("human", """GAPS PRIORIZADOS (en orden de importancia):
-{prioritized_gaps_json}
-
-CONTEXTO: {subject_name}
-{practice_context}
-{exercise_context}
-
-Generá recomendaciones específicas para cada gap.""")
-            ])
+            # Create PrioritizedGap objects without recommendations
+            prioritized_gaps = []
+            for i, (gap, evaluation) in enumerate(gap_eval_pairs):
+                prioritized_gap = PrioritizedGap(
+                    gap=gap,
+                    evaluation=evaluation,
+                    rank=i + 1,
+                    recommended_actions=[]  # Empty - handled by separate recommendation agent
+                )
+                prioritized_gaps.append(prioritized_gap)
             
-            # Prepare gaps for recommendation generation
-            gaps_for_recommendations = []
-            for gap, evaluation in gap_eval_pairs:
-                gaps_for_recommendations.append({
-                    "gap_id": gap.gap_id,
-                    "title": gap.title,
-                    "description": gap.description,
-                    "category": gap.category.value,
-                    "severity": gap.severity.value,
-                    "priority_score": evaluation.priority_score,
-                    "evaluation_reasoning": evaluation.evaluation_reasoning
-                })
-            
-            formatted_prompt = recommendations_prompt.format_messages(
-                prioritized_gaps_json=json.dumps(gaps_for_recommendations, indent=2, ensure_ascii=False),
-                subject_name=state.student_context.subject_name,
-                practice_context=state.student_context.practice_context,
-                exercise_context=state.student_context.exercise_context
-            )
-            
-            # Get LLM response (automatically observed via Langfuse callback)
-            response = await self.llm.ainvoke(formatted_prompt)
-            
-            # Parse recommendations
-            try:
-                response_text = response.content
-                json_start = response_text.find('{')
-                json_end = response_text.rfind('}') + 1
-                json_content = response_text[json_start:json_end]
-                
-                rec_data = json.loads(json_content)
-                
-                # Create PrioritizedGap objects
-                prioritized_gaps = []
-                for i, (gap, evaluation) in enumerate(gap_eval_pairs):
-                    # Find recommendations for this gap
-                    gap_recommendations = next(
-                        (rec for rec in rec_data.get("recommendations", []) if rec.get("gap_id") == gap.gap_id),
-                        {"actions": ["Consultar material de estudio", "Practicar ejercicios similares"]}
-                    )
-                    
-                    prioritized_gap = PrioritizedGap(
-                        gap=gap,
-                        evaluation=evaluation,
-                        rank=i + 1,
-                        recommended_actions=gap_recommendations.get("actions", [])
-                    )
-                    prioritized_gaps.append(prioritized_gap)
-                
-                state.prioritized_gaps = prioritized_gaps
-                logger.info(f"Prioritized {len(prioritized_gaps)} gaps with recommendations")
-                
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse recommendations JSON: {e}")
-                # Create prioritized gaps without detailed recommendations
-                prioritized_gaps = []
-                for i, (gap, evaluation) in enumerate(gap_eval_pairs):
-                    prioritized_gap = PrioritizedGap(
-                        gap=gap,
-                        evaluation=evaluation,
-                        rank=i + 1,
-                        recommended_actions=["Revisar material teórico", "Consultar con el profesor"]
-                    )
-                    prioritized_gaps.append(prioritized_gap)
-                state.prioritized_gaps = prioritized_gaps
+            state.prioritized_gaps = prioritized_gaps
+            logger.info(f"Prioritized {len(prioritized_gaps)} gaps by pedagogical importance")
                 
         except Exception as e:
             logger.error(f"Error in gap prioritization: {e}")
@@ -573,7 +489,7 @@ Generá recomendaciones específicas para cada gap.""")
                 confidence_factors.append(0.4)
             
             # Factor 2: Quality of educational context
-            if state.educational_context and state.educational_context.exercise_statement:
+            if state.educational_context: #and state.educational_context.exercise_statement:
                 confidence_factors.append(0.9)
             else:
                 confidence_factors.append(0.6)
@@ -607,29 +523,12 @@ Generá recomendaciones específicas para cada gap.""")
             
             summary = " ".join(summary_parts)
             
-            # Generate general recommendations
-            general_recommendations = []
-            if state.prioritized_gaps:
-                # Take top recommendations from highest priority gaps
-                for pg in state.prioritized_gaps[:2]:  # Top 2 gaps
-                    if pg.recommended_actions:
-                        general_recommendations.extend(pg.recommended_actions[:2])  # Top 2 actions each
-                
-                # Remove duplicates while preserving order
-                seen = set()
-                unique_recommendations = []
-                for rec in general_recommendations:
-                    if rec not in seen:
-                        seen.add(rec)
-                        unique_recommendations.append(rec)
-                
-                general_recommendations = unique_recommendations[:5]  # Limit to 5
-            else:
-                general_recommendations = [
-                    "Revisar los conceptos teóricos relacionados con el ejercicio",
-                    "Consultar los tips proporcionados por el profesor",
-                    "Practicar con ejercicios similares de menor complejidad"
-                ]
+            # Generate basic recommendations (detailed recommendations handled by separate agent)
+            general_recommendations = [
+                "Revisar los conceptos teóricos relacionados con el ejercicio",
+                "Consultar los tips proporcionados por el profesor",
+                "Practicar con ejercicios similares de menor complejidad"
+            ]
             
             # Create final result
             final_result = GapAnalysisResult(
@@ -773,7 +672,7 @@ Generá recomendaciones específicas para cada gap.""")
             # Run workflow
             final_state = await self.graph.ainvoke(initial_state, config)
             
-            return final_state.final_result
+            return final_state["final_result"]
             
         except Exception as e:
             logger.error(f"Workflow execution failed: {e}")
