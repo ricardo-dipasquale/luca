@@ -132,7 +132,7 @@ def crear_kg(
             props = {col.lower().replace(" ", "_"): row[col] for col in df_pcab.columns}
             session.run("CREATE (p:Practica $props)", {"props": props})
             # Teoría Relacionada
-            temas_rel = ast.literal_eval(row["Teoría Relacionada"])
+            temas_rel = ast.literal_eval(row["Teoria Relacionada"])
             for tema in temas_rel:
                 session.run(
                     "MATCH (p:Practica {numeropractica: $num}), (t:Tema {descripcion: $tema}) "
@@ -182,9 +182,9 @@ def crear_kg(
                             {"texto": tip}
                         )
                         session.run(
-                            "MATCH (s:SeccionPractica {numero: $sec}), (t:Tip {texto: $texto}) "
+                            "MATCH (s:SeccionPractica {numero: $sec})-[]-(p:Practica {numeropractica: $num}), (t:Tip {texto: $texto}) "
                             "MERGE (s)-[:HAS_TIP]->(t)",
-                            {"sec": str(row["Seccion"]), "texto": tip}
+                            {"sec": str(row["Seccion"]), "num": int(row["NumeroPractica"]), "texto": tip}
                         )
             else:
                 # Ejercicio
@@ -193,9 +193,9 @@ def crear_kg(
                     {"ej": str(row["Ejercicio"]), "enc": row["Enunciado"]}
                 )
                 session.run(
-                    "MATCH (s:SeccionPractica {numero: $sec}), (e:Ejercicio {numero: $ej}) "
+                    "MATCH (s:SeccionPractica {numero: $sec})-[]-(p:Practica {numeropractica: $num}), (e:Ejercicio {numero: $ej, enunciado: $enc}) "
                     "MERGE (s)-[:HAS_EJERCICIO]->(e)",
-                    {"sec": str(row["Seccion"]), "ej": str(row["Ejercicio"])}
+                    {"sec": str(row["Seccion"]), "num": int(row["NumeroPractica"]), "ej": str(row["Ejercicio"]), "enc": row["Enunciado"]}
                 )
                 # Respuestas
                 try:
@@ -208,9 +208,9 @@ def crear_kg(
                         {"texto": resp}
                     )
                     session.run(
-                        "MATCH (e:Ejercicio {numero: $ej}), (r:Respuesta {texto: $texto}) "
+                        "MATCH (e:Ejercicio {numero: $ej})-[]-(s:SeccionPractica {numero: $sec})-[]-(p:Practica {numeropractica: $num}), (r:Respuesta {texto: $texto}) "
                         "MERGE (e)-[:HAS_RESPUESTA]->(r)",
-                        {"ej": str(row["Ejercicio"]), "texto": resp}
+                        {"ej": str(row["Ejercicio"]), "sec": str(row["Seccion"]), "num": int(row["NumeroPractica"]), "texto": resp}
                     )
                 # Tips nivel ejercicio
                 tips_ej = row.get("Tips Nivel Ejercicio")
@@ -227,9 +227,9 @@ def crear_kg(
                             {"texto": tip}
                         )
                         session.run(
-                            "MATCH (e:Ejercicio {numero: $ej}), (t:Tip {texto: $texto}) "
+                            "MATCH (e:Ejercicio {numero: $ej})-[]-(s:SeccionPractica {numero: $sec})-[]-(p:Practica {numeropractica: $num}), (t:Tip {texto: $texto}) "
                             "MERGE (e)-[:HAS_TIP]->(t)",
-                            {"ej": str(row["Ejercicio"]), "texto": tip}
+                            {"ej": str(row["Ejercicio"]), "sec": str(row["Seccion"]), "num": int(row["NumeroPractica"]), "texto": tip}
                         )
 
         # 4. Crear embeddings y vector index
@@ -284,7 +284,7 @@ def create_embeddings(session, cache_path):
 if __name__ == "__main__":
     crear_kg(
         neo4j_uri=os.environ["NEO4J_URI"],
-        neo4j_user=os.environ["NEO4J_USER"],
+        neo4j_user=os.environ["NEO4J_USERNAME"],
         neo4j_password=os.environ["NEO4J_PASSWORD"],
         programa_path="./db/datasources/Programa.xlsx",
         practicas_path="./db/datasources/Prácticas Bases de Datos.xlsx"

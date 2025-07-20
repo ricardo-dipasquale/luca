@@ -229,12 +229,13 @@ ITERACIÓN: {iteration_info}
 
 INSTRUCCIONES:
 1. Analizá la pregunta del estudiante en el contexto del material educativo
-2. Identificá gaps específicos de aprendizaje (NO genéricos)
-3. Clasificá cada gap por categoría: conceptual, procedural, theoretical, practical, prerequisite, communication
-4. Asigná severidad: critical, high, medium, low
-5. Proporcioná evidencia específica de la pregunta que indica cada gap
-6. Identificá conceptos afectados y conocimiento prerequisito faltante
-7. Usá español argentino en toda la respuesta
+2. Identificá gaps específicos de aprendizaje (NO genéricos) que apunten a la solución de la práctica prestando atención al material provisto.
+3. No identifiques gaps que contradigan los tips provistos que son los lineamientos del profesor (tips).
+4. Clasificá cada gap por categoría: conceptual, procedural, theoretical, practical, prerequisite, communication
+5. Asigná severidad: critical, high, medium, low
+6. Proporcioná evidencia específica de la pregunta que indica cada gap
+7. Identificá conceptos afectados y conocimiento prerequisito faltante
+8. Usá español argentino en toda la respuesta
 
 Respondé en formato JSON con esta estructura:
 {{
@@ -334,7 +335,7 @@ Analizá esta pregunta e identificá los gaps de aprendizaje específicos.""")
             logger.info("Evaluating gap relevance and importance")
             
             evaluation_prompt = ChatPromptTemplate.from_messages([
-                ("system", """Sos un pedagogo experto evaluando la relevancia e importancia de gaps de aprendizaje identificados.
+                ("system", """Sos un pedagogo experto evaluando la relevancia e importancia de gaps de aprendizaje identificados en materias de la Facultad de Ingeniería en el ámbito de sus prácticas.
 
 Para cada gap, evaluá:
 1. RELEVANCIA PEDAGÓGICA (0-1): ¿Qué tan relevante es este gap para los objetivos actuales de aprendizaje?

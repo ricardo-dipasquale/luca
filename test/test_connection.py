@@ -31,7 +31,7 @@ class TestKGConnectionInitialization:
         """Test initialization using environment variables."""
         with patch.dict(os.environ, {
             'NEO4J_URI': 'bolt://env:7687',
-            'NEO4J_USER': 'env_user',
+            'NEO4J_USERNAME': 'env_user',
             'NEO4J_PASSWORD': 'env_password'
         }):
             conn = KGConnection()
@@ -54,7 +54,7 @@ class TestKGConnectionInitialization:
             with pytest.raises(KGConnectionError) as excinfo:
                 KGConnection()
             
-            assert "NEO4J_USER" in str(excinfo.value)
+            assert "NEO4J_USERNAME" in str(excinfo.value)
     
     def test_init_missing_password_raises_error(self):
         """Test that missing password raises KGConnectionError."""
@@ -138,7 +138,7 @@ class TestKGConnectionFunctionality:
     def test_context_manager_usage(self):
         """Test KGConnection as context manager."""
         # Skip if environment variables are not set
-        required_vars = ['NEO4J_URI', 'NEO4J_USER', 'NEO4J_PASSWORD']
+        required_vars = ['NEO4J_URI', 'NEO4J_USERNAME', 'NEO4J_PASSWORD']
         missing_vars = [var for var in required_vars if not os.getenv(var)]
         if missing_vars:
             pytest.skip(f"Missing environment variables: {', '.join(missing_vars)}")

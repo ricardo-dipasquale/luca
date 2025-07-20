@@ -20,7 +20,7 @@ class KGConnection:
     Knowledge Graph connection manager for Neo4j.
     
     Handles Neo4j driver creation and session management using environment variables.
-    Uses NEO4J_URI, NEO4J_USER, and NEO4J_PASSWORD from .envrc or environment.
+    Uses NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD from .envrc or environment.
     """
     
     def __init__(self, 
@@ -32,17 +32,17 @@ class KGConnection:
         
         Args:
             uri: Neo4j URI (defaults to NEO4J_URI env var)
-            user: Neo4j username (defaults to NEO4J_USER env var)
+            user: Neo4j username (defaults to NEO4J_USERNAME env var)
             password: Neo4j password (defaults to NEO4J_PASSWORD env var)
         """
         self.uri = uri or os.getenv('NEO4J_URI')
-        self.user = user or os.getenv('NEO4J_USER')
+        self.user = user or os.getenv('NEO4J_USERNAME')
         self.password = password or os.getenv('NEO4J_PASSWORD')
         
         if not all([self.uri, self.user, self.password]):
             missing = [var for var, val in [
                 ('NEO4J_URI', self.uri),
-                ('NEO4J_USER', self.user), 
+                ('NEO4J_USERNAME', self.user), 
                 ('NEO4J_PASSWORD', self.password)
             ] if not val]
             raise KGConnectionError(

@@ -64,7 +64,7 @@ To run some code:
 
     - Create a .envrc
         export NEO4J_URI="xxx"
-        export NEO4J_USER="xxx"
+        export NEO4J_USERNAME="xxx"
         export NEO4J_PASSWORD="xxx"
         export OPENAI_API_KEY="xxx"
         export GRAPHBUILDER_URI="http://127.0.0.1:8000/chat_bot"
@@ -96,3 +96,5 @@ To run some code:
     - docker compose up
     - Run unit tests (pytest ./test)
     
+To Enable Neo4J MCP Cypher Service:
+    - 

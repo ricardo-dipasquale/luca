@@ -442,7 +442,7 @@ class TestTheoreticalContentIntegration:
         import os
         
         # Check if required environment variables are set
-        required_env_vars = ['GRAPHBUILDER_URI', 'NEO4J_URI', 'NEO4J_USER', 'NEO4J_PASSWORD']
+        required_env_vars = ['GRAPHBUILDER_URI', 'NEO4J_URI', 'NEO4J_USERNAME', 'NEO4J_PASSWORD']
         missing_vars = [var for var in required_env_vars if not os.getenv(var)]
         
         if missing_vars:

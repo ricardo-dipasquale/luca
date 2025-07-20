@@ -62,7 +62,7 @@ services:
       - "10000:10000"
     environment:
       - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USER=neo4j
+      - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DEFAULT_LLM_MODEL=gpt-4o-mini
@@ -380,7 +380,7 @@ data:
   DEFAULT_LLM_PROVIDER: "openai"
   DEFAULT_LLM_TEMPERATURE: "0.1"
   NEO4J_URI: "bolt://neo4j-service:7687"
-  NEO4J_USER: "neo4j"
+  NEO4J_USERNAME: "neo4j"
   LANGFUSE_HOST: "http://langfuse-service:3000"
 ```
 
@@ -713,7 +713,7 @@ spec:
 
 # === REQUIRED CONFIGURATION ===
 NEO4J_URI=bolt://neo4j:7687
-NEO4J_USER=neo4j
+NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=CHANGE_ME
 
 OPENAI_API_KEY=sk-CHANGE_ME

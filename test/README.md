@@ -16,7 +16,7 @@ All tests are designed to be **read-only** and will not modify the Neo4j databas
 Ensure you have the required environment variables set (via `.envrc` or direct export):
 ```bash
 export NEO4J_URI="bolt://localhost:7687"
-export NEO4J_USER="neo4j"
+export NEO4J_USERNAME="neo4j"
 export NEO4J_PASSWORD="your_password"
 ```
 
@@ -120,7 +120,7 @@ Ensure NEO4J_* environment variables are properly set:
 ```bash
 # Check environment variables
 echo $NEO4J_URI
-echo $NEO4J_USER
+echo $NEO4J_USERNAME
 echo $NEO4J_PASSWORD
 ```
 

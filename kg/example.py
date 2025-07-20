@@ -7,7 +7,7 @@ classes to interact with the Luca knowledge graph.
 
 Prerequisites:
 - Neo4j database running with knowledge graph data
-- Environment variables set: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+- Environment variables set: NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 """
 
 import logging

@@ -33,7 +33,7 @@ def kg_connection() -> Generator[KGConnection, None, None]:
         pytest.skip: If connection cannot be established or env vars missing
     """
     # Check if required environment variables are present
-    required_vars = ['NEO4J_URI', 'NEO4J_USER', 'NEO4J_PASSWORD']
+    required_vars = ['NEO4J_URI', 'NEO4J_USERNAME', 'NEO4J_PASSWORD']
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
     if missing_vars:

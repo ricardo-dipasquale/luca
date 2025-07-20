@@ -197,6 +197,21 @@ class TopicQuery(BaseModel):
     )
 
 
+class PracticeTipsQuery(BaseModel):
+    """Input schema for practice tips queries."""
+    practice_number: int = Field(
+        description="Number of the practice session (e.g., 1, 2, 3)"
+    )
+    section_number: Optional[str] = Field(
+        default=None,
+        description="Section number (string, e.g., '1', '2') - optional"
+    )
+    exercise_number: Optional[str] = Field(
+        default=None,
+        description="Exercise number (string, e.g., 'a', 'b', 'd') - optional"
+    )
+
+
 @tool("get_subjects", args_schema=SubjectQuery)
 def get_subjects_tool(subject_name: Optional[str] = None) -> str:
     """
@@ -301,28 +316,44 @@ def get_practice_exercises_tool(practice_number: int) -> str:
         return f"Error retrieving practice exercises: {str(e)}"
 
 
-@tool("get_practice_tips", args_schema=PracticeQuery)
-def get_practice_tips_tool(practice_number: int) -> str:
+@tool("get_practice_tips", args_schema=PracticeTipsQuery)
+def get_practice_tips_tool(practice_number: int, section_number: Optional[str] = None, exercise_number: Optional[str] = None) -> str:
     """
-    Get tips and hints for a specific practice session.
+    Get tips and hints for a specific practice, section, and/or exercise.
     
-    Returns tips at practice, section, and exercise levels to help students
-    with the given practice.
+    Returns tips connected to:
+    - The specified practice (always included)
+    - The specified section (if section_number provided)
+    - The specified exercise (if both section_number and exercise_number provided)
     
     Args:
         practice_number: Number of the practice session
+        section_number: Section number (string, e.g., "1", "2") - optional
+        exercise_number: Exercise number (string, e.g., "a", "b", "d") - optional
         
     Returns:
-        Formatted string with practice tips
+        Formatted string with filtered practice tips
     """
     try:
         kg = get_kg_interface()
-        tips = kg.get_practice_tips(practice_number)
+        tips = kg.get_practice_tips(practice_number, section_number, exercise_number)
         
         if not tips:
-            return f"No tips found for practice {practice_number}."
+            context_desc = f"practice {practice_number}"
+            if section_number:
+                context_desc += f", section {section_number}"
+            if exercise_number:
+                context_desc += f", exercise {exercise_number}"
+            return f"No tips found for {context_desc}."
         
-        result = [f"Practice {practice_number} - Tips:"]
+        # Build context description
+        context_desc = f"Practice {practice_number}"
+        if section_number:
+            context_desc += f", Section {section_number}"
+        if exercise_number:
+            context_desc += f", Exercise {exercise_number}"
+        
+        result = [f"{context_desc} - Tips:"]
         
         # Group tips by level
         practice_tips = [tip for tip in tips if tip['level'] == 'practice']
@@ -348,7 +379,7 @@ def get_practice_tips_tool(practice_number: int) -> str:
         
     except Exception as e:
         logger.error(f"Error in get_practice_tips_tool: {e}")
-        return f"Error retrieving practice tips: {str(e)}"
+        return f"Error retrieving practice tips for practice {practice_number}, section {section_number}, exercise {exercise_number}: {str(e)}"
 
 
 @tool("search_knowledge_graph", args_schema=SearchQuery)
@@ -464,7 +495,7 @@ def get_theoretical_content_tool(topic_description: str) -> str:
         # Get configuration from environment
         graphbuilder_uri = os.getenv('GRAPHBUILDER_URI', 'http://127.0.0.1:8000/chat_bot')
         neo4j_uri = os.getenv('INTERNAL_NEO4J_URI', 'bolt://localhost:7687')
-        neo4j_user = os.getenv('NEO4J_USER', 'neo4j')
+        neo4j_user = os.getenv('NEO4J_USERNAME', 'neo4j')
         neo4j_password = os.getenv('NEO4J_PASSWORD', 'password')
         
         # Generate thread-safe session ID
@@ -584,7 +615,7 @@ def get_learning_path_tool(topic_description: str) -> str:
                     by_section[section_num] = []
                 by_section[section_num].append(item)
             
-            for section_num in sorted(by_section.keys()):
+            for section_num in sorted(by_section.keys(), key=lambda x: int(x) if x.isdigit() else float('inf')):
                 section_items = by_section[section_num]
                 if section_items:
                     result.append(f"    Section {section_num}: {section_items[0]['section_statement']}")

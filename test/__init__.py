@@ -11,7 +11,7 @@ Test structure:
 
 Prerequisites for running tests:
 - Neo4j database running with test data
-- Environment variables: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+- Environment variables: NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - pytest and pytest dependencies installed
 
 Run tests with:

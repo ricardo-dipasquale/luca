@@ -356,6 +356,172 @@ class TestErrorHandling:
             pytest.fail(f"Method raised unexpected exception: {e}")
 
 
+class TestSpecificDataValidation:
+    """Test specific data validation using practice 2, section '1', exercise 'd'."""
+    
+    @pytest.mark.integration
+    def test_practice_2_exists(self, kg_interface: KGQueryInterface):
+        """Test that practice 2 exists in the database."""
+        practice_details = kg_interface.get_practice_details(2)
+        assert practice_details is not None
+        assert practice_details["number"] == 2
+        assert practice_details["name"] == "Algebra Relacional"
+        assert "álgebra relacional" in practice_details["objectives"].lower()
+    
+    @pytest.mark.integration
+    def test_practice_2_section_1_exists(self, kg_interface: KGQueryInterface):
+        """Test that practice 2 has section '1' with exercises."""
+        exercises = kg_interface.get_practice_exercises(2)
+        assert len(exercises) > 0
+        
+        # Find section '1'
+        section_1_exercises = [ex for ex in exercises if ex["section_number"] == "1"]
+        assert len(section_1_exercises) > 0
+        
+        # Validate section structure
+        for exercise in section_1_exercises:
+            assert exercise["section_statement"] is not None
+            assert len(exercise["section_statement"]) > 0
+            assert "esquema relacional" in exercise["section_statement"].lower()
+    
+    @pytest.mark.integration
+    def test_exercise_d_exists_in_practice_2_section_1(self, kg_interface: KGQueryInterface):
+        """Test that exercise 'd' exists in practice 2, section '1'."""
+        exercise_details = kg_interface.get_exercise_details(2, "1", "d")
+        
+        assert exercise_details is not None
+        assert exercise_details["practice_number"] == 2
+        assert exercise_details["practice_name"] == "Algebra Relacional"
+        assert exercise_details["section_number"] == "1"
+        assert exercise_details["exercise_number"] == "d"
+        assert exercise_details["exercise_statement"] == "Nombre de los clientes que no han comprado nada"
+        
+        # Validate answers exist and contain algebraic notation
+        assert len(exercise_details["answers"]) > 0
+        found_algebraic_notation = any(
+            "π" in answer or "σ" in answer or "⋈" in answer or "−" in answer
+            for answer in exercise_details["answers"]
+        )
+        assert found_algebraic_notation, "Exercise should contain relational algebra notation"
+    
+    @pytest.mark.integration
+    def test_practice_2_all_exercises_in_section_1(self, kg_interface: KGQueryInterface):
+        """Test all exercises in practice 2, section '1' including exercise 'd'."""
+        exercises = kg_interface.get_practice_exercises(2)
+        section_1_exercises = [ex for ex in exercises if ex["section_number"] == "1"]
+        
+        # Should have multiple exercises including 'd'
+        assert len(section_1_exercises) >= 4
+        
+        exercise_numbers = [ex["exercise_number"] for ex in section_1_exercises]
+        assert "d" in exercise_numbers
+        assert "a" in exercise_numbers  # Should have other exercises too
+        
+        # Validate each exercise has required fields
+        for exercise in section_1_exercises:
+            assert exercise["exercise_statement"] is not None
+            assert len(exercise["exercise_statement"]) > 0
+            assert isinstance(exercise["answers"], list)
+    
+    @pytest.mark.integration
+    def test_search_finds_exercise_d_content(self, kg_interface: KGQueryInterface):
+        """Test that search can find exercise 'd' content."""
+        # Search for key terms from exercise 'd'
+        results = kg_interface.search_by_text("clientes que no han comprado", limit=10)
+        
+        # Should find at least one result
+        assert len(results) > 0
+        
+        # At least one result should be an Ejercicio
+        exercise_results = [r for r in results if r.node_type == "Ejercicio"]
+        assert len(exercise_results) > 0
+        
+        # Verify we found our specific exercise
+        found_exercise_d = False
+        for result in exercise_results:
+            if "clientes que no han comprado nada" in str(result.properties.get("enunciado", "")).lower():
+                found_exercise_d = True
+                break
+        
+        assert found_exercise_d, "Should find exercise 'd' when searching for its content"
+    
+    @pytest.mark.integration 
+    def test_get_related_topics_for_practice_2_topics(self, kg_interface: KGQueryInterface):
+        """Test getting related topics for topics used in practice 2."""
+        practice_details = kg_interface.get_practice_details(2)
+        assert practice_details is not None
+        assert len(practice_details["topics"]) > 0
+        
+        # Test with "Modelo Relacional" topic
+        if "Modelo Relacional" in practice_details["topics"]:
+            related = kg_interface.get_related_topics("Modelo Relacional")
+            # Should find other topics related through practice 2
+            practice_2_related = [r for r in related if r["practice_number"] == 2]
+            assert len(practice_2_related) > 0
+    
+    @pytest.mark.integration
+    def test_get_topic_practice_path_to_exercise_d(self, kg_interface: KGQueryInterface):
+        """Test getting learning path from topics to exercise 'd'."""
+        practice_details = kg_interface.get_practice_details(2)
+        assert practice_details is not None
+        
+        # Test with each topic in practice 2
+        for topic in practice_details["topics"]:
+            path = kg_interface.get_topic_practice_path(topic)
+            
+            # Find paths that lead to practice 2
+            practice_2_paths = [p for p in path if p["practice_number"] == 2]
+            
+            if practice_2_paths:
+                # Should have section '1' and various exercises
+                section_1_paths = [p for p in practice_2_paths if p["section_number"] == "1"]
+                assert len(section_1_paths) > 0
+                
+                # Should include exercise 'd'
+                exercise_d_paths = [p for p in section_1_paths if p["exercise_number"] == "d"]
+                if exercise_d_paths:
+                    assert exercise_d_paths[0]["exercise_statement"] == "Nombre de los clientes que no han comprado nada"
+    
+    @pytest.mark.integration
+    def test_get_practice_tips_with_filtering(self, kg_interface: KGQueryInterface):
+        """Test the new filtering functionality of get_practice_tips."""
+        # Test with practice only
+        tips_practice_only = kg_interface.get_practice_tips(2)
+        
+        # Test with practice + section
+        tips_with_section = kg_interface.get_practice_tips(2, "1")
+        
+        # Test with practice + section + exercise
+        tips_with_exercise = kg_interface.get_practice_tips(2, "1", "d")
+        
+        # Validate filtering logic
+        assert len(tips_practice_only) <= len(tips_with_section)
+        assert len(tips_with_section) <= len(tips_with_exercise)
+        
+        # Validate tip levels
+        if tips_practice_only:
+            practice_levels = {tip["level"] for tip in tips_practice_only}
+            assert practice_levels == {"practice"}
+        
+        if tips_with_section:
+            section_levels = {tip["level"] for tip in tips_with_section}
+            assert "practice" in section_levels
+            # Should include section tips if they exist
+            
+        if tips_with_exercise:
+            exercise_levels = {tip["level"] for tip in tips_with_exercise}
+            assert "practice" in exercise_levels
+            # Should include exercise tips if they exist
+            
+            # Check that we get specific tips for exercise 'd'
+            exercise_tips = [tip for tip in tips_with_exercise if tip["level"] == "exercise"]
+            if exercise_tips:
+                # Verify the tips are for the correct exercise
+                for tip in exercise_tips:
+                    assert tip["section_number"] == "1"
+                    assert tip["exercise_number"] == "d"
+
+
 class TestDataRequirements:
     """Test data requirements validation."""
     

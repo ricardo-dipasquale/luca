@@ -58,7 +58,7 @@ Create a `.envrc` file (for direnv) or `.env` file:
 ```bash
 # Neo4j Configuration
 export NEO4J_URI="bolt://localhost:7687"
-export NEO4J_USER="neo4j"
+export NEO4J_USERNAME="neo4j"
 export NEO4J_PASSWORD="your_secure_password"
 
 # OpenAI Configuration
@@ -620,7 +620,7 @@ jobs:
     - name: Run tests
       env:
         NEO4J_URI: bolt://localhost:7687
-        NEO4J_USER: neo4j
+        NEO4J_USERNAME: neo4j
         NEO4J_PASSWORD: testpassword
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       run: |

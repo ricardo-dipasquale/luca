@@ -127,7 +127,7 @@ Required environment variables (create `.envrc` with direnv or `.env`):
 ```bash
 # Neo4j Connection
 NEO4J_URI="bolt://localhost:7687"
-NEO4J_USER="neo4j"
+NEO4J_USERNAME="neo4j"
 NEO4J_PASSWORD="your_password"
 
 # OpenAI Configuration

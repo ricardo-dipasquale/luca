@@ -12,3 +12,5 @@ uv
 pytest
 pytest-cov
 pytest-mock
+openpyxl
+mcp-neo4j-cypher

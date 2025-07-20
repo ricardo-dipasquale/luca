@@ -143,7 +143,7 @@ class KGQueryInterface:
         RETURN s.numero AS section_number, s.enunciado AS section_statement,
                e.numero AS exercise_number, e.enunciado AS exercise_statement,
                collect(r.texto) AS answers
-        ORDER BY s.numero, e.numero
+        ORDER BY toInteger(s.numero), e.numero
         """
         try:
             results = self.connection.execute_query(query, {"practice_number": practice_number})
@@ -152,36 +152,139 @@ class KGQueryInterface:
             logger.error(f"Failed to get exercises for practice {practice_number}: {e}")
             return []
     
-    def get_practice_tips(self, practice_number: int) -> List[Dict[str, Any]]:
+    def get_practice_tips(self, practice_number: int, section_number: str = None, exercise_number: str = None) -> List[Dict[str, Any]]:
         """
-        Get all tips for a practice (practice-level, section-level, and exercise-level).
+        Get tips for a specific practice, section, and/or exercise.
+        
+        Returns tips connected to:
+        - The specified practice (always included)
+        - The specified section (if section_number provided)
+        - The specified exercise (if both section_number and exercise_number provided)
+        
+        Args:
+            practice_number: Practice number
+            section_number: Section number (string, e.g., "1", "2") - optional
+            exercise_number: Exercise number (string, e.g., "a", "b", "d") - optional
+            
+        Returns:
+            List of tips with their context, filtered by the specified parameters
+        """
+        # Build query parts based on provided parameters
+        query_parts = []
+        params = {"practice_number": practice_number}
+        
+        # Always include practice-level tips
+        query_parts.append("""
+          OPTIONAL MATCH (p:Practica {numeropractica: $practice_number})-[:HAS_TIP]->(tip_p:Tip)
+          RETURN 'practice' AS level, null AS section_number, null AS exercise_number, tip_p.texto AS tip_text
+        """)
+        
+        # Include section-level tips if section_number is provided
+        if section_number is not None:
+            params["section_number"] = section_number
+            query_parts.append("""
+              OPTIONAL MATCH (p:Practica {numeropractica: $practice_number})-[:HAS_SECCION]->(s:SeccionPractica {numero: $section_number})-[:HAS_TIP]->(tip_s:Tip)
+              RETURN 'section' AS level, s.numero AS section_number, null AS exercise_number, tip_s.texto AS tip_text
+            """)
+            
+            # Include exercise-level tips if both section_number and exercise_number are provided
+            if exercise_number is not None:
+                params["exercise_number"] = exercise_number
+                query_parts.append("""
+                  OPTIONAL MATCH (p:Practica {numeropractica: $practice_number})-[:HAS_SECCION]->(s:SeccionPractica {numero: $section_number})-[:HAS_EJERCICIO]->(e:Ejercicio {numero: $exercise_number})-[:HAS_TIP]->(tip_e:Tip)
+                  RETURN 'exercise' AS level, s.numero AS section_number, e.numero AS exercise_number, tip_e.texto AS tip_text
+                """)
+        
+        # Combine all query parts with UNION
+        query = "CALL {" + "\n          UNION".join(query_parts) + "\n        }\n        RETURN level, section_number, exercise_number, tip_text"
+        try:
+            results = self.connection.execute_query(query, params)
+            return [dict(record) for record in results if record["tip_text"]]
+        except Exception as e:
+            logger.error(f"Failed to get tips for practice {practice_number}, section {section_number}, exercise {exercise_number}: {e}")
+            return []
+    
+    def get_practice_details(self, practice_number: int) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed information for a specific practice.
         
         Args:
             practice_number: Practice number
             
         Returns:
-            List of tips with their context
+            Dictionary with practice details or None if not found
         """
         query = """
         MATCH (p:Practica {numeropractica: $practice_number})
-        OPTIONAL MATCH (p)-[:HAS_TIP]->(tip_p:Tip)
-        OPTIONAL MATCH (p)-[:HAS_SECCION]->(s:SeccionPractica)-[:HAS_TIP]->(tip_s:Tip)
-        OPTIONAL MATCH (p)-[:HAS_SECCION]->(s2:SeccionPractica)-[:HAS_EJERCICIO]->(e:Ejercicio)-[:HAS_TIP]->(tip_e:Tip)
-        RETURN 
-          'practice' AS level, null AS section_number, null AS exercise_number, tip_p.texto AS tip_text
-        UNION
-        RETURN 
-          'section' AS level, s.numero AS section_number, null AS exercise_number, tip_s.texto AS tip_text
-        UNION  
-        RETURN
-          'exercise' AS level, s2.numero AS section_number, e.numero AS exercise_number, tip_e.texto AS tip_text
+        OPTIONAL MATCH (p)-[:HAS_TEMA]->(t:Tema)
+        OPTIONAL MATCH (t)<-[:HAS_TEMA]-(u:UnidadTematica)<-[:HAS_UNIDAD_TEMATICA]-(m:Materia)
+        RETURN p.numeropractica AS number, 
+               p.titulo AS name,
+               p.descripcion AS description, 
+               p.objetivos AS objectives,
+               collect(DISTINCT t.descripcion) AS topics,
+               collect(DISTINCT m.nombre) AS subjects
         """
         try:
             results = self.connection.execute_query(query, {"practice_number": practice_number})
-            return [dict(record) for record in results if record["tip_text"]]
+            if results:
+                record = results[0]
+                return {
+                    "number": record["number"],
+                    "name": record["name"],
+                    "description": record["description"],
+                    "objectives": record["objectives"],
+                    "topics": [t for t in record["topics"] if t],
+                    "subjects": [s for s in record["subjects"] if s]
+                }
+            return None
         except Exception as e:
-            logger.error(f"Failed to get tips for practice {practice_number}: {e}")
-            return []
+            logger.error(f"Failed to get practice details for {practice_number}: {e}")
+            return None
+    
+    def get_exercise_details(self, practice_number: int, section_number: str, exercise_identifier: str) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed information for a specific exercise.
+        
+        Args:
+            practice_number: Practice number
+            section_number: Section number (string, e.g., "1", "2")
+            exercise_identifier: Exercise identifier (string, e.g., 'd', 'a', 'b')
+            
+        Returns:
+            Dictionary with exercise details or None if not found
+        """
+        query = """
+        MATCH (p:Practica {numeropractica: $practice_number})-[:HAS_SECCION]->(s:SeccionPractica {numero: $section_number})-[:HAS_EJERCICIO]->(e:Ejercicio {numero: $exercise_identifier})-[:HAS_RESPUESTA]->(r:Respuesta)
+        RETURN p.numeropractica AS practice_number,
+               p.titulo AS practice_name,
+               s.numero AS section_number,
+               s.enunciado AS section_statement, 
+               e.numero AS exercise_number,
+               e.enunciado AS exercise_statement,
+               collect(r.texto) AS answers
+        """
+        try:
+            results = self.connection.execute_query(query, {
+                "practice_number": practice_number,
+                "section_number": section_number, 
+                "exercise_identifier": exercise_identifier
+            })
+            if results:
+                record = results[0]
+                return {
+                    "practice_number": record["practice_number"],
+                    "practice_name": record["practice_name"],
+                    "section_number": record["section_number"],
+                    "section_statement": record["section_statement"],
+                    "exercise_number": record["exercise_number"],
+                    "exercise_statement": record["exercise_statement"],
+                    "answers": [a for a in record["answers"] if a]
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get exercise details for practice {practice_number}, section {section_number}, exercise {exercise_identifier}: {e}")
+            return None
     
     # ==================== SEARCH QUERIES ====================
     
@@ -292,7 +395,7 @@ class KGQueryInterface:
         RETURN t.descripcion AS topic, p.numeropractica AS practice_number,
                s.numero AS section_number, s.enunciado AS section_statement,
                e.numero AS exercise_number, e.enunciado AS exercise_statement
-        ORDER BY practice_number, section_number, exercise_number
+        ORDER BY practice_number, toInteger(section_number), exercise_number
         """
         try:
             results = self.connection.execute_query(query, {"topic_description": topic_description})
@@ -312,7 +415,7 @@ class KGQueryInterface:
         """
         query = """
         CALL db.labels() YIELD label
-        CALL apoc.cypher.run('MATCH (n:' + label + ') RETURN count(n) as count', {}) YIELD value
+        CALL apoc.cypher.run('MATCH (n) WHERE $label IN labels(n) RETURN count(n) as count', {label: label}) YIELD value
         RETURN label, value.count AS count
         ORDER BY label
         """
