@@ -26,7 +26,6 @@ from .schemas import (
     EducationalContext,
     IdentifiedGap,
     GapEvaluation,
-    PrioritizedGap,
     GapAnalysisResult,
     GapAnalysisResponse,
     GapSeverity,
@@ -45,8 +44,7 @@ class GapAnalysisWorkflow:
     1. retrieve_context: Get educational context from KG
     2. analyze_gaps: Identify learning gaps from student question
     3. evaluate_gaps: Assess relevance and importance of gaps
-    4. prioritize_gaps: Rank gaps by pedagogical importance
-    5. generate_response: Create final structured response
+    4. generate_response: Create final structured response
     """
     
     def __init__(self):
@@ -63,7 +61,6 @@ class GapAnalysisWorkflow:
         workflow.add_node("validate_context", self._validate_context)
         workflow.add_node("analyze_gaps", self._analyze_gaps)
         workflow.add_node("evaluate_gaps", self._evaluate_gaps)
-        workflow.add_node("prioritize_gaps", self._prioritize_gaps)
         workflow.add_node("feedback_analysis", self._feedback_analysis)
         workflow.add_node("generate_response", self._generate_response)
         workflow.add_node("handle_error", self._handle_error)
@@ -74,13 +71,12 @@ class GapAnalysisWorkflow:
         # Add basic edges
         workflow.add_edge("validate_context", "analyze_gaps")
         workflow.add_edge("analyze_gaps", "evaluate_gaps")
-        workflow.add_edge("evaluate_gaps", "prioritize_gaps")
         workflow.add_edge("generate_response", END)
         workflow.add_edge("handle_error", END)
         
         # Add conditional edges for feedback loop
         workflow.add_conditional_edges(
-            "prioritize_gaps",
+            "evaluate_gaps",
             self._should_do_feedback,
             {
                 "feedback": "feedback_analysis",
@@ -124,10 +120,10 @@ class GapAnalysisWorkflow:
         
         # Check if we should do feedback based on gap analysis quality
         if (state.feedback_iterations < state.max_feedback_iterations and
-            len(state.prioritized_gaps) > 0):
+            len(state.evaluated_gaps) > 0):
             
             # Analyze if gaps seem incomplete or low confidence
-            avg_confidence = sum(pg.evaluation.priority_score for pg in state.prioritized_gaps) / len(state.prioritized_gaps)
+            avg_confidence = sum(eval_gap.priority_score for eval_gap in state.evaluated_gaps) / len(state.evaluated_gaps)
             
             if avg_confidence < 0.6 or state.educational_context.needs_theory_lookup:
                 state.needs_feedback = True
@@ -422,49 +418,6 @@ Evalúa cada gap según los criterios pedagógicos.""")
         
         return state
     
-    async def _prioritize_gaps(self, state: WorkflowState) -> WorkflowState:
-        """
-        Node 4: Prioritize gaps by pedagogical importance.
-        
-        This node combines the gaps with their evaluations and ranks them by priority.
-        Recommendation generation is handled by a separate agent.
-        """
-        try:
-            logger.info("Prioritizing gaps by pedagogical importance")
-            
-            # Create gap-evaluation pairs
-            gap_eval_pairs = []
-            for gap in state.raw_gaps:
-                # Find corresponding evaluation
-                evaluation = next(
-                    (eval for eval in state.evaluated_gaps if eval.gap_id == gap.gap_id),
-                    None
-                )
-                if evaluation:
-                    gap_eval_pairs.append((gap, evaluation))
-            
-            # Sort by priority score (highest first)
-            gap_eval_pairs.sort(key=lambda x: x[1].priority_score, reverse=True)
-            
-            # Create PrioritizedGap objects without recommendations
-            prioritized_gaps = []
-            for i, (gap, evaluation) in enumerate(gap_eval_pairs):
-                prioritized_gap = PrioritizedGap(
-                    gap=gap,
-                    evaluation=evaluation,
-                    rank=i + 1,
-                    recommended_actions=[]  # Empty - handled by separate recommendation agent
-                )
-                prioritized_gaps.append(prioritized_gap)
-            
-            state.prioritized_gaps = prioritized_gaps
-            logger.info(f"Prioritized {len(prioritized_gaps)} gaps by pedagogical importance")
-                
-        except Exception as e:
-            logger.error(f"Error in gap prioritization: {e}")
-            state.error_message = f"Gap prioritization failed: {str(e)}"
-        
-        return state
     
     async def _generate_response(self, state: WorkflowState) -> WorkflowState:
         """
@@ -479,7 +432,7 @@ Evalúa cada gap según los criterios pedagógicos.""")
             confidence_factors = []
             
             # Factor 1: Number of gaps found (more gaps = more thorough analysis)
-            gap_count = len(state.prioritized_gaps)
+            gap_count = len(state.raw_gaps)
             if gap_count >= 3:
                 confidence_factors.append(0.9)
             elif gap_count >= 2:
@@ -505,15 +458,13 @@ Evalúa cada gap según los criterios pedagógicos.""")
             
             # Generate summary
             summary_parts = []
-            if state.prioritized_gaps:
-                top_gap = state.prioritized_gaps[0]
-                summary_parts.append(f"Se identificaron {len(state.prioritized_gaps)} gaps de aprendizaje.")
-                summary_parts.append(f"El gap de mayor prioridad es: {top_gap.gap.title}")
+            if state.raw_gaps:
+                summary_parts.append(f"Se identificaron {len(state.raw_gaps)} gaps de aprendizaje.")
                 
                 # Add severity distribution
                 severity_counts = {}
-                for pg in state.prioritized_gaps:
-                    severity = pg.gap.severity.value
+                for gap in state.raw_gaps:
+                    severity = gap.severity.value
                     severity_counts[severity] = severity_counts.get(severity, 0) + 1
                 
                 if severity_counts:
@@ -535,8 +486,8 @@ Evalúa cada gap según los criterios pedagógicos.""")
             final_result = GapAnalysisResult(
                 student_context=state.student_context,
                 educational_context=state.educational_context,
-                identified_gaps=[pg.gap for pg in state.prioritized_gaps],
-                prioritized_gaps=state.prioritized_gaps,
+                identified_gaps=state.raw_gaps,
+                prioritized_gaps=[],  # Empty since we removed prioritization
                 summary=summary,
                 confidence_score=confidence_score,
                 recommendations=general_recommendations
@@ -593,23 +544,26 @@ Evalúa cada gap según los criterios pedagógicos.""")
                     logger.info(f"Retrieved theoretical content for: {main_concept}")
             
             # Analyze gap quality and decide if another iteration is warranted
-            if len(state.prioritized_gaps) == 0:
+            if len(state.raw_gaps) == 0:
                 state.feedback_reason = "No se encontraron gaps - se requiere análisis más profundo"
                 state.needs_feedback = True
-            elif len(state.prioritized_gaps) < 2:
+            elif len(state.raw_gaps) < 2:
                 # Check if the single gap is comprehensive
-                single_gap = state.prioritized_gaps[0]
-                if len(single_gap.gap.description) < 50:
+                single_gap = state.raw_gaps[0]
+                if len(single_gap.description) < 50:
                     state.feedback_reason = "Gap identificado parece superficial - se requiere análisis más detallado"
                     state.needs_feedback = True
                 else:
                     state.needs_feedback = False
             else:
-                # Check overall confidence
-                avg_priority = sum(pg.evaluation.priority_score for pg in state.prioritized_gaps) / len(state.prioritized_gaps)
-                if avg_priority < 0.5:
-                    state.feedback_reason = "Baja confianza en priorización - refinando análisis"
-                    state.needs_feedback = True
+                # Check overall confidence based on evaluations
+                if state.evaluated_gaps:
+                    avg_confidence = sum(eval_gap.priority_score for eval_gap in state.evaluated_gaps) / len(state.evaluated_gaps)
+                    if avg_confidence < 0.5:
+                        state.feedback_reason = "Baja confianza en evaluación - refinando análisis"
+                        state.needs_feedback = True
+                    else:
+                        state.needs_feedback = False
                 else:
                     state.needs_feedback = False
             
@@ -643,7 +597,7 @@ Evalúa cada gap según los criterios pedagógicos.""")
                 theory_background="Error al recuperar contexto"
             ),
             identified_gaps=[],
-            prioritized_gaps=[],
+            prioritized_gaps=[],  # Empty since prioritization was removed
             summary=f"Error en el análisis: {state.error_message}",
             confidence_score=0.0,
             recommendations=["Intentar nuevamente", "Verificar conexto proporcionado", "Contactar soporte técnico"]

@@ -22,22 +22,20 @@ class GapAnalyzerAgent:
     Educational Gap Analyzer Agent.
     
     This agent analyzes student questions about practice exercises to identify
-    learning gaps, evaluate their importance, and provide prioritized recommendations
-    for addressing those gaps.
+    learning gaps and evaluate their importance for addressing learning needs.
     
     The agent uses a sophisticated LangGraph workflow that:
     1. Retrieves educational context from the knowledge graph
     2. Analyzes the student's question to identify specific learning gaps
     3. Evaluates gaps for pedagogical relevance and importance
-    4. Prioritizes gaps and generates specific recommendations
-    5. Provides a structured analysis with actionable insights
+    4. Provides a structured analysis with actionable insights
     """
 
     SYSTEM_INSTRUCTION = (
         'Eres un tutor inteligente especializado en análisis de gaps educativos. '
         'Tu función es analizar las preguntas de los estudiantes sobre ejercicios prácticos '
         'para identificar gaps específicos en su aprendizaje y proporcionar recomendaciones '
-        'priorizadas para abordar esos gaps. '
+        'para abordar esos gaps. '
         'Utilizas el contexto educativo completo incluyendo teoría, objetivos, ejercicios, '
         'soluciones y tips del profesor para realizar un análisis profundo y pedagógicamente relevante.'
     )
@@ -155,16 +153,13 @@ class GapAnalyzerAgent:
             response_parts.append(f"**Confianza del análisis:** {result.confidence_score:.1%}")
             response_parts.append("")
             
-            # Top priority gaps
-            if result.prioritized_gaps:
-                response_parts.append("**GAPS IDENTIFICADOS (por prioridad):**")
+            # Identified gaps
+            if result.identified_gaps:
+                response_parts.append("**GAPS IDENTIFICADOS:**")
                 response_parts.append("")
                 
-                for i, pg in enumerate(result.prioritized_gaps[:5], 1):  # Show top 5
-                    gap = pg.gap
-                    eval = pg.evaluation
-                    
-                    response_parts.append(f"**{i}. {gap.title}** (Prioridad: {eval.priority_score:.2f})")
+                for i, gap in enumerate(result.identified_gaps, 1):
+                    response_parts.append(f"**{i}. {gap.title}**")
                     response_parts.append(f"   Descripción: {gap.description}")
                     response_parts.append(f"   Categoría: {gap.category.value.title()}")
                     response_parts.append(f"   Severidad: {gap.severity.value.title()}")
@@ -172,12 +167,6 @@ class GapAnalyzerAgent:
                     
                     if gap.affected_concepts:
                         response_parts.append(f"   Conceptos afectados: {', '.join(gap.affected_concepts)}")
-                    
-                    # Individual gap recommendations handled by separate agent
-                    # if pg.recommended_actions:
-                    #     response_parts.append("   **Acciones recomendadas:**")
-                    #     for action in pg.recommended_actions:
-                    #         response_parts.append(f"      • {action}")
                     
                     response_parts.append("")
             else:
@@ -245,11 +234,11 @@ class GapAnalyzerAgent:
                 'content': 'Evaluando relevancia pedagógica de los gaps...',
             }
             
-            # Step 5: Prioritization
+            # Step 5: Generating recommendations
             yield {
                 'is_task_complete': False,
                 'require_user_input': False,
-                'content': 'Priorizando gaps y generando recomendaciones...',
+                'content': 'Generando recomendaciones...',
             }
             
             # Run the actual analysis
@@ -293,8 +282,8 @@ class GapAnalyzerAgent:
                 'structured_response': GapAnalysisResponse(
                     status=status,
                     message=result.summary,
-                    gaps_found=len(result.prioritized_gaps),
-                    top_priority_gaps=[pg.gap.title for pg in result.prioritized_gaps[:3]],
+                    gaps_found=len(result.identified_gaps),
+                    top_priority_gaps=[gap.title for gap in result.identified_gaps[:3]],
                     detailed_analysis=result
                 )
             }
