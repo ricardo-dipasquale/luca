@@ -1,0 +1,11 @@
+# Frontend requirements for LUCA
+streamlit>=1.28.0
+aiohttp>=3.8.0
+asyncio>=3.4.3
+Pillow>=9.0.0
+
+# Core dependencies (should be already installed)
+# These are inherited from the main project requirements
+# neo4j
+# langchain
+# openai

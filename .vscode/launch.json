@@ -90,6 +90,37 @@
             }
         },
         {
+            "name": "LUCA Frontend (Streamlit)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "streamlit",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/frontend",
+            "args": [
+                "run",
+                "app.py",
+                "--server.port=8501",
+                "--server.address=localhost",
+                "--server.headless=false",
+                "--theme.base=light",
+                "--theme.primaryColor=#007bff"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Frontend Test Suite",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/frontend/test_frontend.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/frontend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",

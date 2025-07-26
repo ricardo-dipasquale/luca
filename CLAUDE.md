@@ -454,3 +454,109 @@ python gapanalyzer/test_client.py
 ```
 
 This tests both public agent card resolution and message exchange patterns including multi-turn conversations and streaming responses.
+
+## Frontend Application (Streamlit)
+
+### Overview
+LUCA includes a complete web frontend built with Streamlit that provides an educational chat interface similar to Claude/OpenAI. The frontend connects directly to the Orchestrator agent and provides a professional user experience with UCA branding.
+
+### Features
+- 🎓 **Educational Chat Interface**: Clean, intuitive chat with real-time streaming
+- 🔐 **UCA Authentication**: Secure login with @uca.edu.ar email validation  
+- 📚 **Dynamic Subject Selection**: Loads subjects from Knowledge Graph
+- 💬 **Conversation Management**: Persistent conversation history in Neo4j
+- 🎨 **Professional Design**: FICA and LUCA branding with responsive layout
+- ⚡ **Real-time Streaming**: Live response updates from Orchestrator
+
+### Quick Start
+```bash
+# Install frontend dependencies
+pip install streamlit aiohttp
+
+# Test all components
+cd frontend
+python test_frontend.py
+
+# Start application
+python run.py
+
+# Access at http://localhost:8501
+# Login: visitante@uca.edu.ar / visitante!
+```
+
+### Architecture
+```
+frontend/
+├── app.py              # Main Streamlit application
+├── auth.py             # User authentication & conversation management
+├── chat.py             # Orchestrator client & streaming
+├── utils.py            # Utilities (subjects, formatting)
+├── run.py              # Application runner
+├── test_frontend.py    # Complete test suite
+└── assets/             # Logos and static files
+```
+
+### Neo4j Schema Extensions
+The frontend adds two new node types to the Knowledge Graph:
+
+```cypher
+# User authentication
+(:Usuario {
+  email: string,           # Must end with @uca.edu.ar
+  password: string,        # Plain text for development
+  nombre: string,          # Display name
+  created_at: datetime,
+  last_login: datetime
+})
+
+# Conversation management  
+(:Conversacion {
+  id: string,              # UUID
+  title: string,           # Auto-generated from first message
+  subject: string,         # Educational subject from KG
+  created_at: datetime,
+  updated_at: datetime,
+  message_count: integer
+})
+
+# Relationship
+(:Usuario)-[:OWNS]->(:Conversacion)
+```
+
+### Integration with Agents
+- **Direct Connection**: Uses `OrchestratorAgentExecutor` for real-time communication
+- **Subject Injection**: Passes selected subject to orchestrator context via `educational_subject` parameter
+- **Streaming Display**: Shows progress indicators and intermediate processing steps
+- **Session Management**: Maintains conversation continuity across interactions
+
+### Testing
+```bash
+# Comprehensive test suite
+python frontend/test_frontend.py
+
+# Tests covered:
+# ✅ Dependencies (streamlit, aiohttp, neo4j)
+# ✅ Neo4j connection and user data
+# ✅ Authentication and conversation management  
+# ✅ Subject loading from Knowledge Graph
+# ✅ Orchestrator client initialization
+```
+
+### Development Workflow
+```bash
+# 1. Start Neo4j and ensure KG is populated
+docker run -d -p 7687:7687 -p 7474:7474 --name neo4j neo4j:5.26.1
+
+# 2. Test backend agents work
+python -m orchestrator.local_runner single "Test message"
+
+# 3. Test frontend components
+cd frontend && python test_frontend.py
+
+# 4. Start frontend application  
+python run.py
+
+# 5. Access http://localhost:8501 and test full flow
+```
+
+For detailed frontend documentation, see `frontend/GETTING_STARTED.md` and `frontend/README.md`.
