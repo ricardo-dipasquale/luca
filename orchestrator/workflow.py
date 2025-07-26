@@ -71,6 +71,7 @@ class OrchestratorWorkflow:
         
         # Response processing nodes
         workflow.add_node("synthesize_response", self._synthesize_response)
+        workflow.add_node("synthesize_practical_specific_response", self._synthesize_practical_specific_response)
         workflow.add_node("update_memory", self._update_memory)
         workflow.add_node("handle_error", self._handle_error)
         
@@ -95,10 +96,10 @@ class OrchestratorWorkflow:
             }
         )
         
-        # All intent handlers flow to response synthesis
+        # Intent handlers flow to appropriate synthesis (practical_specific gets specialized treatment)
         workflow.add_edge("handle_theoretical_question", "synthesize_response")
         workflow.add_edge("handle_practical_general", "synthesize_response")
-        workflow.add_edge("handle_practical_specific", "synthesize_response")
+        workflow.add_edge("handle_practical_specific", "synthesize_practical_specific_response")
         workflow.add_edge("handle_clarification", "synthesize_response")
         workflow.add_edge("handle_exploration", "synthesize_response")
         workflow.add_edge("handle_evaluation", "synthesize_response")
@@ -107,6 +108,7 @@ class OrchestratorWorkflow:
         
         # Response synthesis flows to memory update and then end
         workflow.add_edge("synthesize_response", "update_memory")
+        workflow.add_edge("synthesize_practical_specific_response", "update_memory")
         workflow.add_edge("update_memory", END)
         workflow.add_edge("handle_error", END)
         
@@ -551,6 +553,123 @@ Sintetiza una respuesta educativa completa.""")
         
         return state
     
+    async def _synthesize_practical_specific_response(self, state: WorkflowState) -> WorkflowState:
+        """
+        Specialized synthesis for practical_specific responses.
+        
+        Creates pedagogical guidance based on gap analysis results, focusing on:
+        - Concrete next steps to unblock the student
+        - Framework-specific guidance (e.g., álgebra relacional vs SQL)
+        - Avoids giving direct answers to exercises
+        - Prioritizes most critical gaps for immediate action
+        """
+        try:
+            logger.info("Synthesizing practical-specific response with pedagogical focus")
+            
+            # Extract gap analysis results from handler response
+            gap_analysis_response = state.agent_responses.get('gap_analyzer', '')
+            
+            # Create specialized synthesis prompt for practical guidance
+            synthesis_prompt = ChatPromptTemplate.from_messages([
+                ("system", """Eres un tutor pedagógico especializado en guiar estudiantes a través de ejercicios prácticos sin dar las respuestas directas, sino orientando al estudiante a partir del análisis de gaps a llegar a la respuesta sin dársela directamente. Específicamente trabajamos sobre prácticas (problemas/ejercicios).
+
+TU MISIÓN:
+- Analizar los gaps identificados en el análisis del ejercicio
+- Proveer orientación pedagógica específica para destrabar al estudiante
+- NUNCA dar la respuesta del ejercicio ni mostrar cómo debería verse
+- Enfocar en el framework/paradigma específico de la práctica
+- Sugerir pasos concretos y específicos para que el estudiante avance por sí mismo
+                 
+ESTILO DE COMUNICACION: Conciso, sos un profesor orientador, usá la variante Argentina del español, no supongas que el estudiante es siempre de género masculino. No hables del "gap" como algo que el alumno deba conocer, mostrale el "gap" sin decirle "tenés un gap", "este es el gap más crítico".
+
+PRINCIPIOS PEDAGÓGICOS:
+1. AUTODESCUBRIMIENTO: Guiar para que el estudiante descubra por sí mismo
+2. FRAMEWORK ESPECÍFICO: Mantener la orientación en el marco conceptual de la práctica
+3. PASOS CONCRETOS: Dar acciones específicas, no conceptos vagos
+
+ESTRUCTURA DE RESPUESTA:
+1. Reconocimiento empático del problema
+2. Identificación del gap específico más crítico (a partir del análisis de gaps provisto)
+3. Orientación metodológica concreta en el framework de la práctica
+4. Pregunta reflexiva para guiar el autodescubrimiento
+5. Sugerir siguiente paso específico a realizar
+
+EJEMPLOS DE ORIENTACIÓN:
+- "En álgebra relacional, empezá por definir exactamente qué conjuntos necesitás..."
+- "Antes de escribir SQL, dibujá qué tablas participan y qué conexión querés lograr..."
+- "Para este tipo de JOIN, preguntate: ¿qué registros quiero que queden afuera?"
+
+EVITAR ABSOLUTAMENTE:
+- Mostrar código SQL o expresiones de álgebra relacional completas
+- Decir "la respuesta es..." o "deberías obtener..."
+- Conceptos generales sin aplicación específica al ejercicio"""),
+                ("human", """CONTEXTO DEL EJERCICIO:
+Estudiante: {student_message}
+Materia: {subject}
+Práctica: {practice} 
+Ejercicio: {exercise_context}
+
+ANÁLISIS DE GAPS IDENTIFICADOS:
+{gap_analysis}
+
+CONTEXTO EDUCATIVO DE LA PRÁCTICA:
+{practice_context}
+
+Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación específica en este ejercicio, enfocándote en el framework conceptual de la práctica y sin dar la respuesta directa.""")
+            ])
+            
+            ctx = state.conversation_context
+            
+            # Extract exercise and practice context from handler responses or conversation context
+            exercise_context = self._extract_exercise_context_from_state(state)
+            practice_context = self._extract_practice_context_from_state(state)
+            
+            # If we have structured gap analysis results, extract them
+            gap_summary = gap_analysis_response
+            if not gap_summary:
+                gap_summary = "No se pudo completar el análisis de gaps. Procederé con orientación general."
+            
+            formatted_prompt = synthesis_prompt.format_messages(
+                student_message=ctx.current_message,
+                subject=ctx.memory.educational_context.current_subject or "No especificada",
+                practice=f"Práctica {ctx.memory.educational_context.current_practice}" if ctx.memory.educational_context.current_practice else "Práctica no identificada",
+                exercise_context=exercise_context,
+                gap_analysis=gap_summary,
+                practice_context=practice_context
+            )
+            
+            # Get specialized pedagogical response
+            response = await self.llm.ainvoke(formatted_prompt)
+            pedagogical_content = response.content
+            
+            # Create synthesis result with pedagogical focus
+            synthesis = ResponseSynthesis(
+                primary_content=pedagogical_content,
+                supporting_information=[
+                    "Recordá que el objetivo es que vos mismo llegues a la respuesta",
+                    "Si necesitás repasar conceptos, revisá el material teórico de la práctica"
+                ],
+                next_steps=[
+                    "Aplicá la orientación metodológica sugerida",
+                    "Reflexioná sobre las preguntas planteadas",
+                    "Intentá el ejercicio paso a paso",
+                    "Si seguís trabado, probá explicar tu razonamiento en voz alta"
+                ],
+                educational_guidance="Esta orientación está diseñada para ayudarte a desarrollar autonomía en la resolución de problemas. El proceso de descubrimiento es tan importante como la respuesta final.",
+                confidence_level=min(state.intent_result.confidence + 0.2, 1.0)  # Higher confidence for specialized synthesis
+            )
+            
+            state.response_synthesis = synthesis
+            logger.info("Practical-specific pedagogical synthesis completed")
+            
+        except Exception as e:
+            logger.error(f"Error in practical-specific synthesis: {e}")
+            # Fallback to general synthesis
+            logger.info("Falling back to general synthesis due to error")
+            return await self._synthesize_response(state)
+        
+        return state
+    
     async def _update_memory(self, state: WorkflowState) -> WorkflowState:
         """
         Node 5: Update conversation memory and context.
@@ -636,6 +755,80 @@ Sintetiza una respuesta educativa completa.""")
         
         state.final_response = error_response
         return state
+    
+    def _extract_exercise_context_from_state(self, state: WorkflowState) -> str:
+        """
+        Extract exercise context information from state for specialized synthesis.
+        
+        Returns:
+            String with exercise context information
+        """
+        try:
+            ctx = state.conversation_context
+            
+            # Try to get context from gap analyzer response
+            gap_response = state.agent_responses.get('gap_analyzer', '')
+            if 'Ejercicio:' in gap_response:
+                # Extract exercise info from gap analyzer response
+                import re
+                exercise_match = re.search(r'Ejercicio:\s*([^\n]+)', gap_response)
+                if exercise_match:
+                    return exercise_match.group(1).strip()
+            
+            # Fall back to extracting from conversation context
+            practice_num = ctx.memory.educational_context.current_practice
+            exercise_ref = ctx.memory.educational_context.current_exercise
+            
+            if practice_num and exercise_ref:
+                return f"Práctica {practice_num}, Ejercicio {exercise_ref}"
+            elif practice_num:
+                return f"Ejercicio de la Práctica {practice_num}"
+            else:
+                return "Ejercicio específico mencionado en el mensaje"
+                
+        except Exception as e:
+            logger.warning(f"Error extracting exercise context: {e}")
+            return "Ejercicio práctico específico"
+    
+    def _extract_practice_context_from_state(self, state: WorkflowState) -> str:
+        """
+        Extract practice framework context for specialized synthesis.
+        
+        Returns:
+            String with practice framework information
+        """
+        try:
+            ctx = state.conversation_context
+            subject = ctx.memory.educational_context.current_subject
+            practice_num = ctx.memory.educational_context.current_practice
+            
+            # Try to get context from gap analyzer response
+            gap_response = state.agent_responses.get('gap_analyzer', '')
+            if 'Práctica:' in gap_response:
+                # Extract practice info from gap analyzer response
+                import re
+                practice_match = re.search(r'Práctica:[^\n]*\n([^\n]+)', gap_response)
+                if practice_match:
+                    return practice_match.group(1).strip()
+            
+            # Generate framework context based on subject and practice
+            if subject and 'base' in subject.lower() and 'datos' in subject.lower():
+                if practice_num:
+                    if practice_num <= 2:
+                        return "Marco conceptual: Álgebra Relacional - operaciones entre conjuntos de tuplas, proyecciones, selecciones, productos cartesianos y joins"
+                    elif practice_num <= 4:
+                        return "Marco conceptual: SQL - lenguaje declarativo de consultas, estructura de SELECT, FROM, WHERE, JOIN"
+                    else:
+                        return "Marco conceptual: Bases de Datos Relacionales - diseño, normalización, integridad referencial"
+                else:
+                    return "Marco conceptual: Bases de Datos Relacionales - modelo relacional, álgebra relacional, SQL"
+            
+            # Generic fallback
+            return f"Marco conceptual de {subject or 'la materia'}" + (f" - Práctica {practice_num}" if practice_num else "")
+            
+        except Exception as e:
+            logger.warning(f"Error extracting practice context: {e}")
+            return "Marco conceptual de la práctica actual"
     
     # Helper methods for educational parameter extraction and context building
     

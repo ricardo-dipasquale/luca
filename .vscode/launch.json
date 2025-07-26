@@ -23,7 +23,7 @@
             "args": [
                 "single",
                 "--subject", "Bases de Datos Relacionales",
-                "No entiendo por qué mi consulta LEFT JOIN duplica registros en la práctica 2"
+                "En la práctica 2, ej 1.d, no sé cómo hacer bien un left join que traiga de clientes todos los registros y que del lado de ventas traiga los que tienen nulo, así me quedo con los clientes que no compraron cosas, no?"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
