@@ -2,6 +2,46 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Orchestrator Interactive Mode",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "orchestrator.local_runner",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": ["interactive"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Orchestrator Single Message",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "orchestrator.local_runner",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "single",
+                "--subject", "Bases de Datos Relacionales",
+                "No entiendo por qué mi consulta LEFT JOIN duplica registros en la práctica 2"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Orchestrator Intent Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "orchestrator.local_runner",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": ["intent-test"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "GapAnalyzer Local Runner",
             "type": "debugpy",
             "request": "launch",
@@ -11,7 +51,43 @@
             "args": [
                 "2",
                 "1.d",
-                "No sé cómo hacer bien un left join que traiga de clientes todos los registros y que del lado de ventas traiga los que tienen nulo, así me quedo con los clientes que no compraron cosas, no?"]
+                "No sé cómo hacer bien un left join que traiga de clientes todos los registros y que del lado de ventas traiga los que tienen nulo, así me quedo con los clientes que no compraron cosas, no?"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Orchestrator Server",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "orchestrator",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--host", "localhost",
+                "--port", "10001",
+                "--debug"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "GapAnalyzer Server",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "gapanalyzer",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--host", "localhost",
+                "--port", "10000",
+                "--debug"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         },
         {
             "name": "Python: Current File",

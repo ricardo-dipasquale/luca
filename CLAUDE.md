@@ -10,7 +10,9 @@ The system consists of:
 - **Knowledge Graph (Neo4j)**: Stores structured course data including subjects, topics, practices, exercises, and their relationships
 - **KG Abstraction Layer (kg/)**: Connection management and query interface for Neo4j interactions
 - **Centralized Tools (tools/)**: Shared LangChain tools for all agents including KG and utility operations
-- **AI Agents**: Multiple agents built with the A2A framework (e.g., gapanalyzer/)
+- **AI Agents Ecosystem**: Multi-agent system built with the A2A framework
+  - **Orchestrator Agent (orchestrator/)**: Main conversation manager and agent coordinator
+  - **GapAnalyzer Agent (gapanalyzer/)**: Specialized learning gap analysis
 - **Database Scripts**: Knowledge graph creation and management utilities
 
 ## Development Commands
@@ -66,11 +68,37 @@ python db/create_kg.py
 ```
 
 ### Agent Development
+
+#### Orchestrator Agent (Main Entry Point)
 ```bash
-# Run the agent server
-uv run gapanalyzer --host localhost --port 10000
-# OR
+# Run the orchestrator server
+python -m orchestrator --host localhost --port 10001
+
+# Test with a single message
+python -m orchestrator --test-message "¿Qué es un LEFT JOIN?"
+
+# Test with session ID
+python -m orchestrator --test-message "Necesito ayuda con la práctica 2" --session-id "student_123"
+
+# Local debugging and development
+python -m orchestrator.local_runner interactive              # Interactive conversation mode
+python -m orchestrator.local_runner single "Your message"   # Single message testing
+python -m orchestrator.local_runner intent-test             # Intent classification testing
+
+# Run comprehensive tests
+python orchestrator/test_client.py
+
+# Run interactive test mode
+python orchestrator/test_client.py interactive
+```
+
+#### GapAnalyzer Agent (Specialized Agent)
+```bash
+# Run the GapAnalyzer server
 python -m gapanalyzer --host localhost --port 10000
+
+# Test with specific practice data
+python -m gapanalyzer.local_runner 2 1.d "No entiendo por qué mi consulta no funciona"
 
 # Test the agent
 python gapanalyzer/test_client.py
@@ -106,11 +134,22 @@ All agents follow the A2A (Agent-to-Agent) framework pattern:
 3. **Request Handler**: Manages HTTP requests and agent card serving
 4. **Server Application**: Starlette-based HTTP server with A2A endpoints
 
-### gapanalyzer/ - Example AI Agent Module
-- **`agent.py`**: Core `CurrencyAgent` class implementing currency conversion functionality
-- **`agent_executor.py`**: `CurrencyAgentExecutor` that handles A2A protocol request/response lifecycle
+### orchestrator/ - Main Conversation Management Agent
+- **`agent.py`**: Core `OrchestratorAgent` class managing educational conversations and multi-agent coordination
+- **`workflow.py`**: `OrchestratorWorkflow` LangGraph implementation with intent classification and agent routing
+- **`schemas.py`**: Data models for conversation memory, intent classification, and multi-agent coordination
+- **`agent_executor.py`**: `OrchestratorAgentExecutor` handling A2A protocol and session management
+- **`__main__.py`**: CLI entry point and server setup with session management endpoints
+- **`test_client.py`**: Comprehensive test client for conversation flows and multi-agent integration
+
+### gapanalyzer/ - Specialized Learning Gap Analysis Agent
+- **`agent.py`**: Core `GapAnalyzerAgent` class implementing educational gap detection and evaluation
+- **`workflow.py`**: `GapAnalysisWorkflow` LangGraph implementation for gap identification and evaluation
+- **`schemas.py`**: Data models for gap analysis, student context, and educational assessment
+- **`agent_executor.py`**: `GapAnalyzerAgentExecutor` handling A2A protocol request/response lifecycle
+- **`local_runner.py`**: Local testing tool with real knowledge graph data integration
 - **`__main__.py`**: CLI entry point and server setup using A2A Starlette application
-- **`test_client.py`**: Test client demonstrating A2A client usage patterns
+- **`test_client.py`**: Test client demonstrating gap analysis workflows
 
 ### Knowledge Graph Schema
 - **Materia** → **Carrera**, **Profesor**, **ObjetivoMateria**, **UnidadTematica**
@@ -238,6 +277,105 @@ print(f"Using: {info['provider']} - {info['model']}")
 - **Knowledge Graph Tools**: Search KG, get subjects/topics/practices, theoretical content, find related content
 - **Utility Tools**: Text processing, calculations, data formatting, validation
 - **Tool Registry**: Centralized discovery, categorization, and agent-specific tool selection
+
+## Debugging and Development
+
+### VSCode Debugging Configuration
+
+The project includes comprehensive debugging configurations for VSCode in `.vscode/launch.json`:
+
+#### Orchestrator Agent Debugging
+- **Orchestrator Interactive Mode**: Interactive conversation debugging with full logging
+- **Orchestrator Single Message**: Test specific messages with detailed analysis
+- **Orchestrator Intent Test**: Test intent classification with multiple scenarios
+- **Orchestrator Server**: Debug the A2A server with full request/response cycle
+
+#### GapAnalyzer Agent Debugging
+- **GapAnalyzer Local Runner**: Debug with real KG data using practice/exercise context
+- **GapAnalyzer Server**: Debug the A2A server for gap analysis
+
+#### Usage in VSCode
+1. Open VSCode in the project root
+2. Go to Run and Debug (Ctrl+Shift+D)
+3. Select desired configuration from dropdown
+4. Set breakpoints in agent code
+5. Press F5 to start debugging
+
+### Local Runners for Development
+
+#### Orchestrator Local Runner
+```bash
+# Interactive mode - full conversation debugging
+python -m orchestrator.local_runner interactive
+
+# Single message testing
+python -m orchestrator.local_runner single "¿Qué es normalización?"
+
+# Intent classification testing
+python -m orchestrator.local_runner intent-test
+```
+
+**Features:**
+- Multi-turn conversation with memory persistence
+- Detailed response analysis and context inspection
+- Intent classification debugging
+- Multi-agent coordination tracing
+- Session state management
+- Special commands: `session`, `intent-test`, `quit`
+
+#### GapAnalyzer Local Runner
+```bash
+# Practice-specific context from KG
+python -m gapanalyzer.local_runner 2 1.d "Mi consulta no funciona"
+```
+
+**Features:**
+- Real knowledge graph data integration
+- Practice and exercise context building
+- Gap analysis workflow debugging
+- Comprehensive result analysis
+
+### Workflow Visualization
+
+Both agents include workflow visualization tools for understanding LangGraph structure:
+
+#### Orchestrator Workflow Visualization
+```bash
+# Generate PNG workflow diagram
+python orchestrator/visualize_workflow.py
+
+# Generate JPG with custom output
+python orchestrator/visualize_workflow.py --format jpg --output ./docs/
+
+# Show only workflow information (no image)
+python orchestrator/visualize_workflow.py --info-only
+
+# Run as module
+python -m orchestrator.visualize_workflow --format png
+```
+
+#### GapAnalyzer Workflow Visualization
+```bash
+# Generate PNG workflow diagram
+python gapanalyzer/visualize_workflow.py
+
+# Generate JPG with custom output
+python gapanalyzer/visualize_workflow.py --format jpg --output ./docs/
+
+# Show only workflow information (no image)
+python gapanalyzer/visualize_workflow.py --info-only
+
+# Run as module
+python -m gapanalyzer.visualize_workflow --format png
+```
+
+**Workflow Visualization Features:**
+- **Automatic Diagram Generation**: Creates visual representations of LangGraph workflows
+- **Multiple Formats**: PNG, JPG, or Mermaid (.mmd) text files
+- **Detailed Node Information**: Shows all workflow nodes, edges, and conditional logic
+- **Intent Classification Details**: Updated system with practical_general vs practical_specific distinction
+- **Comprehensive Documentation**: Includes workflow features, data flow, and architecture details
+- **Mermaid CLI Integration**: Optional conversion using @mermaid-js/mermaid-cli
 
 ### Observability and Monitoring
 

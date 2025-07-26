@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SearchResult:
     """Represents a search result from the knowledge graph."""
-    node_id: int
+    node_id: Union[int, str]  # Can be int (legacy id) or str (elementId)
     node_type: str
     properties: Dict[str, Any]
     score: Optional[float] = None
@@ -301,18 +301,18 @@ class KGQueryInterface:
         """
         # This would require vector similarity search if embeddings are available
         query = """
-        CALL {
+        CALL () {
           MATCH (o:ObjetivoMateria) WHERE o.descripcion CONTAINS $search_text
-          RETURN id(o) AS node_id, 'ObjetivoMateria' AS node_type, properties(o) AS props, 1.0 AS score
+          RETURN elementId(o) AS node_id, 'ObjetivoMateria' AS node_type, properties(o) AS props, 1.0 AS score
           UNION
           MATCH (t:Tema) WHERE t.descripcion CONTAINS $search_text  
-          RETURN id(t) AS node_id, 'Tema' AS node_type, properties(t) AS props, 1.0 AS score
+          RETURN elementId(t) AS node_id, 'Tema' AS node_type, properties(t) AS props, 1.0 AS score
           UNION
           MATCH (e:Ejercicio) WHERE e.enunciado CONTAINS $search_text
-          RETURN id(e) AS node_id, 'Ejercicio' AS node_type, properties(e) AS props, 1.0 AS score
+          RETURN elementId(e) AS node_id, 'Ejercicio' AS node_type, properties(e) AS props, 1.0 AS score
           UNION
           MATCH (r:Respuesta) WHERE r.texto CONTAINS $search_text
-          RETURN id(r) AS node_id, 'Respuesta' AS node_type, properties(r) AS props, 1.0 AS score
+          RETURN elementId(r) AS node_id, 'Respuesta' AS node_type, properties(r) AS props, 1.0 AS score
         }
         RETURN node_id, node_type, props, score
         ORDER BY score DESC
@@ -325,7 +325,7 @@ class KGQueryInterface:
             })
             return [
                 SearchResult(
-                    node_id=record["node_id"],
+                    node_id=record["node_id"],  # elementId returns string
                     node_type=record["node_type"], 
                     properties=record["props"],
                     score=record["score"]
