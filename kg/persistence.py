@@ -144,8 +144,8 @@ class Neo4jCheckpointSaver(BaseCheckpointSaver):
                 session.run("""
                     MERGE (c:Checkpoint {thread_id: $thread_id, checkpoint_id: $checkpoint_id})
                     SET c.checkpoint_data = $checkpoint_data,
-                        c.metadata = $metadata_data,
-                        c.versions = $versions_data,
+                        c.metadata = $metadata,
+                        c.versions = $versions,
                         c.timestamp = datetime(),
                         c.updated_at = datetime()
                     RETURN c
@@ -153,8 +153,8 @@ class Neo4jCheckpointSaver(BaseCheckpointSaver):
                     "thread_id": thread_id,
                     "checkpoint_id": checkpoint_id,
                     "checkpoint_data": checkpoint_data,
-                    "metadata_data": metadata_data,
-                    "versions_data": versions_data
+                    "metadata": metadata_data,
+                    "versions": versions_data
                 })
                 
                 logger.debug(f"Stored checkpoint {checkpoint_id} for thread {thread_id}")

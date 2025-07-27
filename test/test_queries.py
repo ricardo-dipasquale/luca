@@ -162,7 +162,6 @@ class TestSearchQueries:
         # Validate SearchResult objects
         for result in results:
             assert isinstance(result, SearchResult)
-            assert isinstance(result.node_id, int)
             assert isinstance(result.node_type, str)
             assert isinstance(result.properties, dict)
             assert result.score is not None

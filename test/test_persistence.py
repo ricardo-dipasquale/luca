@@ -25,20 +25,25 @@ class TestNeo4jCheckpointSaver:
         return Neo4jCheckpointSaver()
     
     @pytest.fixture
-    def sample_config(self):
+    def checkpoint_id(self):
+        """Create a shared checkpoint ID."""
+        return f"checkpoint_{uuid4()}"
+    
+    @pytest.fixture
+    def sample_config(self, checkpoint_id):
         """Create a sample runnable config."""
         return {
             "configurable": {
                 "thread_id": f"test_thread_{uuid4()}",
-                "checkpoint_id": f"checkpoint_{uuid4()}"
+                "checkpoint_id": checkpoint_id
             }
         }
     
     @pytest.fixture
-    def sample_checkpoint(self):
+    def sample_checkpoint(self, checkpoint_id):
         """Create a sample checkpoint."""
         return {
-            "id": f"checkpoint_{uuid4()}",
+            "id": checkpoint_id,
             "ts": datetime.now().isoformat(),
             "channel_values": {
                 "state": {"test_data": "sample_value"},
@@ -99,7 +104,7 @@ class TestNeo4jCheckpointSaver:
         assert result is None
     
     @pytest.mark.integration
-    def test_list_checkpoints(self, checkpointer, sample_config, sample_checkpoint, sample_metadata):
+    def test_list_checkpoints(self, checkpointer, checkpoint_id, sample_config, sample_checkpoint, sample_metadata):
         """Test listing checkpoints for a thread."""
         # Store a checkpoint first
         checkpointer.put(sample_config, sample_checkpoint, sample_metadata)
@@ -111,7 +116,7 @@ class TestNeo4jCheckpointSaver:
         # Find our checkpoint
         found = False
         for checkpoint_tuple in checkpoints:
-            if checkpoint_tuple.checkpoint["id"] == sample_checkpoint["id"]:
+            if checkpoint_tuple.checkpoint["id"] == checkpoint_id:
                 found = True
                 break
         assert found, "Stored checkpoint not found in list"
