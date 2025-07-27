@@ -46,18 +46,19 @@ st.markdown("""
         justify-content: space-between;
         align-items: center;
         padding: 1rem 0;
-        border-bottom: 1px solid #e0e0e0;
+        border-bottom: 2px solid #0066cc;
         margin-bottom: 2rem;
+        background: linear-gradient(90deg, #f8f9fa 0%, #ffffff 50%, #f8f9fa 100%);
     }
     
-    .logo-fica {
-        width: 80px;
-        height: auto;
+    /* Logo styling improvements */
+    .stImage {
+        text-align: center;
     }
     
-    .logo-luca {
-        width: 120px;
-        height: auto;
+    .stImage > img {
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     /* Chat styling */
@@ -170,19 +171,23 @@ def show_header():
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col1:
-        st.write("")  # Spacer
+        try:
+            # Path desde el directorio del proyecto
+            logo_fica_path = os.path.join(os.path.dirname(__file__), "assets", "Logo FICA uso excepcional color.png")
+            st.image(logo_fica_path, width=80)
+        except:
+            st.markdown("#### FICA")
         
     with col2:
         try:
-            st.image("frontend/assets/logo luca.png", width=200)
+            # Path desde el directorio del proyecto
+            logo_luca_path = os.path.join(os.path.dirname(__file__), "assets", "logo luca.png")
+            st.image(logo_luca_path, width=200)
         except:
             st.markdown("### 🎓 LUCA")
             
     with col3:
-        try:
-            st.image("frontend/assets/Logo FICA uso excepcional color.png", width=80)
-        except:
-            st.markdown("#### FICA")
+        st.write("")  # Spacer
 
 def show_sidebar():
     """Display sidebar with conversation history."""
@@ -247,15 +252,25 @@ def show_subject_selector():
     subjects = get_subjects_from_kg()
     
     if subjects:
+        # Auto-select first subject if none selected
+        if not st.session_state.selected_subject:
+            st.session_state.selected_subject = subjects[0]
+        
+        # Calculate current index
+        try:
+            current_index = subjects.index(st.session_state.selected_subject)
+        except ValueError:
+            current_index = 0
+            st.session_state.selected_subject = subjects[0]
+        
         selected = st.selectbox(
             "📚 Selecciona una materia:",
-            options=[""] + subjects,
-            index=0 if not st.session_state.selected_subject else subjects.index(st.session_state.selected_subject) + 1,
+            options=subjects,
+            index=current_index,
             help="Elige la materia sobre la que quieres conversar"
         )
         
-        if selected:
-            st.session_state.selected_subject = selected
+        st.session_state.selected_subject = selected
     else:
         st.error("No se pudieron cargar las materias. Verifica la conexión con la base de datos.")
 
