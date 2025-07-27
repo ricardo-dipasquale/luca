@@ -114,12 +114,21 @@ class OrchestratorWorkflow:
         # Intent handlers flow to appropriate synthesis (practical_specific gets specialized treatment)
         workflow.add_edge("handle_theoretical_question", "synthesize_response")
         workflow.add_edge("handle_practical_general", "synthesize_response")
-        workflow.add_edge("handle_practical_specific", "synthesize_practical_specific_response")
         workflow.add_edge("handle_clarification", "synthesize_response")
         workflow.add_edge("handle_exploration", "synthesize_response")
         workflow.add_edge("handle_evaluation", "synthesize_response")
         workflow.add_edge("handle_social", "synthesize_response")
         workflow.add_edge("handle_off_topic", "synthesize_response")
+        
+        # Handle practical_specific has conditional routing for error handling
+        workflow.add_conditional_edges(
+            "handle_practical_specific",
+            self._route_after_practical_specific,
+            {
+                "error": "handle_error",
+                "synthesize": "synthesize_practical_specific_response"
+            }
+        )
         
         # Response synthesis flows to memory update and then end
         workflow.add_edge("synthesize_response", "update_memory")
@@ -155,6 +164,15 @@ class OrchestratorWorkflow:
         }
         
         return intent_mapping.get(intent, "error")
+    
+    def _route_after_practical_specific(self, state: WorkflowState) -> str:
+        """Route after handle_practical_specific based on whether errors occurred."""
+        if state.error_message:
+            logger.info(f"Routing to error handler after practical_specific due to: {state.error_message}")
+            return "error"
+        else:
+            logger.info("Routing to synthesize_practical_specific_response")
+            return "synthesize"
     
     async def _classify_intent(self, state: WorkflowState) -> WorkflowState:
         """
@@ -211,6 +229,11 @@ INSTRUCCIONES:
 5. Proporciona razonamiento claro
 6. Sugiere acciones basadas en la intención
 7. Determina si necesitas más contexto
+                 
+CONSIDERACIONES DEL LENGUAJE:
+1. El alumno se expresa en español argentino.
+2. En el contexto de prácticas específicas, el alumno suele usar los siguientes sinónimos para ejercicio: punto, ejercicio, problema, item.
+
 
 Responde en formato JSON:
 {{
@@ -360,10 +383,13 @@ Clasifica la intención de este mensaje.""")
                 
             except ValueError as e:
                 # Handle case where practice/exercise not found in KG
-                logger.warning(f"Educational content not found in KG: {e}")
-                response = await self._handle_missing_educational_content(ctx, str(e))
-                state.agent_responses["clarification"] = response
-                logger.info("Handled missing educational content with feedback")
+                error_msg = str(e)
+                logger.error(f"Educational content not found in KG: {error_msg}")
+                
+                # Set error state to route to handle_error for proper clarification
+                state.error_message = f"CONTENT_NOT_FOUND: {error_msg}"
+                state.needs_clarification = True
+                logger.info("Set error state for missing educational content - routing to error handler")
             
         except Exception as e:
             logger.error(f"Error handling practical specific question: {e}")
@@ -818,18 +844,109 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
         Error handling node.
         
         Processes errors and creates appropriate error responses.
+        Special handling for content not found errors to provide helpful clarification.
         """
         logger.error(f"Handling workflow error: {state.error_message}")
         
-        # Create error response
-        error_response = OrchestratorResponse(
-            status='error',
-            message=f"Disculpá, tuve un problema procesando tu mensaje: {state.error_message}. ¿Podrías intentar reformular tu pregunta?",
-            educational_guidance="Mientras tanto, podés revisar el material de la práctica actual o consultar los conceptos teóricos relacionados."
-        )
+        # Check if this is a content not found error
+        if state.error_message and "CONTENT_NOT_FOUND:" in state.error_message:
+            # Extract the original error message
+            error_details = state.error_message.replace("CONTENT_NOT_FOUND: ", "")
+            
+            # Generate specific clarification response
+            clarification_response = await self._generate_content_not_found_response(
+                state.conversation_context, error_details
+            )
+            
+            error_response = OrchestratorResponse(
+                status='needs_clarification',
+                message=clarification_response,
+                educational_guidance="Podés verificar la información de la práctica y ejercicio, o consultarme sobre conceptos teóricos relacionados con tu pregunta."
+            )
+            
+        else:
+            # Handle general errors
+            error_response = OrchestratorResponse(
+                status='error',
+                message=f"Disculpá, tuve un problema procesando tu mensaje: {state.error_message}. ¿Podrías intentar reformular tu pregunta?",
+                educational_guidance="Mientras tanto, podés revisar el material de la práctica actual o consultar los conceptos teóricos relacionados."
+            )
         
         state.final_response = error_response
         return state
+    
+    async def _generate_content_not_found_response(self, ctx: ConversationContext, error_details: str) -> str:
+        """
+        Generate specific clarification response for content not found errors.
+        
+        Provides helpful information about available practices and exercises.
+        """
+        try:
+            # Get available practices from KG
+            available_content = await self._get_available_educational_content()
+            
+            # Create clarification prompt
+            clarification_prompt = ChatPromptTemplate.from_messages([
+                ("system", """Eres un tutor educativo que ayuda cuando un estudiante pregunta sobre contenido que no existe en el sistema.
+
+Tu objetivo es:
+1. Explicar amablemente que el contenido específico no se encontró
+2. Proporcionar información sobre las prácticas y ejercicios disponibles
+3. Sugerir alternativas útiles
+4. Pedirle que reformule con información correcta
+
+CONTENIDO DISPONIBLE:
+{available_content}
+
+ERROR ESPECÍFICO: {error_details}
+
+Sé empático, constructivo y específico en tus sugerencias."""),
+                ("human", """El estudiante preguntó: "{student_message}"
+
+Error: {error_details}
+
+Genera una respuesta de clarificación útil que ayude al estudiante a reformular su pregunta correctamente.""")
+            ])
+            
+            formatted_prompt = clarification_prompt.format_messages(
+                student_message=ctx.current_message,
+                error_details=error_details,
+                available_content=available_content
+            )
+            
+            response = await self.llm.ainvoke(formatted_prompt)
+            return response.content
+            
+        except Exception as e:
+            logger.error(f"Error generating content not found response: {e}")
+            # Fallback response
+            return f"No encontré el contenido que mencionás ({error_details}). Las prácticas disponibles en el sistema son la 1 y la 2. ¿Podrías verificar el número de práctica y ejercicio? También puedo ayudarte con conceptos teóricos sobre el tema que te interesa."
+    
+    async def _get_available_educational_content(self) -> str:
+        """Get information about available practices and exercises from KG."""
+        try:
+            kg_tools = get_kg_tools()
+            kg_search_tool = next((tool for tool in kg_tools if tool.name == "search_knowledge_graph"), None)
+            
+            if kg_search_tool:
+                # Search for available practices
+                practices_result = kg_search_tool.invoke({
+                    "query_text": "prácticas disponibles",
+                    "node_types": ["Practica"],
+                    "limit": 10
+                })
+                
+                # Format the information nicely
+                if practices_result and "Prácticas encontradas:" in practices_result:
+                    return practices_result
+                else:
+                    return "Prácticas disponibles: Práctica 1 y Práctica 2 de Bases de Datos Relacionales"
+            else:
+                return "Prácticas disponibles: Práctica 1 y Práctica 2 de Bases de Datos Relacionales"
+                
+        except Exception as e:
+            logger.warning(f"Error getting available content: {e}")
+            return "Prácticas disponibles: Práctica 1 y Práctica 2 de Bases de Datos Relacionales"
     
     def _extract_exercise_context_from_state(self, state: WorkflowState) -> str:
         """
@@ -934,18 +1051,50 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
                 if practice_match:
                     practice_number = int(practice_match.group(1))
             
-            # Extract exercise code (e.g., "1.d", "2.a", "ejercicio 1.d")
+            # Extract exercise code (e.g., "1.d", "2.a", "ejercicio 1.d", "problema k", "punto k", "ítem j")
             exercise_patterns = [
                 r'ejercicio\s+(\d+)\.([a-z])',  # "ejercicio 1.d"
                 r'(\d+)\.([a-z])',              # "1.d"
                 r'sección\s+(\d+).*ejercicio\s+([a-z])',  # "sección 1 ejercicio d"
+                r'problema\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',  # "problema k de la práctica 1"
+                r'punto\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',     # "punto k de la práctica 4"
+                r'ítem\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',      # "ítem j de la práctica 8"
+                r'item\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',      # "item o de la práctica 3"
+                r'el\s+problema\s+([a-z])',     # "el problema k" (uses current practice)
+                r'problema\s+([a-z])',          # "problema k" (uses current practice)
+                r'el\s+punto\s+([a-z])',        # "el punto k" (uses current practice)
+                r'punto\s+([a-z])',             # "punto k" (uses current practice)
+                r'el\s+ítem\s+([a-z])',         # "el ítem j" (uses current practice)
+                r'ítem\s+([a-z])',              # "ítem j" (uses current practice)
+                r'el\s+item\s+([a-z])',         # "el item o" (uses current practice)
+                r'item\s+([a-z])',              # "item o" (uses current practice)
             ]
             
-            for pattern in exercise_patterns:
+            for i, pattern in enumerate(exercise_patterns):
                 match = re.search(pattern, message_lower)
                 if match:
-                    section_number = match.group(1)
-                    exercise_identifier = match.group(2)
+                    if i == 3:  # "problema k de la práctica 1" - different group order
+                        exercise_identifier = match.group(1)
+                        practice_number = int(match.group(2))
+                        section_number = "1"  # Default to section 1 for "problema" references
+                    elif i == 4:  # "punto k de la práctica 4" - different group order
+                        exercise_identifier = match.group(1)
+                        practice_number = int(match.group(2))
+                        section_number = "1"  # Default to section 1 for "punto" references
+                    elif i == 5:  # "ítem j de la práctica 8" - different group order
+                        exercise_identifier = match.group(1)
+                        practice_number = int(match.group(2))
+                        section_number = "1"  # Default to section 1 for "ítem" references
+                    elif i == 6:  # "item o de la práctica 3" - different group order
+                        exercise_identifier = match.group(1)
+                        practice_number = int(match.group(2))
+                        section_number = "1"  # Default to section 1 for "item" references
+                    elif i in [7, 8, 9, 10, 11, 12, 13]:  # Single letter patterns with current practice
+                        exercise_identifier = match.group(1)
+                        section_number = "1"  # Default to section 1 for single letter references
+                    else:  # Standard patterns: section first, exercise second
+                        section_number = match.group(1)
+                        exercise_identifier = match.group(2)
                     break
             
             # If we have enough information, return parameters
@@ -957,8 +1106,9 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
                     "exercise_identifier": exercise_identifier
                 }
             
-            # Try alternative pattern: just practice and exercise without explicit section
+            # Try alternative patterns: just practice and exercise without explicit section
             if practice_number:
+                # Try "ejercicio k" pattern
                 exercise_match = re.search(r'ejercicio\s+([a-z])', message_lower)
                 if exercise_match:
                     # Assume section 1 if not specified
@@ -967,6 +1117,50 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
                         "practice_number": practice_number,
                         "section_number": "1",
                         "exercise_identifier": exercise_match.group(1)
+                    }
+                
+                # Try "problema k" pattern (if not already matched above)
+                problema_match = re.search(r'problema\s+([a-z])', message_lower)
+                if problema_match:
+                    # Assume section 1 if not specified
+                    return {
+                        "subject_name": subject_name,
+                        "practice_number": practice_number,
+                        "section_number": "1",
+                        "exercise_identifier": problema_match.group(1)
+                    }
+                
+                # Try "punto k" pattern (if not already matched above)
+                punto_match = re.search(r'punto\s+([a-z])', message_lower)
+                if punto_match:
+                    # Assume section 1 if not specified
+                    return {
+                        "subject_name": subject_name,
+                        "practice_number": practice_number,
+                        "section_number": "1",
+                        "exercise_identifier": punto_match.group(1)
+                    }
+                
+                # Try "ítem j" pattern (if not already matched above)
+                item_match = re.search(r'ítem\s+([a-z])', message_lower)
+                if item_match:
+                    # Assume section 1 if not specified
+                    return {
+                        "subject_name": subject_name,
+                        "practice_number": practice_number,
+                        "section_number": "1",
+                        "exercise_identifier": item_match.group(1)
+                    }
+                
+                # Try "item o" pattern (if not already matched above)
+                item_plain_match = re.search(r'item\s+([a-z])', message_lower)
+                if item_plain_match:
+                    # Assume section 1 if not specified
+                    return {
+                        "subject_name": subject_name,
+                        "practice_number": practice_number,
+                        "section_number": "1",
+                        "exercise_identifier": item_plain_match.group(1)
                     }
             
             logger.warning(f"Could not extract educational parameters from message: {ctx.current_message}")

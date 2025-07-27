@@ -187,6 +187,7 @@ class WorkflowState(BaseModel):
     
     # Control
     error_message: Optional[str] = None
+    needs_clarification: bool = False
     retry_count: int = 0
     max_retries: int = 3
     

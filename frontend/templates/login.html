@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Login - LUCA{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6 col-lg-4">
+            <div class="card shadow">
+                <div class="card-header header-brand text-center">
+                    <h3><i class="fas fa-graduation-cap"></i> LUCA</h3>
+                    <p class="mb-0">Asistente Educativo</p>
+                </div>
+                <div class="card-body">
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" 
+                                   placeholder="usuario@uca.edu.ar" required>
+                            <div class="form-text">Debe ser un email del dominio @uca.edu.ar</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Contraseña</label>
+                            <input type="password" class="form-control" id="password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+                            <span class="btn-text">Ingresar</span>
+                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        </button>
+                    </form>
+                    
+                    <div id="errorAlert" class="alert alert-danger mt-3 d-none" role="alert"></div>
+                    <div id="successAlert" class="alert alert-success mt-3 d-none" role="alert"></div>
+                    
+                    <div class="mt-4 text-center text-muted">
+                        <small>
+                            <strong>Credenciales de prueba:</strong><br>
+                            Email: visitante@uca.edu.ar<br>
+                            Contraseña: visitante!
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const loginBtn = document.getElementById('loginBtn');
+    const btnText = loginBtn.querySelector('.btn-text');
+    const spinner = loginBtn.querySelector('.spinner-border');
+    const errorAlert = document.getElementById('errorAlert');
+    const successAlert = document.getElementById('successAlert');
+    
+    // Show loading state
+    loginBtn.disabled = true;
+    btnText.textContent = 'Ingresando...';
+    spinner.classList.remove('d-none');
+    errorAlert.classList.add('d-none');
+    successAlert.classList.add('d-none');
+    
+    try {
+        const response = await fetch('/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            successAlert.textContent = '¡Bienvenido/a a LUCA!';
+            successAlert.classList.remove('d-none');
+            
+            // Redirect to main app
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
+        } else {
+            errorAlert.textContent = result.error || 'Error de autenticación';
+            errorAlert.classList.remove('d-none');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        errorAlert.textContent = 'Error de conexión. Por favor, intenta nuevamente.';
+        errorAlert.classList.remove('d-none');
+    } finally {
+        // Reset button state
+        loginBtn.disabled = false;
+        btnText.textContent = 'Ingresar';
+        spinner.classList.add('d-none');
+    }
+});
+
+// Auto-fill test credentials on page load
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('email').value = 'visitante@uca.edu.ar';
+    document.getElementById('password').value = 'visitante!';
+});
+</script>
+{% endblock %}

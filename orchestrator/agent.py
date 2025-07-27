@@ -188,10 +188,9 @@ class OrchestratorAgent:
             # Main message
             response_parts.append(result.message)
             
-            # Add educational guidance if present
+            # Add educational guidance if present (integrated in main response)
             if result.educational_guidance:
                 response_parts.append("")
-                response_parts.append("📚 **Orientación pedagógica:**")
                 response_parts.append(result.educational_guidance)
             
             # Add intent information for debugging (optional)

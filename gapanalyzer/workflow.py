@@ -173,6 +173,24 @@ class GapAnalysisWorkflow:
             
             ctx = state.student_context
             
+            # Check for specific error indicators in context
+            error_indicators = [
+                "Error al procesar práctica",
+                "Error al procesar ejercicio", 
+                "no encontrada",
+                "no encontrado",
+                "Práctica no encontrada",
+                "Ejercicio no encontrado"
+            ]
+            
+            # Check if context indicates missing content
+            context_text = f"{ctx.practice_context} {ctx.exercise_context}".lower()
+            for indicator in error_indicators:
+                if indicator.lower() in context_text:
+                    state.error_message = f"Contenido educativo no encontrado: {indicator}"
+                    logger.warning(f"Detected missing content indicator: {indicator}")
+                    return state
+            
             # Validate required context fields
             context_complete = True
             needs_theory = True
@@ -185,13 +203,11 @@ class GapAnalysisWorkflow:
                 context_complete = False
                 logger.warning("Exercise context appears incomplete")
             
-            # Check if theoretical context might be needed based on question complexity
-            #question_lower = ctx.student_question.lower()
-            #theory_keywords = ['concepto', 'teoria', 'definicion', 'por que', 'como funciona', 'diferencia', 'que es']
-            
-            #if any(keyword in question_lower for keyword in theory_keywords):
-            #    needs_theory = True
-            #    logger.info("Question suggests theoretical context might be beneficial")
+            # If context is severely incomplete, it might indicate missing content
+            if not context_complete and (not ctx.practice_context or not ctx.exercise_context):
+                state.error_message = "El ejercicio o práctica solicitada no existe o no está disponible"
+                logger.warning("Context too incomplete - likely missing content")
+                return state
             
             # Create educational context
             educational_context = EducationalContext(
@@ -678,10 +694,24 @@ Evalúa cada gap según los criterios pedagógicos.""")
         Error handling node.
         
         Processes errors and creates appropriate error responses.
+        Focus on being concrete and specific about what content doesn't exist.
         """
         logger.error(f"Handling workflow error: {state.error_message}")
         
-        # Create minimal error result
+        # Create concise, specific error message
+        error_message = state.error_message or "Error desconocido"
+        
+        # Be more specific about missing content
+        if "no encontrada" in error_message or "no encontrado" in error_message:
+            # Extract specific content that doesn't exist
+            summary = error_message  # Use the specific error as-is
+            recommendations = ["Verificar el número de práctica y ejercicio", "Consultar contenido disponible"]
+        else:
+            # Generic error
+            summary = f"Error en el procesamiento: {error_message}"
+            recommendations = ["Intentar nuevamente", "Verificar contexto proporcionado"]
+        
+        # Create minimal, concrete error result
         error_result = GapAnalysisResult(
             student_context=state.student_context or StudentContext(
                 student_question="Error en procesamiento",
@@ -696,9 +726,9 @@ Evalúa cada gap según los criterios pedagógicos.""")
             ),
             identified_gaps=[],
             prioritized_gaps=[],  # Empty since prioritization was removed
-            summary=f"Error en el análisis: {state.error_message}",
+            summary=summary,
             confidence_score=0.0,
-            recommendations=["Intentar nuevamente", "Verificar conexto proporcionado", "Contactar soporte técnico"]
+            recommendations=recommendations
         )
         
         state.final_result = error_result

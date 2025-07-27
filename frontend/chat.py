@@ -33,6 +33,13 @@ class OrchestratorClient:
             Final response with progress steps
         """
         try:
+            # Try to run in existing event loop if available
+            loop = None
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            
             async def _process():
                 context = {
                     'session_id': session_id,
@@ -69,8 +76,15 @@ class OrchestratorClient:
                     'success': True
                 }
             
-            # Use asyncio.run which creates a new event loop
-            return asyncio.run(_process())
+            if loop and loop.is_running():
+                # Running in existing loop - create a task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, _process())
+                    return future.result()
+            else:
+                # No running loop, safe to use asyncio.run
+                return asyncio.run(_process())
             
         except Exception as e:
             print(f"❌ Orchestrator client error: {e}")
@@ -210,9 +224,12 @@ def get_orchestrator_client() -> OrchestratorClient:
     """
     Get the appropriate orchestrator client.
     
+    Creates a fresh client each time to avoid state corruption issues
+    with Streamlit and asyncio event loops.
+    
     Returns:
         Configured orchestrator client
     """
-    # For now, we'll use the direct client
-    # In production, you might want to use the API client
+    # Always create a fresh client to avoid Streamlit/asyncio conflicts
+    # The underlying executor will handle session persistence correctly
     return OrchestratorClient()

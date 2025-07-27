@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - LUCA{% endblock %}
+
+{% block content %}
+<div class="header-brand">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col">
+                <h2><i class="fas fa-graduation-cap"></i> LUCA - Asistente Educativo</h2>
+            </div>
+            <div class="col-auto">
+                <span class="me-3">{{ user_email }}</span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Salir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid mt-3">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-comments"></i> Conversaciones</h5>
+                    <button class="btn btn-primary btn-sm w-100 mt-2" onclick="createNewConversation()">
+                        <i class="fas fa-plus"></i> Nueva Conversación
+                    </button>
+                </div>
+                <div class="card-body" id="conversationsList">
+                    {% for conv in conversations %}
+                    <div class="conversation-item" data-id="{{ conv.id }}" onclick="selectConversation('{{ conv.id }}')">
+                        <div class="fw-bold">{{ conv.title[:30] }}{% if conv.title|length > 30 %}...{% endif %}</div>
+                        <small class="text-muted">
+                            {{ conv.subject or 'Sin materia' }} • {{ conv.message_count }} mensajes
+                        </small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Chat Area -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5><i class="fas fa-robot"></i> Chat Educativo</h5>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="subjectSelect">
+                                <option value="">Selecciona una materia...</option>
+                                {% for subject in subjects %}
+                                <option value="{{ subject }}">{{ subject }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Chat Messages Container -->
+                    <div class="chat-container" id="chatContainer">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-comment-dots fa-2x mb-2"></i>
+                            <p>¡Hola! Soy LUCA, tu asistente educativo. ¿En qué puedo ayudarte hoy?</p>
+                            <p><strong>Ejemplo:</strong> "¿Qué es un LEFT JOIN en álgebra relacional?"</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Container -->
+                    <div class="progress-container" id="progressContainer"></div>
+                    
+                    <!-- Chat Input -->
+                    <form id="chatForm" class="mt-3">
+                        <div class="input-group">
+                            <textarea class="form-control" id="messageInput" rows="2" 
+                                      placeholder="Escribe tu pregunta aquí..." required></textarea>
+                            <button class="btn btn-primary" type="submit" id="sendBtn">
+                                <span class="btn-text"><i class="fas fa-paper-plane"></i> Enviar</span>
+                                <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentConversationId = null;
+let isProcessing = false;
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-select first subject if available
+    const subjectSelect = document.getElementById('subjectSelect');
+    if (subjectSelect.options.length > 1) {
+        subjectSelect.selectedIndex = 1;
+    }
+    
+    // Focus on message input
+    document.getElementById('messageInput').focus();
+    
+    // Handle Enter key in textarea
+    document.getElementById('messageInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+        }
+    });
+});
+
+// Handle chat form submission
+document.getElementById('chatForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    if (isProcessing) return;
+    
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const btnText = sendBtn.querySelector('.btn-text');
+    const spinner = sendBtn.querySelector('.spinner-border');
+    const subjectSelect = document.getElementById('subjectSelect');
+    
+    const message = messageInput.value.trim();
+    const subject = subjectSelect.value;
+    
+    if (!message) return;
+    
+    // Check if subject is selected
+    if (!subject) {
+        alert('Por favor, selecciona una materia antes de enviar tu mensaje.');
+        subjectSelect.focus();
+        return;
+    }
+    
+    isProcessing = true;
+    
+    // Show user message
+    addMessage(message, 'user');
+    
+    // Clear input and show loading state
+    messageInput.value = '';
+    sendBtn.disabled = true;
+    btnText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    spinner.classList.remove('d-none');
+    
+    // Show thinking indicator
+    showProgress('🤔 LUCA está pensando...');
+    
+    try {
+        console.log(`🎯 Sending message: ${message}`);
+        console.log(`🎯 Subject: ${subject}`);
+        console.log(`🎯 Conversation: ${currentConversationId}`);
+        
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: message,
+                subject: subject,
+                conversation_id: currentConversationId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Show progress steps
+            if (result.progress_steps) {
+                for (const step of result.progress_steps) {
+                    showProgress(`🤔 ${step}`);
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX
+                }
+            }
+            
+            // Show final response
+            addMessage(result.content, 'assistant');
+            console.log('✅ Message processed successfully');
+        } else {
+            addMessage(`Error: ${result.error}`, 'assistant', 'error');
+            console.error('❌ Chat error:', result.error);
+        }
+    } catch (error) {
+        console.error('❌ Network error:', error);
+        addMessage('Error de conexión. Por favor, intenta nuevamente.', 'assistant', 'error');
+    } finally {
+        isProcessing = false;
+        sendBtn.disabled = false;
+        btnText.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
+        spinner.classList.add('d-none');
+        clearProgress();
+        messageInput.focus();
+    }
+});
+
+function addMessage(content, role, type = 'normal') {
+    const chatContainer = document.getElementById('chatContainer');
+    const messageDiv = document.createElement('div');
+    
+    if (role === 'user') {
+        messageDiv.className = 'message-user';
+    } else {
+        messageDiv.className = 'message-assistant';
+        if (type === 'error') {
+            messageDiv.style.backgroundColor = '#f8d7da';
+            messageDiv.style.borderLeftColor = '#dc3545';
+        }
+    }
+    
+    messageDiv.innerHTML = content.replace(/\n/g, '<br>');
+    chatContainer.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function showProgress(text) {
+    const progressContainer = document.getElementById('progressContainer');
+    progressContainer.innerHTML = `<div class="thinking-indicator">${text}</div>`;
+}
+
+function clearProgress() {
+    const progressContainer = document.getElementById('progressContainer');
+    progressContainer.innerHTML = '';
+}
+
+function selectConversation(conversationId) {
+    currentConversationId = conversationId;
+    
+    // Update active conversation in UI
+    document.querySelectorAll('.conversation-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-id="${conversationId}"]`).classList.add('active');
+    
+    // Clear current chat
+    document.getElementById('chatContainer').innerHTML = `
+        <div class="text-center text-muted">
+            <i class="fas fa-comment-dots fa-2x mb-2"></i>
+            <p>Conversación cargada. Continúa donde lo dejaste.</p>
+        </div>
+    `;
+    
+    console.log(`📂 Selected conversation: ${conversationId}`);
+}
+
+function createNewConversation() {
+    const subject = document.getElementById('subjectSelect').value;
+    
+    if (!subject) {
+        alert('Por favor, selecciona una materia antes de crear una nueva conversación.');
+        return;
+    }
+    
+    fetch('/conversations', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            title: `Conversación sobre ${subject}`,
+            subject: subject
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // Reload conversations list
+            location.reload();
+        } else {
+            alert('Error al crear la conversación: ' + result.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error creating conversation:', error);
+        alert('Error de conexión al crear la conversación.');
+    });
+}
+
+function logout() {
+    fetch('/logout')
+    .then(() => {
+        window.location.href = '/';
+    })
+    .catch(error => {
+        console.error('Logout error:', error);
+        window.location.href = '/';
+    });
+}
+</script>
+{% endblock %}
