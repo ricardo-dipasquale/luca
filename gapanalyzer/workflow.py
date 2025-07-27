@@ -7,6 +7,7 @@ including context retrieval, gap identification, evaluation, and prioritization.
 
 import json
 import logging
+from datetime import datetime
 from typing import Dict, List, Any, Optional
 from uuid import uuid4
 
@@ -20,6 +21,7 @@ from tools.kg_tools import (
     get_theoretical_content_tool
 )
 from tools.observability import create_observed_llm
+from kg.persistence import create_neo4j_persistence
 from .schemas import (
     WorkflowState,
     StudentContext,
@@ -47,10 +49,23 @@ class GapAnalysisWorkflow:
     4. generate_response: Create final structured response
     """
     
-    def __init__(self):
+    def __init__(self, use_neo4j_persistence: bool = True):
         """Initialize the workflow with LLM and tools."""
         self.llm = create_observed_llm()
-        self.memory = MemorySaver()
+        
+        # Initialize persistence layer
+        if use_neo4j_persistence:
+            try:
+                self.checkpointer, self.memory_store = create_neo4j_persistence()
+                logger.info("Using Neo4j persistence for gap analysis memory")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Neo4j persistence, falling back to in-memory: {e}")
+                self.checkpointer = MemorySaver()
+                self.memory_store = None
+        else:
+            self.checkpointer = MemorySaver()
+            self.memory_store = None
+            
         self.graph = self._create_workflow()
     
     def _create_workflow(self) -> StateGraph:
@@ -105,7 +120,7 @@ class GapAnalysisWorkflow:
             }
         )
         
-        return workflow.compile(checkpointer=self.memory)
+        return workflow.compile(checkpointer=self.checkpointer)
     
     def _should_continue(self, state: WorkflowState) -> str:
         """Determine if workflow should continue or handle error."""
@@ -496,11 +511,94 @@ Evalúa cada gap según los criterios pedagógicos.""")
             state.final_result = final_result
             logger.info("Generated complete gap analysis result")
             
+            # Store gap analysis results in long-term memory
+            await self._store_gap_analysis_memory(state)
+            
         except Exception as e:
             logger.error(f"Error generating final response: {e}")
             state.error_message = f"Failed to generate final response: {str(e)}"
         
         return state
+    
+    async def _store_gap_analysis_memory(self, state: WorkflowState) -> None:
+        """Store gap analysis results in long-term memory using Neo4j store."""
+        if not self.memory_store:
+            return
+        
+        try:
+            # Create namespace for gap analysis memories
+            user_id = getattr(state.student_context, 'user_id', 'anonymous')
+            namespace = (user_id, "gap_analysis")
+            
+            # Store identified learning gaps
+            gaps_memory = {
+                "type": "learning_gaps",
+                "gaps": [
+                    {
+                        "description": gap.description,
+                        "severity": gap.severity.value,
+                        "category": gap.category.value
+                    }
+                    for gap in state.raw_gaps
+                ],
+                "analysis_confidence": state.final_result.confidence_score,
+                "practice_number": getattr(state.student_context, 'practice_number', None),
+                "exercise_section": getattr(state.student_context, 'exercise_section', None),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Generate unique key for this analysis
+            analysis_key = f"gaps_{state.student_context.practice_number}_{state.student_context.exercise_section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self.memory_store.put(namespace, analysis_key, gaps_memory)
+            
+            # Store learning patterns
+            patterns_memory = {
+                "type": "learning_patterns",
+                "common_gap_categories": [gap.category.value for gap in state.raw_gaps],
+                "difficulty_indicators": {
+                    "high_severity_gaps": len([g for g in state.raw_gaps if g.severity == GapSeverity.HIGH]),
+                    "medium_severity_gaps": len([g for g in state.raw_gaps if g.severity == GapSeverity.MEDIUM]),
+                    "low_severity_gaps": len([g for g in state.raw_gaps if g.severity == GapSeverity.LOW])
+                },
+                "practice_context": {
+                    "practice_number": state.student_context.practice_number,
+                    "exercise_section": state.student_context.exercise_section
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Check if we have existing patterns and merge
+            existing_patterns = self.memory_store.get(namespace, "learning_patterns_summary")
+            if existing_patterns:
+                # Merge gap categories
+                existing_patterns["common_gap_categories"].extend(patterns_memory["common_gap_categories"])
+                # Keep only last 20 entries
+                existing_patterns["common_gap_categories"] = existing_patterns["common_gap_categories"][-20:]
+                existing_patterns["updated_at"] = datetime.now().isoformat()
+                patterns_memory = existing_patterns
+            
+            self.memory_store.put(namespace, "learning_patterns_summary", patterns_memory)
+            
+            # Store recommendations effectiveness tracking
+            if state.final_result.recommendations:
+                recommendations_memory = {
+                    "type": "recommendations",
+                    "recommendations": state.final_result.recommendations,
+                    "context": {
+                        "practice_number": state.student_context.practice_number,
+                        "exercise_section": state.student_context.exercise_section,
+                        "gap_count": len(state.raw_gaps)
+                    },
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                rec_key = f"recommendations_{analysis_key}"
+                self.memory_store.put(namespace, rec_key, recommendations_memory)
+            
+            logger.debug(f"Stored gap analysis memory for user {user_id}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to store gap analysis memory: {e}")
     
     async def _feedback_analysis(self, state: WorkflowState) -> WorkflowState:
         """

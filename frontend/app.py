@@ -304,7 +304,17 @@ def process_user_message_sync(user_input: str):
     
     try:
         print(f"🎯 Frontend processing message: {user_input}")
-        print(f"🎯 Session: {st.session_state.current_conversation_id or 'temp_session'}")
+        
+        # Generate unique session ID if no conversation is selected
+        if not st.session_state.current_conversation_id:
+            if 'temp_session_id' not in st.session_state:
+                import uuid
+                st.session_state.temp_session_id = f"temp_session_{uuid.uuid4().hex[:8]}"
+            session_id = st.session_state.temp_session_id
+        else:
+            session_id = st.session_state.current_conversation_id
+            
+        print(f"🎯 Session: {session_id}")
         print(f"🎯 Subject: {st.session_state.selected_subject}")
         
         # Create client and process message synchronously
@@ -316,7 +326,7 @@ def process_user_message_sync(user_input: str):
         # Process message synchronously
         result = client.process_message_sync(
             user_input,
-            st.session_state.current_conversation_id or "temp_session",
+            session_id,
             st.session_state.selected_subject
         )
         

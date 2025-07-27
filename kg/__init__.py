@@ -28,10 +28,14 @@ Example usage:
 
 from .connection import KGConnection, KGConnectionError
 from .queries import KGQueryInterface, SearchResult
+from .persistence import Neo4jCheckpointSaver, Neo4jMemoryStore, create_neo4j_persistence
 
 __all__ = [
     'KGConnection',
     'KGConnectionError', 
     'KGQueryInterface',
-    'SearchResult'
+    'SearchResult',
+    'Neo4jCheckpointSaver',
+    'Neo4jMemoryStore',
+    'create_neo4j_persistence'
 ]

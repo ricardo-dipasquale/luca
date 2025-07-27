@@ -76,6 +76,8 @@ class ConversationContext(BaseModel):
     current_message: str = Field(description="The student's current message")
     memory: ConversationMemory = Field(default_factory=ConversationMemory)
     agent_state: Dict[str, Any] = Field(default={}, description="Internal agent state")
+    user_id: Optional[str] = Field(default=None, description="Unique user identifier")
+    educational_subject: Optional[str] = Field(default=None, description="Current educational subject")
     
     class Config:
         json_schema_extra = {

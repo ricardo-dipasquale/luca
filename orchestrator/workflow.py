@@ -7,6 +7,7 @@ including intent classification, agent routing, memory management, and response 
 
 import json
 import logging
+from datetime import datetime
 from typing import Dict, List, Any, Optional
 from uuid import uuid4
 
@@ -18,6 +19,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from tools import get_kg_tools, create_default_llm
 from tools.observability import create_observed_llm
 from tools.kg_tools import get_kg_interface
+from kg.persistence import create_neo4j_persistence
 from .schemas import (
     WorkflowState,
     ConversationContext,
@@ -46,10 +48,23 @@ class OrchestratorWorkflow:
     5. update_memory: Update conversation memory and context
     """
     
-    def __init__(self):
+    def __init__(self, use_neo4j_persistence: bool = True):
         """Initialize the workflow with LLM and tools."""
         self.llm = create_observed_llm()
-        self.memory = MemorySaver()
+        
+        # Initialize persistence layer
+        if use_neo4j_persistence:
+            try:
+                self.checkpointer, self.memory_store = create_neo4j_persistence()
+                logger.info("Using Neo4j persistence for agent memory")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Neo4j persistence, falling back to in-memory: {e}")
+                self.checkpointer = MemorySaver()
+                self.memory_store = None
+        else:
+            self.checkpointer = MemorySaver()
+            self.memory_store = None
+            
         self.graph = self._create_workflow()
     
     def _create_workflow(self) -> StateGraph:
@@ -112,7 +127,7 @@ class OrchestratorWorkflow:
         workflow.add_edge("update_memory", END)
         workflow.add_edge("handle_error", END)
         
-        return workflow.compile(checkpointer=self.memory)
+        return workflow.compile(checkpointer=self.checkpointer)
     
     def _route_by_intent(self, state: WorkflowState) -> str:
         """Route to appropriate handler based on classified intent."""
@@ -718,6 +733,9 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
                     if practice_match:
                         ctx.memory.educational_context.current_practice = int(practice_match.group(1))
             
+            # Store long-term memories in Neo4j if available
+            await self._store_long_term_memory(state, ctx)
+            
             # Create final response
             final_response = OrchestratorResponse(
                 status='success',
@@ -737,6 +755,63 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
             state.error_message = f"Memory update failed: {str(e)}"
         
         return state
+    
+    async def _store_long_term_memory(self, state: WorkflowState, ctx: ConversationContext) -> None:
+        """Store important information in long-term memory using Neo4j store."""
+        if not self.memory_store:
+            return
+        
+        try:
+            # Create namespace for this student/session
+            user_id = ctx.user_id or "anonymous"
+            namespace = (user_id, "educational_memory")
+            
+            # Store topics discussed
+            topics_memory = {
+                "type": "topics_discussed",
+                "topics": ctx.memory.educational_context.topics_discussed,
+                "updated_at": datetime.now().isoformat(),
+                "session_id": ctx.session_id
+            }
+            self.memory_store.put(namespace, "topics_discussed", topics_memory)
+            
+            # Store practice progress
+            if ctx.memory.educational_context.current_practice:
+                practice_memory = {
+                    "type": "practice_progress",
+                    "current_practice": ctx.memory.educational_context.current_practice,
+                    "subject": ctx.educational_subject or "general",
+                    "updated_at": datetime.now().isoformat(),
+                    "session_id": ctx.session_id
+                }
+                self.memory_store.put(namespace, "practice_progress", practice_memory)
+            
+            # Store learning patterns based on intent patterns
+            intent_memory = {
+                "type": "learning_pattern",
+                "recent_intents": [state.intent_result.predicted_intent.value],
+                "confidence_scores": [state.intent_result.confidence],
+                "timestamp": datetime.now().isoformat(),
+                "session_id": ctx.session_id
+            }
+            
+            # Check if we have existing learning patterns and merge
+            existing_patterns = self.memory_store.get(namespace, "learning_patterns")
+            if existing_patterns:
+                existing_patterns["recent_intents"].append(state.intent_result.predicted_intent.value)
+                existing_patterns["confidence_scores"].append(state.intent_result.confidence)
+                # Keep only last 10 intents
+                existing_patterns["recent_intents"] = existing_patterns["recent_intents"][-10:]
+                existing_patterns["confidence_scores"] = existing_patterns["confidence_scores"][-10:]
+                existing_patterns["updated_at"] = datetime.now().isoformat()
+                intent_memory = existing_patterns
+            
+            self.memory_store.put(namespace, "learning_patterns", intent_memory)
+            
+            logger.debug(f"Stored long-term memory for user {user_id}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to store long-term memory: {e}")
     
     async def _handle_error(self, state: WorkflowState) -> WorkflowState:
         """
@@ -1259,10 +1334,15 @@ Genera una respuesta de ayuda y feedback.""")
             return final_state["final_response"]
             
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
             logger.error(f"Workflow execution failed: {e}")
-            # Return error response
+            logger.error(f"Full error traceback: {error_details}")
+            
+            # Return error response with more details for debugging
+            error_message = str(e) if str(e) else "Error desconocido en el workflow"
             return OrchestratorResponse(
                 status='error',
-                message=f"Error crítico en el procesamiento: {str(e)}. Por favor, contactá soporte técnico.",
+                message=f"Error crítico en el procesamiento: {error_message}. Por favor, contactá soporte técnico.",
                 educational_guidance="Mientras tanto, podés consultar el material de estudio disponible."
             )
