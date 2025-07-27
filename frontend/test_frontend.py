@@ -80,25 +80,32 @@ def test_utils():
         print(f"❌ Utils test failed: {e}")
         return False
 
-def test_chat():
-    """Test chat client."""
-    print("\n💬 Testing Chat Client...")
+def test_flask_app():
+    """Test Flask app initialization."""
+    print("\n🌐 Testing Flask App...")
     
     try:
-        from chat import get_orchestrator_client
+        from flask_app import app
         
-        # Initialize client
-        client = get_orchestrator_client()
-        print("✅ Orchestrator client initialized")
+        # Test app configuration
+        print("✅ Flask app imported successfully")
+        print(f"✅ App configured with secret key: {'Yes' if app.secret_key else 'No'}")
         
-        # Note: We don't test actual streaming here to avoid dependencies
-        # This would require the full orchestrator setup
-        print("✅ Chat client ready (actual streaming not tested)")
+        # Test if routes are registered
+        routes = [rule.rule for rule in app.url_map.iter_rules()]
+        expected_routes = ['/', '/login', '/logout', '/chat', '/conversations', '/subjects']
+        
+        missing_routes = [route for route in expected_routes if route not in routes]
+        if not missing_routes:
+            print("✅ All expected routes registered")
+        else:
+            print(f"❌ Missing routes: {missing_routes}")
+            return False
         
         return True
         
     except Exception as e:
-        print(f"❌ Chat test failed: {e}")
+        print(f"❌ Flask app test failed: {e}")
         return False
 
 def test_neo4j_connection():
@@ -132,15 +139,26 @@ def test_dependencies():
     """Test required dependencies."""
     print("\n📦 Testing Dependencies...")
     
+    # Test Flask dependencies (required)
+    try:
+        import flask
+        from flask_cors import CORS
+        print("✅ Flask and Flask-CORS")
+        flask_available = True
+    except ImportError as e:
+        print(f"❌ Flask dependencies missing: {e}")
+        print("💡 Install with: pip install flask flask-cors")
+        flask_available = False
+    
+    # Test other required modules
     required_modules = [
-        "streamlit",
         "asyncio", 
         "aiohttp",
         "neo4j",
         "langchain"
     ]
     
-    success = True
+    success = flask_available
     for module in required_modules:
         try:
             __import__(module)
@@ -161,7 +179,7 @@ def main():
         ("Neo4j Connection", test_neo4j_connection),
         ("Authentication", test_auth),
         ("Utilities", test_utils),
-        ("Chat Client", test_chat)
+        ("Flask App", test_flask_app)
     ]
     
     results = []
@@ -188,10 +206,12 @@ def main():
     print(f"\n🎯 {passed}/{len(results)} tests passed")
     
     if passed == len(results):
-        print("\n🎉 All tests passed! Frontend is ready to run.")
-        print("\nTo start the application:")
+        print("\n🎉 All tests passed! Flask Frontend is ready to run.")
+        print("\nTo start the Flask application:")
         print("  cd frontend")
         print("  python run.py")
+        print("  # OR")
+        print("  python run_flask.py")
     else:
         print("\n⚠️  Some tests failed. Please check the errors above.")
         

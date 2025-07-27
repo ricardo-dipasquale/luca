@@ -455,13 +455,13 @@ python gapanalyzer/test_client.py
 
 This tests both public agent card resolution and message exchange patterns including multi-turn conversations and streaming responses.
 
-## Frontend Applications
+## Frontend Application
 
-LUCA provides **dos frontends** para diferentes necesidades y compatibilidad:
+LUCA provides a **Flask-based web frontend** for interacting with the educational AI agents.
 
-### 🚀 Flask Frontend (RECOMENDADO)
+### 🚀 Flask Frontend
 
-**Solución moderna** que resuelve los problemas de conversaciones multi-turno del frontend Streamlit.
+**Modern web interface** built with Flask that provides a stable, professional educational chat experience.
 
 #### Características
 - ✅ **Conversaciones multi-turno estables**: Sin colgados en seguimientos
@@ -471,87 +471,41 @@ LUCA provides **dos frontends** para diferentes necesidades y compatibilidad:
 - 📱 **Responsive design**: Funciona en dispositivos móviles
 - ⚡ **Streaming real-time**: Indicadores de progreso sin recargas
 
-#### Quick Start Flask
+#### Quick Start
 ```bash
 # Install Flask dependencies
 pip install flask flask-cors
 
-# Start Flask application (recommended)
+# Start Flask application
 cd frontend
+python run.py
+# OR
 python run_flask.py
 
 # Access at http://localhost:5000
 # Login: visitante@uca.edu.ar / visitante!
-```
-
-### 📊 Streamlit Frontend (LEGACY)
-
-**Frontend original** con problemas conocidos, mantenido solo para compatibilidad.
-
-#### Limitaciones conocidas
-- ❌ **Multi-turn conversations se cuelgan**: Problema con AsyncIO
-- ⚠️ **Conflictos de persistencia**: Issues con Neo4j en conversaciones existentes
-- 🐛 **Event loop problems**: No compatible con LangGraph persistence
-
-#### Quick Start Streamlit (Legacy)
-```bash
-# Install Streamlit dependencies  
-pip install streamlit aiohttp
 
 # Test components
-cd frontend
 python test_frontend.py
-
-# Start Streamlit (not recommended for production)
-python run.py  # Will redirect to launcher
-
-# Access at http://localhost:8501
-# Login: visitante@uca.edu.ar / visitante!
-```
-
-### 🎯 Launcher Unificado
-
-**Elige fácilmente** entre ambos frontends:
-
-```bash
-cd frontend
-python launcher.py
-```
-
-O usa el launcher existente que redirige automáticamente:
-
-```bash
-cd frontend  
-python run.py  # Redirige al launcher unificado
 ```
 
 ### Architecture
 
 ```
 frontend/
-├── 🚀 Flask Frontend (Recommended)
-│   ├── flask_app.py           # Main Flask application
-│   ├── run_flask.py           # Flask runner  
-│   ├── templates/
-│   │   ├── base.html          # Bootstrap base template
-│   │   ├── login.html         # Authentication page
-│   │   └── chat.html          # Main chat interface
-│   └── README_FLASK.md        # Flask documentation
-│
-├── 📊 Streamlit Frontend (Legacy)  
-│   ├── app.py                 # Main Streamlit application
-│   ├── run.py                 # Updated to redirect to launcher
-│   └── test_frontend.py       # Streamlit test suite
-│
-├── 🔄 Shared Components
-│   ├── auth.py                # User authentication & conversation management
-│   ├── chat.py                # Orchestrator client & streaming (Streamlit)
-│   ├── utils.py               # Utilities (subjects, formatting)
-│   └── assets/                # Logos and static files
-│
-└── 🎯 Launchers
-    ├── launcher.py            # Unified launcher (choose frontend)
-    └── run_flask.py           # Direct Flask execution
+├── flask_app.py              # Main Flask application
+├── run.py                    # Primary runner script
+├── run_flask.py              # Alternative runner script
+├── templates/
+│   ├── base.html             # Bootstrap base template
+│   ├── login.html            # Authentication page
+│   └── chat.html             # Main chat interface
+├── auth.py                   # User authentication & conversation management
+├── utils.py                  # Utilities (subjects, formatting)
+├── test_frontend.py          # Test suite
+├── requirements.txt          # Flask dependencies
+├── README.md                 # Frontend documentation
+└── assets/                   # Logos and static files
 ```
 
 ### Neo4j Schema Extensions

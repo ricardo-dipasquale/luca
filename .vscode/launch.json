@@ -90,7 +90,7 @@
             }
         },
         {
-            "name": "LUCA Frontend (Flask) - RECOMMENDED",
+            "name": "LUCA Frontend (Flask)",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/frontend/flask_app.py",
@@ -100,37 +100,6 @@
                 "PYTHONPATH": "${workspaceFolder}",
                 "FLASK_ENV": "development",
                 "FLASK_DEBUG": "1"
-            }
-        },
-        {
-            "name": "LUCA Frontend Launcher (Choose Flask/Streamlit)",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/frontend/launcher.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/frontend",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "LUCA Frontend (Streamlit) - LEGACY",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "streamlit",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/frontend",
-            "args": [
-                "run",
-                "app.py",
-                "--server.port=8501",
-                "--server.address=localhost",
-                "--server.headless=false",
-                "--theme.base=light",
-                "--theme.primaryColor=#007bff"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
             }
         },
         {
