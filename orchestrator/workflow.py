@@ -140,12 +140,12 @@ class OrchestratorWorkflow:
     
     def _route_by_intent(self, state: WorkflowState) -> str:
         """Route to appropriate handler based on classified intent."""
-        if state.error_message:
-            return "error"
-        
         if not state.intent_result:
             logger.error("No intent classification result available")
             return "error"
+        
+        # Note: Don't check error_message here as it should be handled by intent classification
+        # The error_message check was moved to intent classification phase
         
         intent = state.intent_result.predicted_intent
         logger.info(f"Routing to handler for intent: {intent}")
@@ -183,6 +183,10 @@ class OrchestratorWorkflow:
         """
         try:
             logger.info("Classifying student intent")
+            
+            # Clear any previous error state for new message processing
+            state.error_message = None
+            state.needs_clarification = False
             
             if not state.conversation_context:
                 state.error_message = "No conversation context provided"
@@ -301,6 +305,15 @@ Clasifica la intención de este mensaje.""")
         except Exception as e:
             logger.error(f"Error in intent classification: {e}")
             state.error_message = f"Intent classification failed: {str(e)}"
+            # Ensure we have a fallback intent result for routing
+            if not state.intent_result:
+                state.intent_result = IntentClassificationResult(
+                    predicted_intent=StudentIntent.THEORETICAL_QUESTION,
+                    confidence=0.1,
+                    reasoning="Error en clasificación, usando intención por defecto",
+                    requires_context=True,
+                    suggested_actions=["Reformular la pregunta"]
+                )
         
         return state
     
@@ -853,100 +866,21 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
             # Extract the original error message
             error_details = state.error_message.replace("CONTENT_NOT_FOUND: ", "")
             
-            # Generate specific clarification response
-            clarification_response = await self._generate_content_not_found_response(
-                state.conversation_context, error_details
-            )
-            
             error_response = OrchestratorResponse(
                 status='needs_clarification',
-                message=clarification_response,
-                educational_guidance="Podés verificar la información de la práctica y ejercicio, o consultarme sobre conceptos teóricos relacionados con tu pregunta."
+                message=error_details
             )
             
         else:
             # Handle general errors
             error_response = OrchestratorResponse(
                 status='error',
-                message=f"Disculpá, tuve un problema procesando tu mensaje: {state.error_message}. ¿Podrías intentar reformular tu pregunta?",
-                educational_guidance="Mientras tanto, podés revisar el material de la práctica actual o consultar los conceptos teóricos relacionados."
+                message=f"Disculpá, tuve un problema procesando tu mensaje: {state.error_message}. ¿Podrías intentar reformular tu pregunta?"
             )
         
         state.final_response = error_response
         return state
     
-    async def _generate_content_not_found_response(self, ctx: ConversationContext, error_details: str) -> str:
-        """
-        Generate specific clarification response for content not found errors.
-        
-        Provides helpful information about available practices and exercises.
-        """
-        try:
-            # Get available practices from KG
-            available_content = await self._get_available_educational_content()
-            
-            # Create clarification prompt
-            clarification_prompt = ChatPromptTemplate.from_messages([
-                ("system", """Eres un tutor educativo que ayuda cuando un estudiante pregunta sobre contenido que no existe en el sistema.
-
-Tu objetivo es:
-1. Explicar amablemente que el contenido específico no se encontró
-2. Proporcionar información sobre las prácticas y ejercicios disponibles
-3. Sugerir alternativas útiles
-4. Pedirle que reformule con información correcta
-
-CONTENIDO DISPONIBLE:
-{available_content}
-
-ERROR ESPECÍFICO: {error_details}
-
-Sé empático, constructivo y específico en tus sugerencias."""),
-                ("human", """El estudiante preguntó: "{student_message}"
-
-Error: {error_details}
-
-Genera una respuesta de clarificación útil que ayude al estudiante a reformular su pregunta correctamente.""")
-            ])
-            
-            formatted_prompt = clarification_prompt.format_messages(
-                student_message=ctx.current_message,
-                error_details=error_details,
-                available_content=available_content
-            )
-            
-            response = await self.llm.ainvoke(formatted_prompt)
-            return response.content
-            
-        except Exception as e:
-            logger.error(f"Error generating content not found response: {e}")
-            # Fallback response
-            return f"No encontré el contenido que mencionás ({error_details}). Las prácticas disponibles en el sistema son la 1 y la 2. ¿Podrías verificar el número de práctica y ejercicio? También puedo ayudarte con conceptos teóricos sobre el tema que te interesa."
-    
-    async def _get_available_educational_content(self) -> str:
-        """Get information about available practices and exercises from KG."""
-        try:
-            kg_tools = get_kg_tools()
-            kg_search_tool = next((tool for tool in kg_tools if tool.name == "search_knowledge_graph"), None)
-            
-            if kg_search_tool:
-                # Search for available practices
-                practices_result = kg_search_tool.invoke({
-                    "query_text": "prácticas disponibles",
-                    "node_types": ["Practica"],
-                    "limit": 10
-                })
-                
-                # Format the information nicely
-                if practices_result and "Prácticas encontradas:" in practices_result:
-                    return practices_result
-                else:
-                    return "Prácticas disponibles: Práctica 1 y Práctica 2 de Bases de Datos Relacionales"
-            else:
-                return "Prácticas disponibles: Práctica 1 y Práctica 2 de Bases de Datos Relacionales"
-                
-        except Exception as e:
-            logger.warning(f"Error getting available content: {e}")
-            return "Prácticas disponibles: Práctica 1 y Práctica 2 de Bases de Datos Relacionales"
     
     def _extract_exercise_context_from_state(self, state: WorkflowState) -> str:
         """
