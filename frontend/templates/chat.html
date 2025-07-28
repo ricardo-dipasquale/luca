@@ -40,7 +40,7 @@
                 <div class="card-body" id="conversationsList">
                     {% for conv in conversations %}
                     <div class="conversation-item" data-id="{{ conv.id }}" onclick="selectConversation('{{ conv.id }}')">
-                        <div class="fw-bold">{{ conv.title[:30] }}{% if conv.title|length > 30 %}...{% endif %}</div>
+                        <div class="fw-bold">{{ conv.title[:60] }}{% if conv.title|length > 60 %}...{% endif %}</div>
                         <small class="text-muted">
                             {{ conv.subject or 'Sin materia' }} • {{ conv.message_count }} mensajes
                         </small>
@@ -509,7 +509,7 @@ function refreshConversationsList() {
             convDiv.setAttribute('data-id', conv.id);
             convDiv.onclick = () => selectConversation(conv.id);
             
-            const title = conv.title.length > 30 ? conv.title.substring(0, 30) + '...' : conv.title;
+            const title = conv.title.length > 60 ? conv.title.substring(0, 60) + '...' : conv.title;
             const subject = conv.subject || 'Sin materia';
             const messageCount = conv.message_count || 0;
             

@@ -142,33 +142,72 @@ class AuthManager:
             Generated descriptive title
         """
         try:
-            prompt = f"""
-            Genera un título corto y descriptivo (máximo 40 caracteres) para una conversación educativa basada en:
+            # Apply abbreviations to subject
+            subject_abbrev = self._abbreviate_subject(subject)
             
-            Materia: {subject}
+            prompt = f"""
+            Genera un título descriptivo (máximo 60 caracteres) para una conversación educativa basada en:
+            
+            Materia: {subject_abbrev}
             Primer mensaje: {message}
             
-            El título debe ser claro, específico y capturar la esencia de la consulta.
-            Responde SOLO con el título, sin comillas ni explicaciones.
+            INSTRUCCIONES IMPORTANTES:
+            1. Si el mensaje menciona un ejercicio específico (ej: "ejercicio 2", "práctica 3", "punto 1.a"), inclúyelo en el título
+            2. Usa abreviaciones comunes: "Álgebra Relacional" → "A.R.", "Base de Datos" → "BD"
+            3. Sé específico sobre el tema si es posible
+            4. Máximo 60 caracteres
+            5. Responde SOLO con el título, sin comillas ni explicaciones
             
-            Ejemplos:
-            - "Normalización de bases de datos"
-            - "LEFT JOIN en álgebra relacional"
-            - "Ejercicio 3.2 de la práctica"
+            Ejemplos buenos:
+            - "Ejercicio 2.3 - JOIN con múltiples tablas en A.R."
+            - "Práctica 1 - Normalización de BD y formas normales"
+            - "LEFT JOIN vs RIGHT JOIN - diferencias y uso"
+            - "Consulta σ con múltiples condiciones y operadores"
+            - "Punto 1.d - División relacional paso a paso"
             """
             
             response = self.llm.invoke(prompt)
             title = response.content.strip().strip('"').strip("'")
             
             # Truncate if too long
-            if len(title) > 40:
-                title = title[:37] + "..."
+            if len(title) > 60:
+                title = title[:57] + "..."
             
             return title
             
         except Exception as e:
             print(f"Error generating conversation title: {e}")
-            return f"Consulta sobre {subject}"
+            return f"Consulta sobre {self._abbreviate_subject(subject)}"
+    
+    def _abbreviate_subject(self, subject: str) -> str:
+        """
+        Apply common abbreviations to subject names.
+        
+        Args:
+            subject: Full subject name
+            
+        Returns:
+            Abbreviated subject name
+        """
+        abbreviations = {
+            "Álgebra Relacional": "A.R.",
+            "Algebra Relacional": "A.R.",  # Without accent
+            "Base de Datos": "BD",
+            "Bases de Datos": "BD",
+            "Sistemas de Gestión": "SG",
+            "Programación": "Prog.",
+            "Matemáticas": "Mat.",
+            "Matematicas": "Mat.",  # Without accent
+            "Estructuras de Datos": "ED",
+            "Análisis de Sistemas": "AS",
+            "Analisis de Sistemas": "AS"  # Without accent
+        }
+        
+        for full_name, abbrev in abbreviations.items():
+            if full_name.lower() in subject.lower():
+                return subject.replace(full_name, abbrev)
+        
+        return subject
     
     def update_conversation(self, conversation_id: str, title: Optional[str] = None):
         """
