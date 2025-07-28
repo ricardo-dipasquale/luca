@@ -123,6 +123,41 @@ python gapanalyzer/test_client.py
 ```
 
 ### Docker Deployment
+
+#### Full Stack Deployment (Recommended)
+```bash
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env with your API keys and configuration
+
+# Start all services (Neo4j, Langfuse, LUCA Flask app)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f luca
+
+# Stop all services
+docker-compose down
+```
+
+#### Flask Application Only
+```bash
+# Build LUCA Flask application image
+docker build -t luca-app .
+
+# Run with environment variables
+docker run -p 5000:5000 \
+  -e NEO4J_URI="bolt://localhost:7687" \
+  -e NEO4J_USERNAME="neo4j" \
+  -e NEO4J_PASSWORD="your_password" \
+  -e OPENAI_API_KEY="your_openai_key" \
+  -e DEFAULT_LLM_MODEL="gpt-4o-mini" \
+  -e DEFAULT_LLM_PROVIDER="openai" \
+  -e DEFAULT_LLM_TEMPERATURE="0.1" \
+  luca-app
+```
+
+#### Individual Agent Deployment
 ```bash
 # Build and run the containerized agent
 docker build -t luca-agent .
@@ -207,7 +242,22 @@ INTERNAL_NEO4J_URI="bolt://localhost:7687"
 LANGFUSE_HOST="http://localhost:3000"
 LANGFUSE_PUBLIC_KEY="pk-lf-your-public-key"
 LANGFUSE_SECRET_KEY="sk-lf-your-secret-key"
+
+# Flask Application (for Docker deployment)
+FLASK_SECRET_KEY="your-secure-secret-key-for-production"
 ```
+
+### Docker Environment Variables
+
+When using Docker Compose, all required environment variables are automatically configured using the `.env` file. The LUCA service in `docker-compose.yml` includes:
+
+- **Neo4j Connection**: Configured to use the internal Docker network (`bolt://neo4j:7687`)
+- **OpenAI API**: Uses your `OPENAI_API_KEY` from `.env`
+- **LLM Configuration**: Configurable model, provider, and temperature settings
+- **Langfuse Integration**: Optional observability with automatic service discovery
+- **Flask Security**: Production-ready secret key configuration
+
+The docker-compose setup ensures all services can communicate internally while exposing only necessary ports to the host system.
 
 ## Data Sources
 

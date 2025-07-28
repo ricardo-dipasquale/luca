@@ -274,6 +274,48 @@ services:
     networks:
       - luca-network
 
+  luca:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: luca-app
+    ports:
+      - "5000:5000"
+    depends_on:
+      - neo4j
+      - llm-graph-builder
+    environment:
+      # Neo4j Configuration
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USERNAME: "${NEO4J_USERNAME}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
+      INTERNAL_NEO4J_URI: "bolt://neo4j:7687"
+      
+      # OpenAI Configuration
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      
+      # LLM Configuration
+      DEFAULT_LLM_MODEL: "${DEFAULT_LLM_MODEL:-gpt-4o-mini}"
+      DEFAULT_LLM_PROVIDER: "${DEFAULT_LLM_PROVIDER:-openai}"
+      DEFAULT_LLM_TEMPERATURE: "${DEFAULT_LLM_TEMPERATURE:-0.1}"
+      DEFAULT_LLM_MAX_TOKENS: "${DEFAULT_LLM_MAX_TOKENS:-4096}"
+      DEFAULT_LLM_TIMEOUT: "${DEFAULT_LLM_TIMEOUT:-60}"
+      
+      # Langfuse Configuration (Optional)
+      LANGFUSE_HOST: "http://langfuse-web:3000"
+      LANGFUSE_PUBLIC_KEY: "${LANGFUSE_PUBLIC_KEY}"
+      LANGFUSE_SECRET_KEY: "${LANGFUSE_SECRET_KEY}"
+      
+      # LLM Graph Builder API
+      GRAPHBUILDER_URI: "http://llm-graph-builder:8000/chat_bot"
+      
+      # Flask Configuration
+      FLASK_ENV: "production"
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-production-secret-key-change-me}"
+    restart: unless-stopped
+    networks:
+      - luca-network
+
 networks:
   luca-network:
     driver: bridge

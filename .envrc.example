@@ -1,0 +1,40 @@
+export NEO4J_URI="bolt://localhost:7687"
+export INTERNAL_NEO4J_URI="bolt://neo4j:7687"
+export NEO4J_USERNAME="neo4j"
+export NEO4J_PASSWORD="CHANGEME"
+
+export OPENAI_API_KEY="CHANGEME"
+
+# Default LLM Configuration for Agents
+export DEFAULT_LLM_MODEL="gpt-4o-mini"  # OpenAI's efficient model
+export DEFAULT_LLM_PROVIDER="openai"    # Provider: currently only OpenAI supported
+export DEFAULT_LLM_TEMPERATURE="0.1"    # Low temperature for consistent responses
+
+export GRAPHBUILDER_URI="http://127.0.0.1:8000/chat_bot"
+
+export POSTGRES_USER="postgres"
+export POSTGRES_PASSWORD="CHANGEME"
+export POSTGRES_DB="postgres"
+
+export REDIS_AUTH="CHANGEME"
+
+export CLICKHOUSE_PASSWORD="CHANGEME"
+
+export NEXTAUTH_SECRET="CHANGEME"
+export LANGFUSE_INIT_ORG_ID="1"
+export LANGFUSE_INIT_ORG_NAME="UCA"
+export LANGFUSE_INIT_PROJECT_ID="1"
+export LANGFUSE_INIT_PROJECT_NAME="LUCA"
+export LANGFUSE_INIT_PROJECT_PUBLIC_KEY="CHANGEME"
+export LANGFUSE_INIT_PROJECT_SECRET_KEY="CHANGEME"
+export LANGFUSE_INIT_USER_EMAIL="CHANGEME"
+export LANGFUSE_INIT_USER_NAME="admin"
+export LANGFUSE_INIT_USER_PASSWORD="CHANGEME"
+
+# Langfuse Client Configuration
+export LANGFUSE_HOST="http://localhost:3000"
+export LANGFUSE_PUBLIC_KEY="CHANGEME"
+export LANGFUSE_SECRET_KEY="CHANGEME"
+
+export SALT="CHANGEME" 
+export ENCRYPTION_KEY="CHANGEME"
