@@ -51,14 +51,14 @@
         </div>
         
         <!-- Main Chat Area -->
-        <div class="col-md-9">
+        <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
                     <div class="row align-items-center">
                         <div class="col">
                             <div class="d-flex align-items-center">
                                 <img src="{{ url_for('static', filename='images/logo luca.png') }}" alt="LUCA Logo" class="me-2" style="height: 120px;">
-                                <h5 class="mb-0">LUCA - Chat de la Facultad de Ingeniería y Ciencias Agrarias - Seleccioná la materia</h5>
+                                <h5 class="mb-0">LUCA - Seleccioná la materia</h5>
                             </div>
                         </div>
                         <div class="col-auto">
@@ -94,6 +94,123 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Symbols Panel -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-calculator"></i> Símbolos</h5>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Nav tabs -->
+                    <ul class="nav nav-tabs" id="symbolsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="algebra-tab" data-bs-toggle="tab" data-bs-target="#algebra" type="button" role="tab" aria-controls="algebra" aria-selected="true">
+                                Álgebra Relacional
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="math-tab" data-bs-toggle="tab" data-bs-target="#math" type="button" role="tab" aria-controls="math" aria-selected="false">
+                                Matemáticas
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab content -->
+                    <div class="tab-content" id="symbolsTabContent">
+                        <!-- Algebra Relacional Tab -->
+                        <div class="tab-pane fade show active" id="algebra" role="tabpanel" aria-labelledby="algebra-tab">
+                            <div class="symbols-container p-2">
+                                <h6 class="mb-2">Operadores Básicos</h6>
+                                <div class="symbols-grid mb-3">
+                                    <button class="symbol-btn" data-symbol="σ" title="Selección (sigma)">σ</button>
+                                    <button class="symbol-btn" data-symbol="π" title="Proyección (pi)">π</button>
+                                    <button class="symbol-btn" data-symbol="⋈" title="Join natural">⋈</button>
+                                    <button class="symbol-btn" data-symbol="∪" title="Unión">∪</button>
+                                    <button class="symbol-btn" data-symbol="∩" title="Intersección">∩</button>
+                                    <button class="symbol-btn" data-symbol="−" title="Diferencia">−</button>
+                                    <button class="symbol-btn" data-symbol="×" title="Producto cartesiano">×</button>
+                                    <button class="symbol-btn" data-symbol="/" title="División">/</button>
+                                </div>
+                                
+                                <h6 class="mb-2">Expresiones Comunes</h6>
+                                <div class="expressions-list">
+                                    <button class="expression-btn" data-expression="π_{Nombre} (σ_{Ciudad='Buenos Aires'} (CLIENTES))" title="Proyección con selección">
+                                        π_{atributo} (σ_{condición} (TABLA))
+                                    </button>
+                                    <button class="expression-btn" data-expression="σ_{A.campo>B.campo} (A⋈_{A.id=B.id} B)" title="Join con condición">
+                                        Join con condición
+                                    </button>
+                                    <button class="expression-btn" data-expression="π_{campo} (TABLA1) − π_{campo} (TABLA2)" title="Diferencia de proyecciones">
+                                        Diferencia de conjuntos
+                                    </button>
+                                    <button class="expression-btn" data-expression="π_{A,B} (TABLA) / π_{B} (OTRA_TABLA)" title="Cociente de Conjuntos">
+                                        Cociente de Conjuntos
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Matemáticas Tab -->
+                        <div class="tab-pane fade" id="math" role="tabpanel" aria-labelledby="math-tab">
+                            <div class="symbols-container p-2">
+                                <h6 class="mb-2">Símbolos Matemáticos</h6>
+                                <div class="symbols-grid mb-3">
+                                    <button class="symbol-btn" data-symbol="∀" title="Para todo">∀</button>
+                                    <button class="symbol-btn" data-symbol="∃" title="Existe">∃</button>
+                                    <button class="symbol-btn" data-symbol="∈" title="Pertenece">∈</button>
+                                    <button class="symbol-btn" data-symbol="∉" title="No pertenece">∉</button>
+                                    <button class="symbol-btn" data-symbol="⊆" title="Subconjunto">⊆</button>
+                                    <button class="symbol-btn" data-symbol="⊂" title="Subconjunto propio">⊂</button>
+                                    <button class="symbol-btn" data-symbol="∅" title="Conjunto vacío">∅</button>
+                                    <button class="symbol-btn" data-symbol="∞" title="Infinito">∞</button>
+                                </div>
+                                
+                                <h6 class="mb-2">Operadores Lógicos</h6>
+                                <div class="symbols-grid mb-3">
+                                    <button class="symbol-btn" data-symbol="∧" title="Y lógico">∧</button>
+                                    <button class="symbol-btn" data-symbol="∨" title="O lógico">∨</button>
+                                    <button class="symbol-btn" data-symbol="¬" title="Negación">¬</button>
+                                    <button class="symbol-btn" data-symbol="→" title="Implica">→</button>
+                                    <button class="symbol-btn" data-symbol="↔" title="Si y solo si">↔</button>
+                                    <button class="symbol-btn" data-symbol="⊕" title="XOR">⊕</button>
+                                    <button class="symbol-btn" data-symbol="≡" title="Equivalente">≡</button>
+                                    <button class="symbol-btn" data-symbol="⊥" title="Contradicción">⊥</button>
+                                </div>
+                                
+                                <h6 class="mb-2">Comparaciones</h6>
+                                <div class="symbols-grid mb-3">
+                                    <button class="symbol-btn" data-symbol="≤" title="Menor o igual">≤</button>
+                                    <button class="symbol-btn" data-symbol="≥" title="Mayor o igual">≥</button>
+                                    <button class="symbol-btn" data-symbol="≠" title="Diferente">≠</button>
+                                    <button class="symbol-btn" data-symbol="≈" title="Aproximadamente">≈</button>
+                                    <button class="symbol-btn" data-symbol="∝" title="Proporcional">∝</button>
+                                    <button class="symbol-btn" data-symbol="∣" title="Divide">∣</button>
+                                    <button class="symbol-btn" data-symbol="∣∣" title="Paralelo">∣∣</button>
+                                    <button class="symbol-btn" data-symbol="⊥" title="Perpendicular">⊥</button>
+                                </div>
+                                
+                                <h6 class="mb-2">Expresiones Matemáticas</h6>
+                                <div class="expressions-list">
+                                    <button class="expression-btn" data-expression="∣R1∪R2∣" title="Cardinalidad de unión">
+                                        Cardinalidad unión
+                                    </button>
+                                    <button class="expression-btn" data-expression="∣R1∩R2∣" title="Cardinalidad de intersección">
+                                        Cardinalidad intersección
+                                    </button>
+                                    <button class="expression-btn" data-expression="∣R1−R2∣" title="Cardinalidad de diferencia">
+                                        Cardinalidad diferencia
+                                    </button>
+                                    <button class="expression-btn" data-expression="∣R1×R2∣=n×m" title="Cardinalidad producto cartesiano">
+                                        Producto cartesiano
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -417,5 +534,127 @@ function refreshConversationsList() {
         console.error('Error refreshing conversations:', error);
     });
 }
+
+// Symbol insertion functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle symbol button clicks
+    document.querySelectorAll('.symbol-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const symbol = this.getAttribute('data-symbol');
+            insertTextAtCursor(symbol);
+            
+            // Visual feedback
+            this.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                this.style.transform = '';
+            }, 150);
+        });
+    });
+    
+    // Handle expression button clicks
+    document.querySelectorAll('.expression-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const expression = this.getAttribute('data-expression');
+            insertTextAtCursor(expression);
+            
+            // Visual feedback
+            this.style.transform = 'translateX(4px)';
+            setTimeout(() => {
+                this.style.transform = '';
+            }, 150);
+        });
+    });
+});
+
+function insertTextAtCursor(text) {
+    const messageInput = document.getElementById('messageInput');
+    const start = messageInput.selectionStart;
+    const end = messageInput.selectionEnd;
+    const currentValue = messageInput.value;
+    
+    // Insert text at cursor position
+    const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
+    messageInput.value = newValue;
+    
+    // Update cursor position
+    const newCursorPosition = start + text.length;
+    messageInput.setSelectionRange(newCursorPosition, newCursorPosition);
+    
+    // Focus back on the input
+    messageInput.focus();
+    
+    // Trigger input event to handle any form validation
+    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    console.log(`📝 Inserted: ${text}`);
+}
+
+// Add copy to clipboard functionality for expressions
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        console.log('✅ Copied to clipboard: ' + text);
+        
+        // Show temporary feedback
+        showTemporaryFeedback('Copiado al portapapeles');
+    }, function(err) {
+        console.error('❌ Could not copy text: ', err);
+        
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showTemporaryFeedback('Copiado al portapapeles');
+        } catch (err) {
+            console.error('❌ Fallback copy failed: ', err);
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
+function showTemporaryFeedback(message) {
+    const feedback = document.createElement('div');
+    feedback.className = 'alert alert-success position-fixed';
+    feedback.style.cssText = `
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+    `;
+    feedback.textContent = message;
+    
+    document.body.appendChild(feedback);
+    
+    // Fade in
+    setTimeout(() => {
+        feedback.style.opacity = '1';
+    }, 10);
+    
+    // Fade out and remove
+    setTimeout(() => {
+        feedback.style.opacity = '0';
+        setTimeout(() => {
+            if (feedback.parentNode) {
+                feedback.parentNode.removeChild(feedback);
+            }
+        }, 300);
+    }, 2000);
+}
+
+// Add right-click context menu for expressions (optional)
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.expression-btn').forEach(button => {
+        button.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            const expression = this.getAttribute('data-expression');
+            copyToClipboard(expression);
+        });
+    });
+});
 </script>
 {% endblock %}
