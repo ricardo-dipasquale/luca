@@ -67,29 +67,73 @@ class OrchestratorAgent:
 
     def get_or_create_session(self, session_id: str, student_id: Optional[str] = None) -> EducationalSession:
         """
-        Get existing session or create new one.
+        Get existing session or create new one, loading memory from Neo4j if available.
         
         Args:
             session_id: Unique session identifier
             student_id: Optional student identifier
             
         Returns:
-            Educational session with conversation memory
+            Educational session with conversation memory (loaded from Neo4j if exists)
         """
         if session_id not in self.active_sessions:
+            # Try to load existing memory from Neo4j checkpointer
+            conversation_memory = self._load_conversation_memory(session_id)
+            
             self.active_sessions[session_id] = EducationalSession(
                 session_id=session_id,
                 student_id=student_id,
-                conversation_memory=ConversationMemory(
-                    educational_context=EducationalContext()
-                )
+                conversation_memory=conversation_memory
             )
-            logger.info(f"Created new educational session: {session_id}")
+            
+            if conversation_memory.conversation_history:
+                logger.info(f"Loaded existing session with {len(conversation_memory.conversation_history)} messages: {session_id}")
+            else:
+                logger.info(f"Created new educational session: {session_id}")
         else:
             self.active_sessions[session_id].update_activity()
             logger.info(f"Retrieved existing session: {session_id}")
             
         return self.active_sessions[session_id]
+    
+    def _load_conversation_memory(self, session_id: str) -> ConversationMemory:
+        """
+        Load conversation memory from Neo4j checkpointer.
+        
+        Args:
+            session_id: Session identifier to load memory for
+            
+        Returns:
+            ConversationMemory loaded from Neo4j, or empty if not found
+        """
+        try:
+            # Access the checkpointer from workflow
+            checkpointer = self.workflow.checkpointer
+            
+            if not checkpointer:
+                logger.debug(f"No checkpointer available, creating empty memory for session: {session_id}")
+                return ConversationMemory(educational_context=EducationalContext())
+            
+            # Try to load the latest checkpoint for this thread
+            config = {"configurable": {"thread_id": session_id}}
+            checkpoint = checkpointer.get(config)
+            
+            if checkpoint and hasattr(checkpoint, 'channel_values'):
+                channel_values = checkpoint.channel_values
+                if 'conversation_context' in channel_values:
+                    stored_context = channel_values['conversation_context']
+                    if hasattr(stored_context, 'memory') and hasattr(stored_context.memory, 'conversation_history'):
+                        memory = stored_context.memory
+                        if memory.conversation_history:
+                            logger.info(f"Loaded conversation memory with {len(memory.conversation_history)} messages for session: {session_id}")
+                            return memory
+            
+            logger.debug(f"No existing memory found for session: {session_id}")
+            return ConversationMemory(educational_context=EducationalContext())
+            
+        except Exception as e:
+            logger.warning(f"Failed to load conversation memory from Neo4j for session {session_id}: {e}")
+            return ConversationMemory(educational_context=EducationalContext())
 
     def parse_student_input(self, query: str, session_id: str, student_id: Optional[str] = None) -> ConversationContext:
         """

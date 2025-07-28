@@ -107,12 +107,13 @@ class KGConnection:
             parameters: Query parameters dictionary
             
         Returns:
-            List of records from the query result
+            List of dictionaries converted from query records
         """
         try:
             with self.session() as session:
                 result = session.run(query, parameters or {})
-                return list(result)
+                # Convert Neo4j Record objects to dictionaries
+                return [record.data() for record in result]
         except Exception as e:
             logger.error(f"Query execution failed: {e}")
             logger.error(f"Query: {query}")

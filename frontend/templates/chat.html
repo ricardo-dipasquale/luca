@@ -7,7 +7,9 @@
     <div class="container">
         <div class="row align-items-center">
             <div class="col">
-                <h2><i class="fas fa-graduation-cap"></i> LUCA - Asistente Educativo</h2>
+                <div class="d-flex align-items-center">
+                    <h2 class="mb-0">LUCA - Asistente Educativo</h2>
+                </div>
             </div>
             <div class="col-auto">
                 <span class="me-3">{{ user_email }}</span>
@@ -23,6 +25,11 @@
     <div class="row">
         <!-- Sidebar -->
         <div class="col-md-3">
+            <!-- FICA Logo -->
+            <div class="text-center mb-3">
+                <img src="{{ url_for('static', filename='images/Logo FICA uso excepcional color.png') }}" alt="FICA Logo" style="height: 100px;">
+            </div>
+            
             <div class="card">
                 <div class="card-header">
                     <h5><i class="fas fa-comments"></i> Conversaciones</h5>
@@ -49,7 +56,10 @@
                 <div class="card-header">
                     <div class="row align-items-center">
                         <div class="col">
-                            <h5><i class="fas fa-robot"></i> Chat Educativo</h5>
+                            <div class="d-flex align-items-center">
+                                <img src="{{ url_for('static', filename='images/logo luca.png') }}" alt="LUCA Logo" class="me-2" style="height: 120px;">
+                                <h5 class="mb-0">LUCA - Chat de la Facultad de Ingeniería y Ciencias Agrarias - Seleccioná la materia</h5>
+                            </div>
                         </div>
                         <div class="col-auto">
                             <select class="form-select form-select-sm" id="subjectSelect">
@@ -66,8 +76,7 @@
                     <div class="chat-container" id="chatContainer">
                         <div class="text-center text-muted">
                             <i class="fas fa-comment-dots fa-2x mb-2"></i>
-                            <p>¡Hola! Soy LUCA, tu asistente educativo. ¿En qué puedo ayudarte hoy?</p>
-                            <p><strong>Ejemplo:</strong> "¿Qué es un LEFT JOIN en álgebra relacional?"</p>
+                            <p>¡Hola! Soy LUCA, tu asistente. ¿En qué puedo ayudarte hoy?</p>
                         </div>
                     </div>
                     
@@ -168,13 +177,25 @@ document.getElementById('chatForm').addEventListener('submit', async function(e)
             body: JSON.stringify({
                 message: message,
                 subject: subject,
-                conversation_id: currentConversationId
+                conversation_id: currentConversationId,
+                use_conversation_memory: usingExistingConversation  // Only true when selected from list
             })
         });
         
         const result = await response.json();
         
         if (result.success) {
+            // Update conversation ID if a new one was created
+            if (result.conversation_id && !currentConversationId) {
+                currentConversationId = result.conversation_id;
+                usingExistingConversation = false;  // Reset flag for new conversation
+                console.log(`📝 New conversation created: ${currentConversationId}`);
+                console.log(`💾 Session used: ${result.session_id_used}`);
+                
+                // Update conversations list without reloading the page
+                refreshConversationsList();
+            }
+            
             // Show progress steps
             if (result.progress_steps) {
                 for (const step of result.progress_steps) {
@@ -217,7 +238,14 @@ function addMessage(content, role, type = 'normal') {
         }
     }
     
-    messageDiv.innerHTML = content.replace(/\n/g, '<br>');
+    // Replace literal \n\n and \n sequences with HTML line breaks
+    const formattedContent = content
+        .replace(/\\n\\n/g, '<br><br>')  // Replace literal \n\n with double line breaks
+        .replace(/\\n/g, '<br>')         // Replace literal \n with single line breaks
+        .replace(/\n\n/g, '<br><br>')    // Replace actual \n\n with double line breaks
+        .replace(/\n/g, '<br>');         // Replace actual \n with single line breaks
+    
+    messageDiv.innerHTML = formattedContent;
     chatContainer.appendChild(messageDiv);
     
     // Scroll to bottom
@@ -234,8 +262,12 @@ function clearProgress() {
     progressContainer.innerHTML = '';
 }
 
+// Flag to track if we're using an existing conversation from the list
+let usingExistingConversation = false;
+
 function selectConversation(conversationId) {
     currentConversationId = conversationId;
+    usingExistingConversation = true;  // Mark that we're using existing conversation
     
     // Update active conversation in UI
     document.querySelectorAll('.conversation-item').forEach(item => {
@@ -243,15 +275,57 @@ function selectConversation(conversationId) {
     });
     document.querySelector(`[data-id="${conversationId}"]`).classList.add('active');
     
-    // Clear current chat
-    document.getElementById('chatContainer').innerHTML = `
+    // Clear current chat and show loading
+    const chatContainer = document.getElementById('chatContainer');
+    chatContainer.innerHTML = `
         <div class="text-center text-muted">
-            <i class="fas fa-comment-dots fa-2x mb-2"></i>
-            <p>Conversación cargada. Continúa donde lo dejaste.</p>
+            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+            <p>Cargando conversación...</p>
         </div>
     `;
     
-    console.log(`📂 Selected conversation: ${conversationId}`);
+    // Load conversation history
+    loadConversationHistory(conversationId);
+    
+    console.log(`📂 Selected existing conversation: ${conversationId}`);
+}
+
+function loadConversationHistory(conversationId) {
+    fetch(`/conversations/${conversationId}/messages`)
+    .then(response => response.json())
+    .then(result => {
+        const chatContainer = document.getElementById('chatContainer');
+        
+        if (result.success && result.messages.length > 0) {
+            // Clear loading message
+            chatContainer.innerHTML = '';
+            
+            // Add conversation history
+            result.messages.forEach(msg => {
+                addMessage(msg.content, msg.role);
+            });
+            
+            console.log(`📋 Loaded ${result.messages.length} messages for conversation ${conversationId}`);
+        } else {
+            // Show empty conversation message
+            chatContainer.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-comment-dots fa-2x mb-2"></i>
+                    <p>Conversación cargada. Continúa donde lo dejaste.</p>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading conversation history:', error);
+        const chatContainer = document.getElementById('chatContainer');
+        chatContainer.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                <p>Error cargando la conversación. Intenta nuevamente.</p>
+            </div>
+        `;
+    });
 }
 
 function createNewConversation() {
@@ -261,6 +335,10 @@ function createNewConversation() {
         alert('Por favor, selecciona una materia antes de crear una nueva conversación.');
         return;
     }
+    
+    // Reset flags for new conversation
+    currentConversationId = null;
+    usingExistingConversation = false;
     
     fetch('/conversations', {
         method: 'POST',
@@ -295,6 +373,48 @@ function logout() {
     .catch(error => {
         console.error('Logout error:', error);
         window.location.href = '/';
+    });
+}
+
+function refreshConversationsList() {
+    fetch('/conversations')
+    .then(response => response.json())
+    .then(conversations => {
+        const conversationsContainer = document.getElementById('conversationsList');
+        
+        // Clear current conversations
+        conversationsContainer.innerHTML = '';
+        
+        // Add updated conversations
+        conversations.forEach(conv => {
+            const convDiv = document.createElement('div');
+            convDiv.className = 'conversation-item';
+            convDiv.setAttribute('data-id', conv.id);
+            convDiv.onclick = () => selectConversation(conv.id);
+            
+            const title = conv.title.length > 30 ? conv.title.substring(0, 30) + '...' : conv.title;
+            const subject = conv.subject || 'Sin materia';
+            const messageCount = conv.message_count || 0;
+            
+            convDiv.innerHTML = `
+                <div class="fw-bold">${title}</div>
+                <small class="text-muted">
+                    ${subject} • ${messageCount} mensajes
+                </small>
+            `;
+            
+            conversationsContainer.appendChild(convDiv);
+            
+            // Mark as active if it's the current conversation
+            if (conv.id === currentConversationId) {
+                convDiv.classList.add('active');
+            }
+        });
+        
+        console.log('📋 Conversations list refreshed');
+    })
+    .catch(error => {
+        console.error('Error refreshing conversations:', error);
     });
 }
 </script>

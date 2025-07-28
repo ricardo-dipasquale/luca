@@ -6,9 +6,17 @@ Handles user authentication and conversation management with Neo4j.
 
 import os
 import hashlib
+import sys
 from typing import Optional, Dict, List
 from datetime import datetime
+from pathlib import Path
 from kg.connection import KGConnection
+
+# Add project root to path for tools import
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from tools.llm_config import create_default_llm
 
 class AuthManager:
     """Manages user authentication and conversation data."""
@@ -16,6 +24,7 @@ class AuthManager:
     def __init__(self):
         """Initialize connection to Neo4j."""
         self.kg_connection = KGConnection()
+        self.llm = create_default_llm()
     
     def authenticate_user(self, email: str, password: str) -> Optional[Dict]:
         """
@@ -72,6 +81,9 @@ class AuthManager:
             """
             
             conversations = self.kg_connection.execute_query(query, {"email": email})
+            
+            # No need to convert DateTime objects - Flask JSON provider will handle it
+            
             return conversations or []
             
         except Exception as e:
@@ -117,6 +129,46 @@ class AuthManager:
         except Exception as e:
             print(f"Error creating conversation: {e}")
             return None
+    
+    def generate_conversation_title(self, message: str, subject: str) -> str:
+        """
+        Generate a descriptive conversation title using LLM based on the first message.
+        
+        Args:
+            message: First user message
+            subject: Educational subject
+            
+        Returns:
+            Generated descriptive title
+        """
+        try:
+            prompt = f"""
+            Genera un título corto y descriptivo (máximo 40 caracteres) para una conversación educativa basada en:
+            
+            Materia: {subject}
+            Primer mensaje: {message}
+            
+            El título debe ser claro, específico y capturar la esencia de la consulta.
+            Responde SOLO con el título, sin comillas ni explicaciones.
+            
+            Ejemplos:
+            - "Normalización de bases de datos"
+            - "LEFT JOIN en álgebra relacional"
+            - "Ejercicio 3.2 de la práctica"
+            """
+            
+            response = self.llm.invoke(prompt)
+            title = response.content.strip().strip('"').strip("'")
+            
+            # Truncate if too long
+            if len(title) > 40:
+                title = title[:37] + "..."
+            
+            return title
+            
+        except Exception as e:
+            print(f"Error generating conversation title: {e}")
+            return f"Consulta sobre {subject}"
     
     def update_conversation(self, conversation_id: str, title: Optional[str] = None):
         """
@@ -165,6 +217,108 @@ class AuthManager:
         except Exception as e:
             print(f"Error incrementing message count: {e}")
     
+    def add_message_to_conversation(self, conversation_id: str, content: str, role: str, order: int):
+        """
+        Add a message to a conversation.
+        
+        Args:
+            conversation_id: Conversation ID
+            content: Message content
+            role: 'user' or 'assistant'
+            order: Message order in conversation
+        """
+        try:
+            query = """
+            MATCH (c:Conversacion {id: $conversation_id})
+            CREATE (m:Mensaje {
+                id: randomUUID(),
+                content: $content,
+                role: $role,
+                order: $order,
+                created_at: datetime()
+            })
+            CREATE (c)-[:CONTAINS]->(m)
+            RETURN m.id as message_id
+            """
+            
+            result = self.kg_connection.execute_query(
+                query, 
+                {
+                    "conversation_id": conversation_id,
+                    "content": content,
+                    "role": role,
+                    "order": order
+                }
+            )
+            
+            if result:
+                return result[0]["message_id"]
+            return None
+            
+        except Exception as e:
+            print(f"Error adding message to conversation: {e}")
+            return None
+    
+    def get_conversation_messages(self, conversation_id: str, limit: int = 10) -> List[Dict]:
+        """
+        Get messages from a conversation.
+        
+        Args:
+            conversation_id: Conversation ID
+            limit: Maximum number of messages to return
+            
+        Returns:
+            List of message dictionaries ordered by creation time
+        """
+        try:
+            query = """
+            MATCH (c:Conversacion {id: $conversation_id})-[:CONTAINS]->(m:Mensaje)
+            RETURN m.content as content, m.role as role, m.order as order, 
+                   m.created_at as created_at
+            ORDER BY m.order DESC
+            LIMIT $limit
+            """
+            
+            messages = self.kg_connection.execute_query(
+                query, 
+                {"conversation_id": conversation_id, "limit": limit}
+            )
+            
+            # No need to convert DateTime objects - Flask JSON provider will handle it
+            
+            # Reverse to show oldest first
+            return list(reversed(messages)) if messages else []
+            
+        except Exception as e:
+            print(f"Error loading conversation messages: {e}")
+            return []
+    
+    def _neo4j_datetime_to_string(self, dt) -> str:
+        """
+        Convert Neo4j DateTime object to string for JSON serialization.
+        
+        Args:
+            dt: Neo4j DateTime object
+            
+        Returns:
+            Formatted datetime string
+        """
+        try:
+            # Check if it's a Neo4j DateTime object
+            if hasattr(dt, 'to_native'):
+                # Convert to Python datetime first
+                python_dt = dt.to_native()
+                return python_dt.strftime('%Y-%m-%d %H:%M:%S')
+            elif hasattr(dt, 'strftime'):
+                # Regular Python datetime
+                return dt.strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                # Fallback to string conversion
+                return str(dt)
+        except Exception as e:
+            print(f"Error converting datetime: {e}")
+            return str(dt)
+    
     def _hash_password(self, password: str) -> str:
         """
         Hash password for secure storage.
@@ -207,3 +361,15 @@ def update_conversation(conversation_id: str, title: Optional[str] = None):
 def increment_message_count(conversation_id: str):
     """Increment message count - convenience wrapper."""
     return get_auth_manager().increment_message_count(conversation_id)
+
+def generate_conversation_title(message: str, subject: str) -> str:
+    """Generate conversation title - convenience wrapper."""
+    return get_auth_manager().generate_conversation_title(message, subject)
+
+def add_message_to_conversation(conversation_id: str, content: str, role: str, order: int):
+    """Add message to conversation - convenience wrapper."""
+    return get_auth_manager().add_message_to_conversation(conversation_id, content, role, order)
+
+def get_conversation_messages(conversation_id: str, limit: int = 10) -> List[Dict]:
+    """Get conversation messages - convenience wrapper."""
+    return get_auth_manager().get_conversation_messages(conversation_id, limit)
