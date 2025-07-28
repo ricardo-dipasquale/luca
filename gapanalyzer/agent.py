@@ -284,6 +284,7 @@ class GapAnalyzerAgent:
                     message=result.summary,
                     gaps_found=len(result.identified_gaps),
                     top_priority_gaps=[gap.title for gap in result.identified_gaps[:3]],
+                    response_quality=result.response_quality,
                     detailed_analysis=result
                 )
             }

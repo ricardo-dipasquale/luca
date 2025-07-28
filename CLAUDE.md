@@ -14,6 +14,7 @@ The system consists of:
   - **Orchestrator Agent (orchestrator/)**: Main conversation manager and agent coordinator
   - **GapAnalyzer Agent (gapanalyzer/)**: Specialized learning gap analysis
 - **Database Scripts**: Knowledge graph creation and management utilities
+- **Utility Scripts (scripts/)**: Database cleanup and maintenance utilities
 
 ## Development Commands
 
@@ -66,6 +67,23 @@ docker run -d -p 7474:7474 -p 7687:7687 \
 # Create knowledge graph from Excel data
 python db/create_kg.py
 ```
+
+### Database Cleanup
+```bash
+# Interactive cleanup with confirmation prompt
+python scripts/cleanup_database.py
+
+# Auto-confirm cleanup (skip prompt) 
+python scripts/cleanup_database.py --confirm
+
+# Show database summary without cleanup
+python scripts/cleanup_database.py --summary-only
+
+# Verbose logging
+python scripts/cleanup_database.py --verbose
+```
+
+**⚠️ WARNING**: Database cleanup permanently deletes ALL conversation data, checkpoints, and agent memory. Use only for development/testing.
 
 ### Agent Development
 

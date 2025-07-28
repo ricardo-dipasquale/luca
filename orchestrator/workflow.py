@@ -78,9 +78,7 @@ class OrchestratorWorkflow:
         workflow.add_node("handle_theoretical_question", self._handle_theoretical_question)
         workflow.add_node("handle_practical_general", self._handle_practical_general)
         workflow.add_node("handle_practical_specific", self._handle_practical_specific)
-        workflow.add_node("handle_clarification", self._handle_clarification)
         workflow.add_node("handle_exploration", self._handle_exploration)
-        workflow.add_node("handle_evaluation", self._handle_evaluation)
         workflow.add_node("handle_social", self._handle_social)
         workflow.add_node("handle_off_topic", self._handle_off_topic)
         
@@ -101,9 +99,7 @@ class OrchestratorWorkflow:
                 "theoretical_question": "handle_theoretical_question",
                 "practical_general": "handle_practical_general", 
                 "practical_specific": "handle_practical_specific",
-                "clarification": "handle_clarification",
                 "exploration": "handle_exploration",
-                "evaluation": "handle_evaluation",
                 "greeting": "handle_social",
                 "goodbye": "handle_social",
                 "off_topic": "handle_off_topic",
@@ -114,9 +110,7 @@ class OrchestratorWorkflow:
         # Intent handlers flow to appropriate synthesis (practical_specific gets specialized treatment)
         workflow.add_edge("handle_theoretical_question", "synthesize_response")
         workflow.add_edge("handle_practical_general", "synthesize_response")
-        workflow.add_edge("handle_clarification", "synthesize_response")
         workflow.add_edge("handle_exploration", "synthesize_response")
-        workflow.add_edge("handle_evaluation", "synthesize_response")
         workflow.add_edge("handle_social", "synthesize_response")
         workflow.add_edge("handle_off_topic", "synthesize_response")
         
@@ -155,9 +149,7 @@ class OrchestratorWorkflow:
             StudentIntent.THEORETICAL_QUESTION: "theoretical_question",
             StudentIntent.PRACTICAL_GENERAL: "practical_general", 
             StudentIntent.PRACTICAL_SPECIFIC: "practical_specific",
-            StudentIntent.CLARIFICATION: "clarification",
             StudentIntent.EXPLORATION: "exploration",
-            StudentIntent.EVALUATION: "evaluation",
             StudentIntent.GREETING: "greeting",
             StudentIntent.GOODBYE: "goodbye",
             StudentIntent.OFF_TOPIC: "off_topic"
@@ -215,10 +207,8 @@ HISTORIAL RECIENTE:
 INTENCIONES POSIBLES:
 - theoretical_question: Pregunta sobre conceptos, definiciones, teoría
 - practical_general: Pregunta práctica general, no específica a ejercicios del KG
-- practical_specific: Ayuda con ejercicio/práctica específica mapeada en el KG
-- clarification: Pide aclaración sobre respuestas anteriores
+- practical_specific: Ayuda con ejercicio/práctica específica mapeada en el KG (incluye aclaraciones sobre ejercicios específicos)
 - exploration: Quiere explorar temas relacionados, curiosidad
-- evaluation: Pide autoevaluación, validación de conocimiento
 - greeting: Saludos iniciales, inicio de conversación
 - goodbye: Despedida, fin de conversación  
 - off_topic: No relacionado con educación
@@ -227,7 +217,7 @@ INSTRUCCIONES:
 1. Analiza el mensaje actual en el contexto de la conversación
 2. Identifica la intención principal más probable
 3. Para distinguir practical_general vs practical_specific:
-   - practical_specific: El estudiante menciona explícitamente práctica/ejercicio/sección específica (ej: "práctica 2", "ejercicio 1.d", "sección 3") O el contexto permite mapear a ejercicio específico del KG
+   - practical_specific: El estudiante menciona explícitamente práctica/ejercicio/sección específica (ej: "práctica 2", "ejercicio 1.d", "sección 3") O el contexto permite mapear a ejercicio específico del KG. También incluye aclaraciones sobre ejercicios específicos previamente discutidos.
    - practical_general: Pregunta práctica sobre conceptos aplicados pero sin referencia específica a ejercicios del KG
 4. Evalúa la confianza en tu clasificación (0-1)
 5. Proporciona razonamiento claro
@@ -368,13 +358,13 @@ Clasifica la intención de este mensaje.""")
             logger.info("Handling specific practical question")
             ctx = state.conversation_context
             
-            # Extract educational parameters from context and message
-            educational_params = self._extract_educational_parameters(ctx)
+            # Extract educational parameters from context and message using LLM
+            educational_params = await self._extract_educational_parameters(ctx)
             
             if not educational_params:
                 # If we can't extract parameters, ask for clarification
                 response = await self._request_educational_clarification(ctx)
-                state.agent_responses["clarification"] = response
+                state.agent_responses["direct_response"] = response
                 logger.info("Requested clarification for educational parameters")
                 return state
             
@@ -390,8 +380,9 @@ Clasifica la intención de este mensaje.""")
                 )
                 
                 # Call GapAnalyzer with the constructed context
-                response = await self._call_gap_analyzer_with_context(student_context, ctx.session_id)
-                state.agent_responses["gap_analyzer"] = response
+                gap_result = await self._call_gap_analyzer_with_context(student_context, ctx.session_id)
+                state.agent_responses["gap_analyzer"] = gap_result["text_summary"]  # Store text for backward compatibility
+                state.gap_analysis_result = gap_result  # Store full structured result
                 logger.info("Specific practical question handled successfully with KG context")
                 
             except ValueError as e:
@@ -407,27 +398,6 @@ Clasifica la intención de este mensaje.""")
         except Exception as e:
             logger.error(f"Error handling practical specific question: {e}")
             state.error_message = f"Practical specific question handling failed: {str(e)}"
-        
-        return state
-    
-    async def _handle_clarification(self, state: WorkflowState) -> WorkflowState:
-        """Handle clarification requests using conversation context."""
-        try:
-            logger.info("Handling clarification request")
-            ctx = state.conversation_context
-            
-            # Generate contextual clarification
-            response = await self._generate_direct_response(ctx, {
-                "use_conversation_history": True,
-                "response_type": "explanatory"
-            })
-            
-            state.agent_responses["direct_response"] = response
-            logger.info("Clarification request handled successfully")
-            
-        except Exception as e:
-            logger.error(f"Error handling clarification: {e}")
-            state.error_message = f"Clarification handling failed: {str(e)}"
         
         return state
     
@@ -455,27 +425,6 @@ Clasifica la intención de este mensaje.""")
         except Exception as e:
             logger.error(f"Error handling exploration: {e}")
             state.error_message = f"Exploration handling failed: {str(e)}"
-        
-        return state
-    
-    async def _handle_evaluation(self, state: WorkflowState) -> WorkflowState:
-        """Handle evaluation/self-assessment requests."""
-        try:
-            logger.info("Handling evaluation request")
-            ctx = state.conversation_context
-            
-            # Generate evaluation guidance
-            response = await self._generate_direct_response(ctx, {
-                "response_type": "evaluation",
-                "include_assessment_guidance": True
-            })
-            
-            state.agent_responses["direct_response"] = response
-            logger.info("Evaluation request handled successfully")
-            
-        except Exception as e:
-            logger.error(f"Error handling evaluation: {e}")
-            state.error_message = f"Evaluation handling failed: {str(e)}"
         
         return state
     
@@ -510,7 +459,7 @@ Clasifica la intención de este mensaje.""")
                 "redirect_to_education": True
             })
             
-            state.agent_responses["clarification"] = response
+            state.agent_responses["direct_response"] = response
             logger.info("Off-topic message handled successfully")
             
         except Exception as e:
@@ -623,6 +572,67 @@ Sintetiza una respuesta educativa completa.""")
             # Extract gap analysis results from handler response
             gap_analysis_response = state.agent_responses.get('gap_analyzer', '')
             
+            # Check if we have structured gap analysis with response quality assessment
+            response_quality = None
+            if state.gap_analysis_result and state.gap_analysis_result.get('response_quality'):
+                response_quality = state.gap_analysis_result['response_quality']
+                logger.info(f"Response quality assessment: {response_quality.quality.value}")
+            
+            # Handle correct responses with congratulations
+            if response_quality and response_quality.quality.value == "correcta":
+                logger.info("Student response is correct, providing congratulatory feedback")
+                congratulations_prompt = ChatPromptTemplate.from_messages([
+                    ("system", """Eres un tutor educativo que debe felicitar brevemente al estudiante por una respuesta correcta y brindar refuerzo positivo específico.
+
+ESTILO: Conciso, empático, específico al ejercicio, usa español argentino, no asumas género del estudiante.
+
+ESTRUCTURA:
+1. Felicitación breve y genuina
+2. Reconocimiento específico de lo que hizo bien 
+3. Refuerzo del aprendizaje logrado
+4. Motivación para continuar
+
+EVITAR: Ser excesivamente efusivo, dar información no solicitada, extenderse demasiado."""),
+                    ("human", """EJERCICIO: {exercise_context}
+RESPUESTA DEL ESTUDIANTE: {student_message}
+ANÁLISIS: {gap_analysis}
+
+Felicitá al estudiante por su respuesta correcta de manera específica y motivadora.""")
+                ])
+                
+                ctx = state.conversation_context
+                exercise_context = self._extract_exercise_context_from_state(state)
+                
+                formatted_prompt = congratulations_prompt.format_messages(
+                    exercise_context=exercise_context,
+                    student_message=ctx.current_message,
+                    gap_analysis=gap_analysis_response
+                )
+                
+                response = await self.llm.ainvoke(formatted_prompt)
+                congratulatory_content = response.content
+                
+                # Create synthesis result for correct response
+                synthesis = ResponseSynthesis(
+                    primary_content=congratulatory_content,
+                    supporting_information=[
+                        "¡Excelente trabajo! Tu comprensión del tema es sólida",
+                        "Seguí practicando para consolidar este aprendizaje"
+                    ],
+                    next_steps=[
+                        "Probá ejercicios similares para reforzar el concepto",
+                        "Avanzá al siguiente tema de la práctica",
+                        "Si tenés dudas sobre temas relacionados, no dudes en consultar"
+                    ],
+                    educational_guidance="Tu respuesta correcta demuestra una buena comprensión del concepto. Mantené esta metodología de análisis para futuros ejercicios.",
+                    confidence_level=0.95  # High confidence for correct responses
+                )
+                
+                state.response_synthesis = synthesis
+                logger.info("Congratulatory synthesis for correct response completed")
+                return state
+            
+            # Continue with regular gap-based guidance for incorrect/partial responses
             # Create specialized synthesis prompt for practical guidance
             synthesis_prompt = ChatPromptTemplate.from_messages([
                 ("system", """Eres un tutor pedagógico especializado en guiar estudiantes a través de ejercicios prácticos sin dar las respuestas directas, sino orientando al estudiante a partir del análisis de gaps a llegar a la respuesta sin dársela directamente. Específicamente trabajamos sobre prácticas (problemas/ejercicios).
@@ -958,150 +968,138 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
     
     # Helper methods for educational parameter extraction and context building
     
-    def _extract_educational_parameters(self, ctx: ConversationContext) -> Optional[Dict[str, Any]]:
+    async def _extract_educational_parameters(self, ctx: ConversationContext) -> Optional[Dict[str, Any]]:
         """
-        Extract educational parameters from conversation context and current message.
+        Extract educational parameters from conversation context and current message using LLM.
+        
+        Uses the LLM to intelligently extract practice, section, and exercise information
+        from the conversation context, understanding synonyms and conversational flow.
         
         Returns:
             Dict with subject_name, practice_number, section_number, exercise_identifier
             or None if parameters cannot be extracted
         """
         try:
-            import re
-            
             # Get subject from context (should already be available)
             subject_name = ctx.memory.educational_context.current_subject or "Bases de Datos Relacionales"
             
-            # Get practice number from context or extract from message
-            practice_number = ctx.memory.educational_context.current_practice
-            section_number = None
-            exercise_identifier = None
+            # Build conversation history for context
+            conversation_history = []
+            for turn in ctx.memory.get_recent_history(max_turns=10):
+                role = "Estudiante" if turn.role == "student" else "Asistente"
+                conversation_history.append(f"{role}: {turn.content}")
             
-            message_lower = ctx.current_message.lower()
+            history_text = "\n".join(conversation_history) if conversation_history else "Sin historial previo"
             
-            # Try to extract practice number from message if not in context
-            if not practice_number:
-                practice_match = re.search(r'práctica\s+(\d+)', message_lower)
-                if practice_match:
-                    practice_number = int(practice_match.group(1))
+            # Create extraction prompt
+            extraction_prompt = ChatPromptTemplate.from_messages([
+                ("system", """Eres un experto en extraer información educativa de conversaciones sobre prácticas y ejercicios.
+
+Tu tarea es extraer los parámetros educativos específicos del mensaje actual, considerando todo el contexto de la conversación.
+
+SINÓNIMOS DE EJERCICIOS (todos se refieren a lo mismo):
+- ejercicio, problema, punto, ítem, item, actividad, pregunta, consigna
+- "el ejercicio anterior", "este ejercicio", "mi ejercicio", "la actividad"
+
+FORMATOS COMUNES:
+- "práctica 2, ejercicio 1.d" 
+- "ejercicio 1.d de la práctica 2"
+- "problema k de la práctica 4"
+- "punto 1.d", "ítem j", "actividad 2.a"
+- "1.d", "2.k" (formato corto)
+
+REGLAS DE CONTEXTO:
+1. Si el mensaje actual menciona ejercicio específico, usa ESE
+2. Si NO menciona ejercicio específico pero la conversación sigue sobre un ejercicio previo, usa el del contexto
+3. Si cambió de ejercicio, prioriza el más reciente/último mencionado
+4. La sección suele ser "1" por defecto si no se especifica
+5. Si solo dice "el ejercicio anterior" o similar, busca en el historial el ejercicio mencionado
+
+CONTEXTO EDUCATIVO ACTUAL:
+- Materia: {subject}
+- Práctica actual en contexto: {current_practice}
+
+RESPONDE SOLO con un objeto JSON válido (sin markdown):
+{{
+  "practice_number": número_de_práctica (int o null),
+  "section_number": "número_de_sección" (string o null),
+  "exercise_identifier": "letra_del_ejercicio" (string o null),
+  "confidence": confianza_0_a_1 (float),
+  "reasoning": "explicación breve de por qué extrajiste estos valores"
+}}
+
+Si NO puedes extraer suficiente información, responde:
+{{
+  "practice_number": null,
+  "section_number": null, 
+  "exercise_identifier": null,
+  "confidence": 0.0,
+  "reasoning": "No se pudo identificar ejercicio específico en el contexto"
+}}"""),
+                ("human", """HISTORIAL DE CONVERSACIÓN:
+{conversation_history}
+
+MENSAJE ACTUAL DEL ESTUDIANTE:
+{current_message}
+
+Extrae los parámetros educativos del ejercicio al que se refiere el estudiante:""")
+            ])
             
-            # Extract exercise code (e.g., "1.d", "2.a", "ejercicio 1.d", "problema k", "punto k", "ítem j")
-            exercise_patterns = [
-                r'ejercicio\s+(\d+)\.([a-z])',  # "ejercicio 1.d"
-                r'(\d+)\.([a-z])',              # "1.d"
-                r'sección\s+(\d+).*ejercicio\s+([a-z])',  # "sección 1 ejercicio d"
-                r'problema\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',  # "problema k de la práctica 1"
-                r'punto\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',     # "punto k de la práctica 4"
-                r'ítem\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',      # "ítem j de la práctica 8"
-                r'item\s+([a-z])\s+de\s+la\s+práctica\s+(\d+)',      # "item o de la práctica 3"
-                r'el\s+problema\s+([a-z])',     # "el problema k" (uses current practice)
-                r'problema\s+([a-z])',          # "problema k" (uses current practice)
-                r'el\s+punto\s+([a-z])',        # "el punto k" (uses current practice)
-                r'punto\s+([a-z])',             # "punto k" (uses current practice)
-                r'el\s+ítem\s+([a-z])',         # "el ítem j" (uses current practice)
-                r'ítem\s+([a-z])',              # "ítem j" (uses current practice)
-                r'el\s+item\s+([a-z])',         # "el item o" (uses current practice)
-                r'item\s+([a-z])',              # "item o" (uses current practice)
-            ]
+            # Format and send prompt
+            formatted_prompt = extraction_prompt.format_messages(
+                subject=subject_name,
+                current_practice=ctx.memory.educational_context.current_practice or "No especificada",
+                conversation_history=history_text,
+                current_message=ctx.current_message
+            )
             
-            for i, pattern in enumerate(exercise_patterns):
-                match = re.search(pattern, message_lower)
-                if match:
-                    if i == 3:  # "problema k de la práctica 1" - different group order
-                        exercise_identifier = match.group(1)
-                        practice_number = int(match.group(2))
-                        section_number = "1"  # Default to section 1 for "problema" references
-                    elif i == 4:  # "punto k de la práctica 4" - different group order
-                        exercise_identifier = match.group(1)
-                        practice_number = int(match.group(2))
-                        section_number = "1"  # Default to section 1 for "punto" references
-                    elif i == 5:  # "ítem j de la práctica 8" - different group order
-                        exercise_identifier = match.group(1)
-                        practice_number = int(match.group(2))
-                        section_number = "1"  # Default to section 1 for "ítem" references
-                    elif i == 6:  # "item o de la práctica 3" - different group order
-                        exercise_identifier = match.group(1)
-                        practice_number = int(match.group(2))
-                        section_number = "1"  # Default to section 1 for "item" references
-                    elif i in [7, 8, 9, 10, 11, 12, 13]:  # Single letter patterns with current practice
-                        exercise_identifier = match.group(1)
-                        section_number = "1"  # Default to section 1 for single letter references
-                    else:  # Standard patterns: section first, exercise second
-                        section_number = match.group(1)
-                        exercise_identifier = match.group(2)
-                    break
+            response = await self.llm.ainvoke(formatted_prompt)
             
-            # If we have enough information, return parameters
-            if practice_number and section_number and exercise_identifier:
-                return {
-                    "subject_name": subject_name,
-                    "practice_number": practice_number,
-                    "section_number": section_number,
-                    "exercise_identifier": exercise_identifier
-                }
-            
-            # Try alternative patterns: just practice and exercise without explicit section
-            if practice_number:
-                # Try "ejercicio k" pattern
-                exercise_match = re.search(r'ejercicio\s+([a-z])', message_lower)
-                if exercise_match:
-                    # Assume section 1 if not specified
+            # Parse LLM response
+            try:
+                import json
+                result = json.loads(response.content.strip())
+                
+                # Validate result structure
+                if not isinstance(result, dict):
+                    raise ValueError("Response is not a dictionary")
+                
+                practice_number = result.get("practice_number")
+                section_number = result.get("section_number") 
+                exercise_identifier = result.get("exercise_identifier")
+                confidence = result.get("confidence", 0.0)
+                reasoning = result.get("reasoning", "")
+                
+                logger.info(f"LLM extraction result: practice={practice_number}, section={section_number}, exercise={exercise_identifier}, confidence={confidence}")
+                logger.info(f"LLM reasoning: {reasoning}")
+                
+                # If we have enough information with reasonable confidence, return parameters
+                if practice_number and section_number and exercise_identifier and confidence >= 0.7:
                     return {
                         "subject_name": subject_name,
-                        "practice_number": practice_number,
-                        "section_number": "1",
-                        "exercise_identifier": exercise_match.group(1)
+                        "practice_number": int(practice_number),
+                        "section_number": str(section_number),
+                        "exercise_identifier": str(exercise_identifier).lower()
                     }
                 
-                # Try "problema k" pattern (if not already matched above)
-                problema_match = re.search(r'problema\s+([a-z])', message_lower)
-                if problema_match:
-                    # Assume section 1 if not specified
-                    return {
-                        "subject_name": subject_name,
-                        "practice_number": practice_number,
-                        "section_number": "1",
-                        "exercise_identifier": problema_match.group(1)
-                    }
+                # Log why extraction failed
+                if confidence < 0.7:
+                    logger.warning(f"LLM extraction confidence too low: {confidence} < 0.7")
+                else:
+                    logger.warning(f"LLM extraction incomplete: practice={practice_number}, section={section_number}, exercise={exercise_identifier}")
                 
-                # Try "punto k" pattern (if not already matched above)
-                punto_match = re.search(r'punto\s+([a-z])', message_lower)
-                if punto_match:
-                    # Assume section 1 if not specified
-                    return {
-                        "subject_name": subject_name,
-                        "practice_number": practice_number,
-                        "section_number": "1",
-                        "exercise_identifier": punto_match.group(1)
-                    }
+                return None
                 
-                # Try "ítem j" pattern (if not already matched above)
-                item_match = re.search(r'ítem\s+([a-z])', message_lower)
-                if item_match:
-                    # Assume section 1 if not specified
-                    return {
-                        "subject_name": subject_name,
-                        "practice_number": practice_number,
-                        "section_number": "1",
-                        "exercise_identifier": item_match.group(1)
-                    }
-                
-                # Try "item o" pattern (if not already matched above)
-                item_plain_match = re.search(r'item\s+([a-z])', message_lower)
-                if item_plain_match:
-                    # Assume section 1 if not specified
-                    return {
-                        "subject_name": subject_name,
-                        "practice_number": practice_number,
-                        "section_number": "1",
-                        "exercise_identifier": item_plain_match.group(1)
-                    }
-            
-            logger.warning(f"Could not extract educational parameters from message: {ctx.current_message}")
-            return None
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LLM response as JSON: {e}")
+                logger.error(f"LLM response was: {response.content}")
+                return None
+            except Exception as e:
+                logger.error(f"Error processing LLM extraction result: {e}")
+                return None
             
         except Exception as e:
-            logger.error(f"Error extracting educational parameters: {e}")
+            logger.error(f"Error in LLM-based educational parameter extraction: {e}")
             return None
     
     async def _create_context_from_kg(
@@ -1218,8 +1216,8 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
             logger.error(f"Failed to create context from KG: {e}")
             raise ValueError(str(e))
     
-    async def _call_gap_analyzer_with_context(self, student_context: 'StudentContext', session_id: str) -> str:
-        """Call GapAnalyzer with a fully constructed StudentContext."""
+    async def _call_gap_analyzer_with_context(self, student_context: 'StudentContext', session_id: str) -> Dict[str, Any]:
+        """Call GapAnalyzer with a fully constructed StudentContext and return structured results."""
         try:
             from gapanalyzer.agent import GapAnalyzerAgent
             
@@ -1231,7 +1229,7 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
             # Run gap analysis with the constructed context
             result = await gap_analyzer.workflow.run_analysis(student_context, session_id)
             
-            # Format result for orchestrator
+            # Format text summary for orchestrator
             if result.identified_gaps:
                 gap_summary = f"Se identificaron {len(result.identified_gaps)} gaps de aprendizaje:"
                 for i, gap in enumerate(result.identified_gaps[:3], 1):  # Top 3 gaps
@@ -1240,14 +1238,28 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
                 
                 gap_summary += f"\n\nConfianza del análisis: {result.confidence_score:.1%}"
                 gap_summary += f"\nResumen: {result.summary}"
-                
-                return gap_summary
             else:
-                return "El análisis no identificó gaps significativos en la comprensión del ejercicio consultado."
+                gap_summary = "El análisis no identificó gaps significativos en la comprensión del ejercicio consultado."
+            
+            # Return structured information including response quality
+            return {
+                "text_summary": gap_summary,
+                "response_quality": result.response_quality,
+                "gaps_found": len(result.identified_gaps),
+                "confidence_score": result.confidence_score,
+                "structured_result": result
+            }
                 
         except Exception as e:
             logger.error(f"Error calling GapAnalyzer with context: {e}")
-            return f"Error al analizar gaps con contexto específico: {str(e)}. El sistema puede continuar con otras formas de asistencia."
+            error_msg = f"Error al analizar gaps con contexto específico: {str(e)}. El sistema puede continuar con otras formas de asistencia."
+            return {
+                "text_summary": error_msg,
+                "response_quality": None,
+                "gaps_found": 0,
+                "confidence_score": 0.0,
+                "structured_result": None
+            }
     
     async def _request_educational_clarification(self, ctx: ConversationContext) -> str:
         """Request clarification for missing educational parameters."""

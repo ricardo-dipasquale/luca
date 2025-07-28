@@ -143,7 +143,9 @@ class LocalGapAnalyzerRunner:
                 practice_context=practice_context,
                 exercise_context=exercise_context,
                 solution_context=solution_context,
-                tips_context=tips_context
+                tips_context=tips_context,
+                practice_number=practice_number,
+                exercise_section=f"{section_number}.{exercise_identifier}"
             )
             
         except Exception as e:
@@ -156,7 +158,9 @@ class LocalGapAnalyzerRunner:
                 practice_context=f"Error: No se pudo cargar el contexto de la práctica {practice_number}",
                 exercise_context=f"Error: No se pudo cargar el contexto del ejercicio {section_number}.{exercise_identifier}",
                 solution_context="Error: No se pudieron cargar las soluciones",
-                tips_context="Error: No se pudieron cargar los tips"
+                tips_context="Error: No se pudieron cargar los tips",
+                practice_number=practice_number,
+                exercise_section=f"{section_number}.{exercise_identifier}"
             )
     
     

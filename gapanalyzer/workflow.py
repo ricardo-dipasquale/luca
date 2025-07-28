@@ -30,6 +30,8 @@ from .schemas import (
     GapEvaluation,
     GapAnalysisResult,
     GapAnalysisResponse,
+    ResponseQuality,
+    ResponseQualityAssessment,
     GapSeverity,
     GapCategory
 )
@@ -255,17 +257,20 @@ Teoría adicional: {theory_background}
 ITERACIÓN: {iteration_info}
 
 INSTRUCCIONES:
-1. Analizá la pregunta del estudiante en el contexto del material educativo
-2. Identificá gaps específicos de aprendizaje (NO genéricos) que apunten a la solución de la práctica prestando atención al material provisto.
-3. No identifiques gaps que contradigan los tips provistos que son los lineamientos del profesor (tips).
-4. Clasificá cada gap por categoría: conceptual, procedural, theoretical, practical, prerequisite, communication
-5. Asigná severidad: critical, high, medium, low
-6. Proporcioná evidencia específica de la pregunta que indica cada gap
-7. Identificá conceptos afectados y conocimiento prerequisito faltante
-8. Usá español argentino en toda la respuesta
+1 Analizá la pregunta del estudiante en el contexto del material educativo
+2 Si la pregunta contiene una respuesta parcial o incompleta, comparala con las respuestas provistas en el contexto. Si la respuesta es buena igual o muy similar a la del estudiante, contestá positivamente que se trata de la respuesta correcta y no informes gaps. En este caso calificá calidad_de_la_respuesta_del_estudiante=correcta y la lista de gaps vacia, y no sigas adelante.
+3 Si la respuesta del estudiante no es buena como se indica en el punto 2, clasificala y seguí con el punto 4.
+4 Identificá gaps específicos de aprendizaje (NO genéricos) que apunten a la solución de la práctica prestando atención al material provisto.
+5 No identifiques gaps que contradigan los tips provistos que son los lineamientos del profesor (tips).
+6 Clasificá cada gap por categoría: conceptual, procedural, theoretical, practical, prerequisite, communication
+7 Asigná severidad: critical, high, medium, low
+8 Proporcioná evidencia específica de la pregunta que indica cada gap
+9 Identificá conceptos afectados y conocimiento prerequisito faltante
+10 Usá español argentino en toda la respuesta
 
 Respondé en formato JSON con esta estructura:
 {{
+  "calidad_de_la_respuesta_del_estudiante": "correcta|incorrecta|parcial|no_provista"
   "gaps": [
     {{
       "gap_id": "gap_001",
@@ -322,6 +327,21 @@ Analizá esta pregunta e identificá los gaps de aprendizaje específicos.""")
                 
                 gap_data = json.loads(json_content)
                 
+                # Extract response quality assessment
+                quality_str = gap_data.get("calidad_de_la_respuesta_del_estudiante", "no_provista")
+                try:
+                    response_quality = ResponseQuality(quality_str)
+                except ValueError:
+                    logger.warning(f"Invalid response quality '{quality_str}', defaulting to 'no_provista'")
+                    response_quality = ResponseQuality.NO_PROVISTA
+                
+                # Create ResponseQualityAssessment object
+                state.response_quality = ResponseQualityAssessment(
+                    quality=response_quality,
+                    reasoning=f"Evaluación automática basada en análisis de gaps: {quality_str}",
+                    confidence=0.8  # High confidence from structured analysis
+                )
+                
                 # Convert to IdentifiedGap objects
                 identified_gaps = []
                 for i, gap_dict in enumerate(gap_data.get("gaps", [])):
@@ -338,7 +358,7 @@ Analizá esta pregunta e identificá los gaps de aprendizaje específicos.""")
                     identified_gaps.append(gap)
                 
                 state.raw_gaps = identified_gaps
-                logger.info(f"Identified {len(identified_gaps)} learning gaps")
+                logger.info(f"Identified {len(identified_gaps)} learning gaps with response quality: {response_quality.value}")
                 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse gap analysis JSON: {e}")
@@ -359,6 +379,12 @@ Analizá esta pregunta e identificá los gaps de aprendizaje específicos.""")
         and addressability to provide a comprehensive assessment.
         """
         try:
+            # Skip evaluation if no gaps were identified
+            if not state.raw_gaps:
+                logger.info("No gaps identified, skipping evaluation")
+                state.evaluated_gaps = []
+                return state
+                
             logger.info("Evaluating gap relevance and importance")
             
             evaluation_prompt = ChatPromptTemplate.from_messages([
@@ -521,7 +547,8 @@ Evalúa cada gap según los criterios pedagógicos.""")
                 prioritized_gaps=[],  # Empty since we removed prioritization
                 summary=summary,
                 confidence_score=confidence_score,
-                recommendations=general_recommendations
+                recommendations=general_recommendations,
+                response_quality=state.response_quality
             )
             
             state.final_result = final_result
@@ -564,7 +591,9 @@ Evalúa cada gap según los criterios pedagógicos.""")
             }
             
             # Generate unique key for this analysis
-            analysis_key = f"gaps_{state.student_context.practice_number}_{state.student_context.exercise_section}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            practice_num = getattr(state.student_context, 'practice_number', 'unknown')
+            exercise_sec = getattr(state.student_context, 'exercise_section', 'unknown')
+            analysis_key = f"gaps_{practice_num}_{exercise_sec}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             self.memory_store.put(namespace, analysis_key, gaps_memory)
             
             # Store learning patterns
@@ -577,8 +606,8 @@ Evalúa cada gap según los criterios pedagógicos.""")
                     "low_severity_gaps": len([g for g in state.raw_gaps if g.severity == GapSeverity.LOW])
                 },
                 "practice_context": {
-                    "practice_number": state.student_context.practice_number,
-                    "exercise_section": state.student_context.exercise_section
+                    "practice_number": getattr(state.student_context, 'practice_number', None),
+                    "exercise_section": getattr(state.student_context, 'exercise_section', None)
                 },
                 "timestamp": datetime.now().isoformat()
             }
@@ -601,8 +630,8 @@ Evalúa cada gap según los criterios pedagógicos.""")
                     "type": "recommendations",
                     "recommendations": state.final_result.recommendations,
                     "context": {
-                        "practice_number": state.student_context.practice_number,
-                        "exercise_section": state.student_context.exercise_section,
+                        "practice_number": getattr(state.student_context, 'practice_number', None),
+                        "exercise_section": getattr(state.student_context, 'exercise_section', None),
                         "gap_count": len(state.raw_gaps)
                     },
                     "timestamp": datetime.now().isoformat()

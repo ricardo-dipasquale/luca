@@ -49,6 +49,56 @@ def serialize_for_neo4j(obj: Any) -> str:
     return json.dumps(obj, default=default_serializer, ensure_ascii=False)
 
 
+def migrate_legacy_data(data: Dict[str, Any], class_name: str) -> Dict[str, Any]:
+    """
+    Migrate legacy data structures to current schema.
+    """
+    if class_name == "ConversationTurn":
+        # Migrate old 'evaluation' and 'clarification' intents to 'practical_specific'
+        if 'intent' in data:
+            if data['intent'] == 'evaluation':
+                logger.info("Migrating legacy 'evaluation' intent to 'practical_specific'")
+                data['intent'] = 'practical_specific'
+            elif data['intent'] == 'clarification':
+                logger.info("Migrating legacy 'clarification' intent to 'practical_specific'")
+                data['intent'] = 'practical_specific'
+    elif class_name == "ConversationContext":
+        # Migrate conversation history turns
+        if 'memory' in data and 'conversation_history' in data['memory']:
+            for turn in data['memory']['conversation_history']:
+                if turn.get('intent') == 'evaluation':
+                    logger.info("Migrating legacy 'evaluation' intent to 'practical_specific' in conversation history")
+                    turn['intent'] = 'practical_specific'
+                elif turn.get('intent') == 'clarification':
+                    logger.info("Migrating legacy 'clarification' intent to 'practical_specific' in conversation history")
+                    turn['intent'] = 'practical_specific'
+    elif class_name == "IntentClassificationResult":
+        # Migrate old 'evaluation' and 'clarification' predicted intents to 'practical_specific'
+        if 'predicted_intent' in data:
+            if data['predicted_intent'] == 'evaluation':
+                logger.info("Migrating legacy 'evaluation' predicted_intent to 'practical_specific'")
+                data['predicted_intent'] = 'practical_specific'
+                # Update reasoning to reflect the change
+                if 'reasoning' in data:
+                    data['reasoning'] = data['reasoning'].replace(
+                        "evaluación", "consulta práctica específica"
+                    ).replace(
+                        "evaluar su conocimiento", "revisar ejercicio específico"
+                    )
+            elif data['predicted_intent'] == 'clarification':
+                logger.info("Migrating legacy 'clarification' predicted_intent to 'practical_specific'")
+                data['predicted_intent'] = 'practical_specific'
+                # Update reasoning to reflect the change
+                if 'reasoning' in data:
+                    data['reasoning'] = data['reasoning'].replace(
+                        "clarificación", "consulta práctica específica"
+                    ).replace(
+                        "aclaración", "pregunta específica"
+                    )
+    
+    return data
+
+
 def deserialize_from_neo4j(json_str: str) -> Any:
     """
     Custom deserializer that reconstructs Pydantic models and other complex objects.
@@ -62,13 +112,21 @@ def deserialize_from_neo4j(json_str: str) -> Any:
                 import importlib
                 module = importlib.import_module(module_path)
                 model_class = getattr(module, class_name)
-                reconstructed = model_class(**obj_dict['__data__'])
+                
+                # Apply data migration before reconstruction
+                migrated_data = migrate_legacy_data(obj_dict['__data__'], class_name)
+                
+                reconstructed = model_class(**migrated_data)
                 logger.debug(f"Successfully reconstructed Pydantic model: {class_name}")
                 return reconstructed
             except (ImportError, AttributeError) as e:
                 logger.warning(f"Failed to reconstruct Pydantic model {obj_dict['__pydantic_model__']}: {e}")
                 # Return the raw data if we can't reconstruct the model
                 return obj_dict['__data__']
+            except Exception as e:
+                logger.warning(f"Failed to reconstruct Pydantic model {class_name} after migration: {e}")
+                # Try to return migrated data even if reconstruction fails
+                return migrate_legacy_data(obj_dict['__data__'], class_name)
         elif '__object_type__' in obj_dict:
             # For now, just return the data - could be extended to reconstruct objects
             return obj_dict['__data__']

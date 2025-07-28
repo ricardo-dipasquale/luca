@@ -61,9 +61,7 @@ El workflow de Orchestrator está compuesto por los siguientes nodos:
 - **`theoretical_question`** - Preguntas conceptuales que requieren recuperación de conocimiento
 - **`practical_general`** - Preguntas prácticas generales no vinculadas a ejercicios específicos del KG
 - **`practical_specific`** - Ayuda específica con ejercicio/práctica mapeada en KG que requiere análisis de gaps
-- **`clarification`** - Preguntas de seguimiento sobre respuestas anteriores
 - **`exploration`** - Preguntas curiosas sobre temas relacionados
-- **`evaluation`** - Autoevaluación y validación de conocimiento
 - **`greeting/goodbye`** - Interacciones sociales
 - **`off_topic`** - Contenido no educativo que requiere redirección
 
@@ -72,7 +70,6 @@ El workflow de Orchestrator está compuesto por los siguientes nodos:
 - **`gap_analyzer`** - Análisis de gaps educativos y evaluación de aprendizaje
 - **`knowledge_retrieval`** - Búsqueda en grafo de conocimiento y contenido teórico
 - **`direct_response`** - Respuestas simples e interacciones sociales
-- **`clarification`** - Solicitud de clarificación o redirección a educación
 
 ### 🔀 Lógica Condicional
 

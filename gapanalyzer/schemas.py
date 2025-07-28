@@ -28,6 +28,14 @@ class GapCategory(str, Enum):
     COMMUNICATION = "communication"     # Issues expressing understanding
 
 
+class ResponseQuality(str, Enum):
+    """Quality assessment of student responses."""
+    CORRECTA = "correcta"           # Correct response
+    INCORRECTA = "incorrecta"       # Incorrect response
+    PARCIAL = "parcial"             # Partially correct response
+    NO_PROVISTA = "no_provista"     # No response provided/analyzed
+
+
 class StudentContext(BaseModel):
     """Context information about the student and their question."""
     student_question: str = Field(description="The student's original question or concern")
@@ -46,6 +54,15 @@ class StudentContext(BaseModel):
         default=None,
         description="Tips and hints provided by the teacher"
     )
+    # Additional fields for workflow tracking
+    practice_number: Optional[int] = Field(
+        default=None,
+        description="Practice number for tracking and memory storage"
+    )
+    exercise_section: Optional[str] = Field(
+        default=None,
+        description="Exercise section identifier (e.g., '1.d', '2.a')"
+    )
     
     class Config:
         json_schema_extra = {
@@ -60,6 +77,32 @@ class StudentContext(BaseModel):
                 "exercise_context": "Ejercicio: h - Resuelva en álgebra relacional lo siguiente: Obtener el nombre de todos los empleados que trabajen en el departamento de 'Ventas' junto con el nombre de su supervisor.",
                 "solution_context": "Solución esperada: SELECT e.nombre, s.nombre FROM empleados e JOIN empleados s ON e.supervisor_id = s.id JOIN departamentos d ON e.depto_id = d.id WHERE d.nombre = 'Ventas'",
                 "tips_context": "Tips: Recuerde usar INNER JOIN para relacionar empleados con supervisores. Tenga en cuenta que un empleado puede ser supervisor de otros."
+            }
+        }
+
+
+class ResponseQualityAssessment(BaseModel):
+    """Assessment of student response quality."""
+    quality: ResponseQuality = Field(
+        default=ResponseQuality.NO_PROVISTA,
+        description="Quality level of the student's response"
+    )
+    reasoning: Optional[str] = Field(
+        default=None,
+        description="Explanation for the quality assessment"
+    )
+    confidence: float = Field(
+        default=0.0,
+        ge=0.0, le=1.0,
+        description="Confidence in the quality assessment (0-1)"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "quality": "parcial",
+                "reasoning": "La respuesta muestra comprensión parcial del concepto pero tiene errores en la implementación",
+                "confidence": 0.8
             }
         }
 
@@ -188,6 +231,10 @@ class GapAnalysisResult(BaseModel):
         description="Confidence in the analysis quality (0-1)"
     )
     recommendations: List[str] = Field(description="General recommendations for the student")
+    response_quality: ResponseQualityAssessment = Field(
+        default_factory=ResponseQualityAssessment,
+        description="Assessment of the student's response quality"
+    )
     
     class Config:
         json_schema_extra = {
@@ -216,6 +263,9 @@ class WorkflowState(BaseModel):
     evaluated_gaps: List[GapEvaluation] = Field(default=[])
     prioritized_gaps: List[PrioritizedGap] = Field(default=[])
     
+    # Response quality assessment
+    response_quality: ResponseQualityAssessment = Field(default_factory=ResponseQualityAssessment)
+    
     # Final result
     final_result: Optional[GapAnalysisResult] = None
     
@@ -241,6 +291,10 @@ class GapAnalysisResponse(BaseModel):
     message: str = Field(description="Human-readable summary of the analysis")
     gaps_found: int = Field(description="Number of gaps identified")
     top_priority_gaps: List[str] = Field(description="Titles of top 3 priority gaps")
+    response_quality: ResponseQualityAssessment = Field(
+        default_factory=ResponseQualityAssessment,
+        description="Assessment of student response quality"
+    )
     detailed_analysis: Optional[GapAnalysisResult] = None
     
     class Config:

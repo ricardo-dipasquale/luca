@@ -16,9 +16,7 @@ class StudentIntent(str, Enum):
     THEORETICAL_QUESTION = "theoretical_question"      # Asking about concepts, definitions
     PRACTICAL_GENERAL = "practical_general"            # General practical questions not tied to specific KG exercise
     PRACTICAL_SPECIFIC = "practical_specific"          # Help with specific exercise/practice mapped in KG  
-    CLARIFICATION = "clarification"                     # Clarifying previous responses
     EXPLORATION = "exploration"                         # Exploring related topics
-    EVALUATION = "evaluation"                           # Self-assessment requests
     GREETING = "greeting"                               # Initial greetings/chat
     GOODBYE = "goodbye"                                 # Ending conversation
     OFF_TOPIC = "off_topic"                            # Not education-related
@@ -113,7 +111,7 @@ class IntentClassificationResult(BaseModel):
 
 class AgentRoutingDecision(BaseModel):
     """Decision about which agent to route to."""
-    target_agent: Literal["gap_analyzer", "direct_response", "knowledge_retrieval", "clarification"] = Field(
+    target_agent: Literal["gap_analyzer", "direct_response", "knowledge_retrieval"] = Field(
         description="Which agent or approach to use"
     )
     routing_reasoning: str = Field(description="Why this routing was chosen")
@@ -178,6 +176,7 @@ class WorkflowState(BaseModel):
     # Processing stages
     intent_result: Optional[IntentClassificationResult] = None
     agent_responses: Dict[str, Any] = Field(default={}, description="Responses from intent handlers")
+    gap_analysis_result: Optional[Dict[str, Any]] = Field(default=None, description="Structured gap analysis results")
     
     # Synthesis
     response_synthesis: Optional[ResponseSynthesis] = None

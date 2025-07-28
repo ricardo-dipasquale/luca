@@ -201,9 +201,7 @@ def generate_mermaid_diagram(workflow: OrchestratorWorkflow) -> str:
     A_Decision -->|theoretical_question| H1[handle_theoretical_question]
     A_Decision -->|practical_general| H2[handle_practical_general]
     A_Decision -->|practical_specific| H3[handle_practical_specific]
-    A_Decision -->|clarification| H4[handle_clarification]
     A_Decision -->|exploration| H5[handle_exploration]
-    A_Decision -->|evaluation| H6[handle_evaluation]
     A_Decision -->|greeting/goodbye| H7[handle_social]
     A_Decision -->|off_topic| H8[handle_off_topic]
     A_Decision -->|error| Error[handle_error]
@@ -212,7 +210,6 @@ def generate_mermaid_diagram(workflow: OrchestratorWorkflow) -> str:
     H1 --> D[synthesize_response]
     H2 --> D
     H3 --> D
-    H4 --> D
     H5 --> D
     H6 --> D
     H7 --> D
@@ -226,7 +223,6 @@ def generate_mermaid_diagram(workflow: OrchestratorWorkflow) -> str:
     H1 -.-> H1_Agent[Knowledge Retrieval<br/>Theoretical Content]
     H2 -.-> H2_Agent[Knowledge Retrieval<br/>Practical Examples]
     H3 -.-> H3_Agent[GapAnalyzer<br/>Exercise-specific Analysis]
-    H4 -.-> H4_Agent[Direct Response<br/>Conversation Context]
     H5 -.-> H5_Agent[Knowledge Retrieval +<br/>Exploratory Guidance]
     H6 -.-> H6_Agent[Direct Response<br/>Assessment Guidance]
     H7 -.-> H7_Agent[Direct Response<br/>Social Interaction]
@@ -244,8 +240,8 @@ def generate_mermaid_diagram(workflow: OrchestratorWorkflow) -> str:
     class A,D,E process
     class A_Decision decision
     class Error error
-    class H1,H2,H3,H4,H5,H6,H7,H8 handler
-    class H1_Agent,H2_Agent,H3_Agent,H4_Agent,H5_Agent,H6_Agent,H7_Agent,H8_Agent agent
+    class H1,H2,H3,H5,H6,H7,H8 handler
+    class H1_Agent,H2_Agent,H3_Agent,H5_Agent,H6_Agent,H7_Agent,H8_Agent agent
     
     %% Node descriptions
     A -.->|"Analiza mensaje del estudiante<br/>Clasifica intención educativa<br/>Rutea directamente a handler"| A_Note[🎯 Intent Classification & Routing]
@@ -255,10 +251,9 @@ def generate_mermaid_diagram(workflow: OrchestratorWorkflow) -> str:
     H1 -.->|"Handler para preguntas teóricas<br/>Usa knowledge retrieval"| H1_Note[📚 Theoretical Handler]
     H2 -.->|"Handler para prácticas generales<br/>Usa knowledge retrieval con ejemplos"| H2_Note[🔧 Practical General Handler]
     H3 -.->|"Handler para ejercicios específicos<br/>Usa GapAnalyzer para análisis detallado"| H3_Note[🔍 Practical Specific Handler]
-    H4 -.->|"Handler para clarificaciones<br/>Usa contexto de conversación"| H4_Note[💬 Clarification Handler]
     
     classDef note fill:#f8f9fa,stroke:#6c757d,stroke-width:1px,stroke-dasharray: 5 5
-    class A_Note,D_Note,E_Note,H1_Note,H2_Note,H3_Note,H4_Note note
+    class A_Note,D_Note,E_Note,H1_Note,H2_Note,H3_Note note
 """
     
     return mermaid_code
@@ -292,9 +287,7 @@ def print_workflow_info(workflow: OrchestratorWorkflow):
     print(f"   • handle_theoretical_question    → Knowledge retrieval for concepts and theory")
     print(f"   • handle_practical_general       → Knowledge retrieval for general practical questions")
     print(f"   • handle_practical_specific      → GapAnalyzer for specific exercise help")
-    print(f"   • handle_clarification           → Direct response with conversation context")
     print(f"   • handle_exploration             → Knowledge retrieval + exploratory guidance")
-    print(f"   • handle_evaluation              → Direct response with assessment guidance")
     print(f"   • handle_social                  → Direct response for greetings/goodbyes")
     print(f"   • handle_off_topic               → Clarification with educational redirection")
     
@@ -302,9 +295,7 @@ def print_workflow_info(workflow: OrchestratorWorkflow):
     print(f"   • theoretical_question  → Conceptual questions requiring knowledge retrieval")
     print(f"   • practical_general     → General practical questions not tied to specific KG exercise")
     print(f"   • practical_specific    → Specific exercise/practice help mapped in KG requiring gap analysis")
-    print(f"   • clarification         → Follow-up questions about previous responses")
     print(f"   • exploration           → Curious questions about related topics")
-    print(f"   • evaluation            → Self-assessment and knowledge validation")
     print(f"   • greeting/goodbye      → Social interactions")
     print(f"   • off_topic            → Non-educational content requiring redirection")
     
@@ -312,7 +303,6 @@ def print_workflow_info(workflow: OrchestratorWorkflow):
     print(f"   • gap_analyzer          → Educational gap analysis and learning assessment")
     print(f"   • knowledge_retrieval   → Knowledge graph search and theoretical content")
     print(f"   • direct_response       → Simple responses and social interactions")
-    print(f"   • clarification         → Request clarification or redirect to education")
     
     print(f"\n🔀 CONDITIONAL LOGIC:")
     print(f"   • Intent classification → Route based on student needs and confidence")

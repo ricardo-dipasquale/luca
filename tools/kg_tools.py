@@ -7,7 +7,10 @@ to query course materials, practices, and exercises.
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+import hashlib
+import time
+from threading import Lock
+from typing import List, Optional, Dict, Any, Tuple
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
@@ -18,6 +21,98 @@ logger = logging.getLogger(__name__)
 
 # Global KG interface instance (lazy loaded)
 _kg_interface: Optional[KGQueryInterface] = None
+
+# Global cache for KG tools
+class KGToolsCache:
+    """Thread-safe cache for KG tools with TTL support."""
+    
+    def __init__(self, default_ttl: int = 3600):  # 1 hour default TTL
+        self._cache: Dict[str, Tuple[Any, float]] = {}  # key -> (value, timestamp)
+        self._lock = Lock()
+        self.default_ttl = default_ttl
+        
+    def _generate_key(self, function_name: str, *args, **kwargs) -> str:
+        """Generate a cache key from function name and arguments."""
+        # Create a string representation of all arguments
+        key_data = f"{function_name}:{str(args)}:{str(sorted(kwargs.items()))}"
+        # Use SHA256 hash for consistent, clean keys
+        return hashlib.sha256(key_data.encode('utf-8')).hexdigest()[:16]
+    
+    def get(self, function_name: str, *args, **kwargs) -> Optional[Any]:
+        """Get cached value if it exists and hasn't expired."""
+        key = self._generate_key(function_name, *args, **kwargs)
+        
+        with self._lock:
+            if key in self._cache:
+                value, timestamp = self._cache[key]
+                current_time = time.time()
+                
+                # Check if cache entry has expired
+                if current_time - timestamp < self.default_ttl:
+                    logger.debug(f"Cache HIT for {function_name} (key: {key})")
+                    return value
+                else:
+                    # Remove expired entry
+                    del self._cache[key]
+                    logger.debug(f"Cache EXPIRED for {function_name} (key: {key})")
+            
+            logger.debug(f"Cache MISS for {function_name} (key: {key})")
+            return None
+    
+    def put(self, function_name: str, value: Any, *args, **kwargs) -> None:
+        """Store value in cache with current timestamp."""
+        key = self._generate_key(function_name, *args, **kwargs)
+        current_time = time.time()
+        
+        with self._lock:
+            self._cache[key] = (value, current_time)
+            logger.debug(f"Cache STORE for {function_name} (key: {key})")
+    
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        with self._lock:
+            cache_size = len(self._cache)
+            self._cache.clear()
+            logger.info(f"Cache cleared: {cache_size} entries removed")
+    
+    def cleanup_expired(self) -> int:
+        """Remove expired entries and return count of removed items."""
+        current_time = time.time()
+        expired_keys = []
+        
+        with self._lock:
+            for key, (value, timestamp) in self._cache.items():
+                if current_time - timestamp >= self.default_ttl:
+                    expired_keys.append(key)
+            
+            for key in expired_keys:
+                del self._cache[key]
+        
+        if expired_keys:
+            logger.info(f"Cache cleanup: {len(expired_keys)} expired entries removed")
+        
+        return len(expired_keys)
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        with self._lock:
+            current_time = time.time()
+            total_entries = len(self._cache)
+            expired_entries = sum(
+                1 for _, timestamp in self._cache.values()
+                if current_time - timestamp >= self.default_ttl
+            )
+            active_entries = total_entries - expired_entries
+            
+            return {
+                "total_entries": total_entries,
+                "active_entries": active_entries,
+                "expired_entries": expired_entries,
+                "ttl_seconds": self.default_ttl
+            }
+
+# Global cache instance
+_kg_cache = KGToolsCache(default_ttl=1800)  # 30 minutes TTL
 
 
 def _is_meaningful_response(message: str, topic_description: str) -> bool:
@@ -71,6 +166,11 @@ def _get_fallback_theoretical_content(topic_description: str) -> str:
     Returns:
         Formatted string with theoretical content from LLM
     """
+    # Check cache first
+    cached_result = _kg_cache.get("_get_fallback_theoretical_content", topic_description)
+    if cached_result is not None:
+        return cached_result
+    
     import os
     import threading
     from openai import OpenAI
@@ -131,14 +231,22 @@ Mantené la respuesta en español argentino y sé específico pero breve."""
             result.append("")
             result.append(content)
             
+            formatted_result = "\n".join(result)
             logger.info(f"Successfully retrieved fallback theoretical content for: {topic_description}")
-            return "\n".join(result)
+            
+            # Cache the successful result
+            _kg_cache.put("_get_fallback_theoretical_content", formatted_result, topic_description)
+            return formatted_result
         else:
-            return f"No se pudo generar contenido teórico para: {topic_description}"
+            error_msg = f"No se pudo generar contenido teórico para: {topic_description}"
+            # Don't cache error responses
+            return error_msg
             
     except Exception as e:
         logger.error(f"Error in fallback theoretical content: {e}")
-        return f"Error al generar contenido teórico alternativo para {topic_description}: {str(e)}"
+        error_msg = f"Error al generar contenido teórico alternativo para {topic_description}: {str(e)}"
+        # Don't cache error responses
+        return error_msg
 
 
 def get_kg_interface() -> KGQueryInterface:
@@ -397,12 +505,19 @@ def search_knowledge_graph_tool(query_text: str, limit: int = 10) -> str:
     Returns:
         Formatted string with search results
     """
+    # Check cache first
+    cached_result = _kg_cache.get("search_knowledge_graph_tool", query_text, limit=limit)
+    if cached_result is not None:
+        return cached_result
+    
     try:
         kg = get_kg_interface()
         results = kg.search_by_text(query_text, limit=limit)
         
         if not results:
-            return f"No results found for: {query_text}"
+            no_results_msg = f"No results found for: {query_text}"
+            # Don't cache "no results" responses as they might change when data is added
+            return no_results_msg
         
         result_lines = [f"Search results for '{query_text}':"]
         
@@ -422,11 +537,17 @@ def search_knowledge_graph_tool(query_text: str, limit: int = 10) -> str:
             if result.score:
                 result_lines.append(f"   Relevance: {result.score:.2f}")
         
-        return "\n".join(result_lines)
+        formatted_result = "\n".join(result_lines)
+        
+        # Cache the successful result
+        _kg_cache.put("search_knowledge_graph_tool", formatted_result, query_text, limit=limit)
+        return formatted_result
         
     except Exception as e:
         logger.error(f"Error in search_knowledge_graph_tool: {e}")
-        return f"Error searching knowledge graph: {str(e)}"
+        error_msg = f"Error searching knowledge graph: {str(e)}"
+        # Don't cache error responses
+        return error_msg
 
 
 @tool("get_related_topics", args_schema=TopicQuery)
@@ -486,6 +607,11 @@ def get_theoretical_content_tool(topic_description: str) -> str:
     Returns:
         Formatted string with theoretical content
     """
+    # Check cache first
+    cached_result = _kg_cache.get("get_theoretical_content_tool", topic_description)
+    if cached_result is not None:
+        return cached_result
+    
     import os
     import requests
     import threading
@@ -547,30 +673,47 @@ def get_theoretical_content_tool(topic_description: str) -> str:
                     result.append("")
                     result.append(message)
                     
+                    formatted_result = "\n".join(result)
                     logger.info(f"Successfully retrieved theoretical content for: {topic_description}")
-                    return "\n".join(result)
+                    
+                    # Cache the successful result
+                    _kg_cache.put("get_theoretical_content_tool", formatted_result, topic_description)
+                    return formatted_result
                 else:
                     # Fallback to direct LLM if API response is insufficient
                     logger.info(f"API response insufficient for {topic_description}, using fallback LLM")
-                    return _get_fallback_theoretical_content(topic_description)
+                    fallback_result = _get_fallback_theoretical_content(topic_description)
+                    # Cache the fallback result too (it's already cached by the fallback function, but cache here as well for this tool)
+                    _kg_cache.put("get_theoretical_content_tool", fallback_result, topic_description)
+                    return fallback_result
             else:
                 logger.error(f"API returned error status: {response_data.get('status')}")
                 # Try fallback on API error
-                return _get_fallback_theoretical_content(topic_description)
+                fallback_result = _get_fallback_theoretical_content(topic_description)
+                _kg_cache.put("get_theoretical_content_tool", fallback_result, topic_description)
+                return fallback_result
         else:
             logger.error(f"HTTP error {response.status_code}: {response.text}")
             # Try fallback on HTTP error
-            return _get_fallback_theoretical_content(topic_description)
+            fallback_result = _get_fallback_theoretical_content(topic_description)
+            _kg_cache.put("get_theoretical_content_tool", fallback_result, topic_description)
+            return fallback_result
         
     except requests.exceptions.Timeout:
         logger.error("Timeout connecting to LLM Graph Builder API, trying fallback")
-        return _get_fallback_theoretical_content(topic_description)
+        fallback_result = _get_fallback_theoretical_content(topic_description)
+        _kg_cache.put("get_theoretical_content_tool", fallback_result, topic_description)
+        return fallback_result
     except requests.exceptions.ConnectionError:
         logger.error("Connection error to LLM Graph Builder API, trying fallback")
-        return _get_fallback_theoretical_content(topic_description)
+        fallback_result = _get_fallback_theoretical_content(topic_description)
+        _kg_cache.put("get_theoretical_content_tool", fallback_result, topic_description)
+        return fallback_result
     except Exception as e:
         logger.error(f"Error in get_theoretical_content_tool: {e}, trying fallback")
-        return _get_fallback_theoretical_content(topic_description)
+        fallback_result = _get_fallback_theoretical_content(topic_description)
+        _kg_cache.put("get_theoretical_content_tool", fallback_result, topic_description)
+        return fallback_result
 
 
 @tool("get_learning_path", args_schema=TopicQuery)
@@ -645,3 +788,51 @@ def get_kg_tools() -> List:
         get_theoretical_content_tool,
         get_learning_path_tool
     ]
+
+
+# Cache management utilities
+
+def clear_kg_cache() -> None:
+    """Clear all cached entries in the KG tools cache."""
+    _kg_cache.clear()
+    logger.info("KG tools cache cleared")
+
+
+def cleanup_expired_cache() -> int:
+    """Remove expired entries from the cache and return count removed."""
+    return _kg_cache.cleanup_expired()
+
+
+def get_cache_stats() -> Dict[str, Any]:
+    """
+    Get cache statistics for monitoring.
+    
+    Returns:
+        Dictionary with cache statistics including total entries, 
+        active entries, expired entries, and TTL settings
+    """
+    return _kg_cache.get_stats()
+
+
+@tool("kg_cache_stats")
+def kg_cache_stats_tool() -> str:
+    """
+    Get current cache statistics for KG tools.
+    
+    Returns:
+        Formatted string with cache performance information
+    """
+    stats = get_cache_stats()
+    
+    result = ["KG Tools Cache Statistics:"]
+    result.append(f"  Total entries: {stats['total_entries']}")
+    result.append(f"  Active entries: {stats['active_entries']}")
+    result.append(f"  Expired entries: {stats['expired_entries']}")
+    result.append(f"  TTL: {stats['ttl_seconds']} seconds ({stats['ttl_seconds']//60} minutes)")
+    
+    # Calculate cache efficiency if we have data
+    if stats['total_entries'] > 0:
+        efficiency = (stats['active_entries'] / stats['total_entries']) * 100
+        result.append(f"  Cache efficiency: {efficiency:.1f}%")
+    
+    return "\n".join(result)

@@ -114,6 +114,42 @@
             }
         },
         {
+            "name": "Database Cleanup - Interactive",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/cleanup_database.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Database Cleanup - Auto Confirm",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/cleanup_database.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": ["--confirm"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Database Summary Only",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/cleanup_database.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": ["--summary-only"],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
