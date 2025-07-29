@@ -240,24 +240,7 @@ class LocalGapAnalyzerRunner:
                         print(f"    Conceptos afectados: {', '.join(gap.affected_concepts)}")
                     print()
 
-            if structured.detailed_analysis.prioritized_gaps:
-                print("\nGaps priorizados:")
-                for pg in structured.detailed_analysis.prioritized_gaps:
-                    gap = pg.gap
-                    eval = pg.evaluation
-                    
-                    print(f"  - {gap.title}: {gap.description}")
-                    print(f"    Categoría: {gap.category.value} | Severidad: {gap.severity.value} | Rank: {pg.rank}")
-                    print(f"    Prioridad: {eval.priority_score:.2f} | Relevancia pedagógica: {eval.pedagogical_relevance:.2f}")
-                    if gap.evidence:
-                        print(f"    Evidencia: {gap.evidence}")
-                    if gap.affected_concepts:
-                        print(f"    Conceptos afectados: {', '.join(gap.affected_concepts)}")
-                    print()
-            if hasattr(structured.detailed_analysis, 'recommendations') and structured.detailed_analysis.recommendations:
-                print("\nRecomendaciones generales:")
-                for action in structured.detailed_analysis.recommendations:
-                    print(f"  - {action}")
+            # Note: prioritized_gaps and recommendations fields were removed from GapAnalysisResult
             
 
 

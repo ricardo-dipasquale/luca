@@ -532,22 +532,14 @@ Evalúa cada gap según los criterios pedagógicos.""")
             
             summary = " ".join(summary_parts)
             
-            # Generate basic recommendations (detailed recommendations handled by separate agent)
-            general_recommendations = [
-                "Revisar los conceptos teóricos relacionados con el ejercicio",
-                "Consultar los tips proporcionados por el profesor",
-                "Practicar con ejercicios similares de menor complejidad"
-            ]
             
             # Create final result
             final_result = GapAnalysisResult(
                 student_context=state.student_context,
                 educational_context=state.educational_context,
                 identified_gaps=state.raw_gaps,
-                prioritized_gaps=[],  # Empty since we removed prioritization
                 summary=summary,
                 confidence_score=confidence_score,
-                recommendations=general_recommendations,
                 response_quality=state.response_quality
             )
             
@@ -624,21 +616,7 @@ Evalúa cada gap según los criterios pedagógicos.""")
             
             self.memory_store.put(namespace, "learning_patterns_summary", patterns_memory)
             
-            # Store recommendations effectiveness tracking
-            if state.final_result.recommendations:
-                recommendations_memory = {
-                    "type": "recommendations",
-                    "recommendations": state.final_result.recommendations,
-                    "context": {
-                        "practice_number": getattr(state.student_context, 'practice_number', None),
-                        "exercise_section": getattr(state.student_context, 'exercise_section', None),
-                        "gap_count": len(state.raw_gaps)
-                    },
-                    "timestamp": datetime.now().isoformat()
-                }
-                
-                rec_key = f"recommendations_{analysis_key}"
-                self.memory_store.put(namespace, rec_key, recommendations_memory)
+            # Note: Recommendations tracking removed as recommendations field was removed from GapAnalysisResult
             
             logger.debug(f"Stored gap analysis memory for user {user_id}")
             
@@ -734,11 +712,9 @@ Evalúa cada gap según los criterios pedagógicos.""")
         if "no encontrada" in error_message or "no encontrado" in error_message:
             # Extract specific content that doesn't exist
             summary = error_message  # Use the specific error as-is
-            recommendations = ["Verificar el número de práctica y ejercicio", "Consultar contenido disponible"]
         else:
             # Generic error
             summary = f"Error en el procesamiento: {error_message}"
-            recommendations = ["Intentar nuevamente", "Verificar contexto proporcionado"]
         
         # Create minimal, concrete error result
         error_result = GapAnalysisResult(
@@ -754,10 +730,8 @@ Evalúa cada gap según los criterios pedagógicos.""")
                 theory_background="Error al recuperar contexto"
             ),
             identified_gaps=[],
-            prioritized_gaps=[],  # Empty since prioritization was removed
             summary=summary,
-            confidence_score=0.0,
-            recommendations=recommendations
+            confidence_score=0.0
         )
         
         state.final_result = error_result
@@ -797,8 +771,6 @@ Evalúa cada gap según los criterios pedagógicos.""")
                     theory_background="Error al recuperar contexto"
                 ),
                 identified_gaps=[],
-                prioritized_gaps=[],
                 summary=f"Error crítico en el análisis: {str(e)}",
-                confidence_score=0.0,
-                recommendations=["Contactar soporte técnico", "Verificar configuración del sistema"]
+                confidence_score=0.0
             )

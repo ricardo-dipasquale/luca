@@ -584,13 +584,12 @@ Sintetiza una respuesta educativa completa.""")
                 congratulations_prompt = ChatPromptTemplate.from_messages([
                     ("system", """Eres un tutor educativo que debe felicitar brevemente al estudiante por una respuesta correcta y brindar refuerzo positivo específico.
 
-ESTILO: Conciso, empático, específico al ejercicio, usa español argentino, no asumas género del estudiante.
+ESTILO: Conciso, empático pero específico al ejercicio, usa español argentino, no asumas género del estudiante.
 
 ESTRUCTURA:
-1. Felicitación breve y genuina
-2. Reconocimiento específico de lo que hizo bien 
-3. Refuerzo del aprendizaje logrado
-4. Motivación para continuar
+1. Felicitación breve y genuina específica de lo que hizo bien 
+2. Refuerzo del aprendizaje logrado
+3. Motivación para continuar
 
 EVITAR: Ser excesivamente efusivo, dar información no solicitada, extenderse demasiado."""),
                     ("human", """EJERCICIO: {exercise_context}
@@ -624,7 +623,7 @@ Felicitá al estudiante por su respuesta correcta de manera específica y motiva
                         "Avanzá al siguiente tema de la práctica",
                         "Si tenés dudas sobre temas relacionados, no dudes en consultar"
                     ],
-                    educational_guidance="Tu respuesta correcta demuestra una buena comprensión del concepto. Mantené esta metodología de análisis para futuros ejercicios.",
+                    educational_guidance="Tu respuesta correcta demuestra una buena comprensión del concepto.",
                     confidence_level=0.95  # High confidence for correct responses
                 )
                 
@@ -652,11 +651,9 @@ PRINCIPIOS PEDAGÓGICOS:
 3. PASOS CONCRETOS: Dar acciones específicas, no conceptos vagos
 
 ESTRUCTURA DE RESPUESTA:
-1. Reconocimiento empático del problema
-2. Identificación del gap específico más crítico (a partir del análisis de gaps provisto)
-3. Orientación metodológica concreta en el framework de la práctica
-4. Pregunta reflexiva para guiar el autodescubrimiento
-5. Sugerir siguiente paso específico a realizar
+1. Reconocimiento empático del problema muy breve
+2. Orientación metodológica concreta en el framework de la práctica respecto de los gaps identificados (más importante es lo referente a los criterios de corrección, luego analizar los tips para reforzar.)
+3. Pregunta reflexiva para guiar el autodescubrimiento o Sugerencia de siguiente paso específico a realizar.
 
 EJEMPLOS DE ORIENTACIÓN:
 - "En álgebra relacional, empezá por definir exactamente qué conjuntos necesitás..."
@@ -664,7 +661,7 @@ EJEMPLOS DE ORIENTACIÓN:
 - "Para este tipo de JOIN, preguntate: ¿qué registros quiero que queden afuera?"
 
 EVITAR ABSOLUTAMENTE:
-- Mostrar código SQL o expresiones de álgebra relacional completas
+- Mostrar respuestas provistas.
 - Decir "la respuesta es..." o "deberías obtener..."
 - Conceptos generales sin aplicación específica al ejercicio"""),
                 ("human", """CONTEXTO DEL EJERCICIO:

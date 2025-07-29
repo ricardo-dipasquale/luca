@@ -173,12 +173,7 @@ class GapAnalyzerAgent:
                 response_parts.append("No se identificaron gaps significativos en la comprensión.")
                 response_parts.append("")
             
-            # General recommendations
-            if result.recommendations:
-                response_parts.append("**RECOMENDACIONES GENERALES:**")
-                for rec in result.recommendations:
-                    response_parts.append(f"• {rec}")
-                response_parts.append("")
+            # Note: General recommendations section removed as recommendations field was removed from GapAnalysisResult
             
             # Context information
             response_parts.append("**CONTEXTO DEL ANÁLISIS:**")
@@ -234,11 +229,11 @@ class GapAnalyzerAgent:
                 'content': 'Evaluando relevancia pedagógica de los gaps...',
             }
             
-            # Step 5: Generating recommendations
+            # Step 5: Finalizing analysis
             yield {
                 'is_task_complete': False,
                 'require_user_input': False,
-                'content': 'Generando recomendaciones...',
+                'content': 'Finalizando análisis de gaps...',
             }
             
             # Run the actual analysis

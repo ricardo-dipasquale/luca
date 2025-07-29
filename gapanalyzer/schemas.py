@@ -222,15 +222,11 @@ class GapAnalysisResult(BaseModel):
     student_context: StudentContext = Field(description="Original student context")
     educational_context: EducationalContext = Field(description="Retrieved educational context")
     identified_gaps: List[IdentifiedGap] = Field(description="All identified gaps")
-    prioritized_gaps: List[PrioritizedGap] = Field(
-        description="Gaps ordered by priority (highest first)"
-    )
     summary: str = Field(description="Executive summary of the analysis")
     confidence_score: float = Field(
         ge=0.0, le=1.0,
         description="Confidence in the analysis quality (0-1)"
     )
-    recommendations: List[str] = Field(description="General recommendations for the student")
     response_quality: ResponseQualityAssessment = Field(
         default_factory=ResponseQualityAssessment,
         description="Assessment of the student's response quality"
@@ -240,12 +236,7 @@ class GapAnalysisResult(BaseModel):
         json_schema_extra = {
             "example": {
                 "summary": "Se identificaron 3 gaps principales relacionados con JOINs en SQL...",
-                "confidence_score": 0.85,
-                "recommendations": [
-                    "Enfocar estudio en tipos de JOIN",
-                    "Practicar con ejercicios incrementales",
-                    "Consultar con el profesor sobre dudas específicas"
-                ]
+                "confidence_score": 0.85
             }
         }
 
@@ -261,7 +252,6 @@ class WorkflowState(BaseModel):
     # Analysis results
     raw_gaps: List[IdentifiedGap] = Field(default=[])
     evaluated_gaps: List[GapEvaluation] = Field(default=[])
-    prioritized_gaps: List[PrioritizedGap] = Field(default=[])
     
     # Response quality assessment
     response_quality: ResponseQualityAssessment = Field(default_factory=ResponseQualityAssessment)
