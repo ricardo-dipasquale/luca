@@ -9,16 +9,20 @@ Luca implements a layered, modular architecture designed for scalability, mainta
 ```mermaid
 graph TB
     subgraph "Presentation Layer"
-        UI[Student Interface]
+        FLASK[Flask Web Interface]
+        UI[Student Chat Interface]
         API[A2A API Gateway]
-        WEB[Web Dashboard]
     end
     
     subgraph "Agent Layer"
+        ORCH[Orchestrator Agent]
         GA[GapAnalyzer Agent]
-        TA[Tutor Agent]
-        PA[Practice Assistant]
-        RA[Recommendation Agent]
+    end
+    
+    subgraph "Testing Layer"  
+        ATF[Agent Testing Framework]
+        SUITES[Test Suites]
+        METRICS[Automated Metrics]
     end
     
     subgraph "Business Logic Layer"
@@ -129,19 +133,59 @@ graph TB
 **Responsibilities**: User interaction, API exposure, request routing
 
 #### Components:
-- **Student Interface**: React/Next.js frontend for student interactions
-- **A2A API Gateway**: Agent-to-Agent protocol implementation
-- **Web Dashboard**: Administrative interface for monitoring and configuration
+- **Flask Web Interface**: Modern web application with conversation management
+- **Student Chat Interface**: Real-time chat interface with streaming responses
+- **A2A API Gateway**: Agent-to-Agent protocol implementation for agent communication
 
 #### Key Features:
-- RESTful and streaming API endpoints
-- Authentication and authorization
-- Rate limiting and request validation
-- Multi-format response support (JSON, streaming text)
+- Session-based authentication with UCA domain validation
+- Real-time streaming chat responses
+- Conversation persistence and management
+- Mathematical symbols panel for educational queries
+- Educational subject context injection
 
 ### 2. Agent Layer
 
-**Responsibilities**: Domain-specific AI logic, conversation management
+**Responsibilities**: Educational AI logic, conversation orchestration, gap analysis
+
+#### Current Agents:
+
+**Orchestrator Agent**:
+- Main conversation manager and coordinator
+- Intent classification for routing decisions
+- Multi-turn conversation memory management
+- Educational subject context handling
+- Seamless integration with GapAnalyzer for specific queries
+
+**GapAnalyzer Agent**:
+- Specialized educational gap analysis
+- Practice exercise context understanding
+- Learning gap identification and evaluation
+- Pedagogical response generation
+
+#### Agent Architecture Pattern:
+All agents follow the A2A framework pattern:
+1. **Agent Class**: Core business logic with streaming support
+2. **Agent Executor**: A2A protocol integration
+3. **Schemas**: Pydantic data models for validation
+4. **Local Runner**: Development and debugging interface
+
+### 3. Testing Layer
+
+**Responsibilities**: Agent evaluation, performance monitoring, quality assurance
+
+#### Components:
+- **Agent Testing Framework**: Comprehensive CLI-based testing system
+- **Test Suites**: JSON-based test case management
+- **Automated Metrics**: Performance and quality metrics collection
+- **Langfuse Integration**: Dataset management and trace analysis
+
+#### Key Features:
+- Automated agent evaluation with configurable test suites
+- Multi-agent testing capabilities (Orchestrator, GapAnalyzer, both)
+- Real-time metrics collection from agent schemas
+- Langfuse dataset upload and trace management
+- Performance trend analysis and reporting
 
 #### Agent Architecture Pattern:
 All agents follow a consistent pattern:

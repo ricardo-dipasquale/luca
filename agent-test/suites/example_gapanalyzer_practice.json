@@ -1,0 +1,95 @@
+{
+  "name": "gapanalyzer_practice_analysis",
+  "description": "Suite para evaluar el GapAnalyzer con ejercicios específicos de prácticas",
+  "agent_type": "gapanalyzer",
+  "version": "1.0",
+  "author": "LUCA Team",
+  "questions": [
+    {
+      "id": "gap_01",
+      "question": "No entiendo por qué mi consulta en el ejercicio 1.a no devuelve resultados. Estoy usando σ_{nombre='Juan'} (CLIENTES)",
+      "expected_answer": "Análisis del gap en la comprensión de la sintaxis de selección y posibles errores en la condición",
+      "subject": "Álgebra Relacional",
+      "difficulty": "medium",
+      "context": "Ejercicio de selección básica",
+      "practice_id": 1,
+      "exercise_section": "1.a",
+      "tags": ["seleccion", "sintaxis", "debugging", "gaps"],
+      "metrics": {
+        "should_identify_syntax_gap": true,
+        "should_provide_correction": true,
+        "should_explain_concept": true,
+        "expected_gap_types": ["syntactic", "conceptual"]
+      },
+      "created_at": "2024-01-15T11:00:00",
+      "updated_at": "2024-01-15T11:00:00"
+    },
+    {
+      "id": "gap_02", 
+      "question": "En el ejercicio 2.c, cuando hago el join entre ESTUDIANTES y MATERIAS, obtengo registros duplicados. ¿Por qué pasa esto?",
+      "expected_answer": "Análisis del gap en comprensión de joins y cardinalidad de relaciones",
+      "subject": "Álgebra Relacional",
+      "difficulty": "hard",
+      "context": "Ejercicio de join con problemas de cardinalidad",
+      "practice_id": 2,
+      "exercise_section": "2.c",
+      "tags": ["joins", "cardinalidad", "duplicados", "gaps"],
+      "metrics": {
+        "should_identify_cardinality_gap": true,
+        "should_explain_join_behavior": true,
+        "should_provide_solution": true,
+        "expected_gap_types": ["conceptual", "procedural"]
+      },
+      "created_at": "2024-01-15T11:05:00",
+      "updated_at": "2024-01-15T11:05:00"
+    },
+    {
+      "id": "gap_03",
+      "question": "No comprendo cuándo usar π (proyección) vs σ (selección). En el ejercicio 1.d me confundo.",
+      "expected_answer": "Análisis del gap conceptual entre operadores de álgebra relacional",
+      "subject": "Álgebra Relacional", 
+      "difficulty": "medium",
+      "context": "Confusión entre operadores básicos",
+      "practice_id": 1,
+      "exercise_section": "1.d",
+      "tags": ["proyeccion", "seleccion", "conceptos", "confusion"],
+      "metrics": {
+        "should_identify_conceptual_gap": true,
+        "should_differentiate_operators": true,
+        "should_provide_examples": true,
+        "expected_gap_types": ["conceptual"]
+      },
+      "created_at": "2024-01-15T11:10:00",
+      "updated_at": "2024-01-15T11:10:00"
+    },
+    {
+      "id": "gap_04",
+      "question": "Mi resultado en el ejercicio 3.b no coincide con el esperado. Usé división relacional pero el resultado está mal.",
+      "expected_answer": "Análisis del gap en comprensión y aplicación de división relacional",
+      "subject": "Álgebra Relacional",
+      "difficulty": "hard", 
+      "context": "Ejercicio avanzado de división relacional",
+      "practice_id": 3,
+      "exercise_section": "3.b",
+      "tags": ["division", "operadores-avanzados", "resultado-incorrecto"],
+      "metrics": {
+        "should_identify_division_gap": true,
+        "should_explain_division_concept": true,
+        "should_debug_solution": true,
+        "expected_gap_types": ["conceptual", "procedural", "application"]
+      },
+      "created_at": "2024-01-15T11:15:00",
+      "updated_at": "2024-01-15T11:15:00"
+    }
+  ],
+  "default_iterations": 1,
+  "timeout_seconds": 90,
+  "global_metrics": {
+    "track_gap_identification": true,
+    "track_content_retrieval": true,
+    "track_pedagogical_elements": true,
+    "track_explanation_depth": true
+  },
+  "created_at": "2024-01-15T11:00:00",
+  "updated_at": "2024-01-15T11:15:00"
+}

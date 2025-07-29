@@ -6,6 +6,60 @@ This document provides comprehensive API reference for all Luca system component
 
 ## 🤖 Agent APIs
 
+### Orchestrator Agent
+
+The Orchestrator agent manages conversations, performs intent classification, and routes specific queries to specialized agents.
+
+#### Agent Interface
+
+```python
+class OrchestratorAgent:
+    """Main conversation orchestration agent"""
+    
+    async def stream(
+        self, 
+        request: Dict[str, Any], 
+        context: Dict[str, Any]
+    ) -> AsyncIterable[Dict[str, Any]]:
+        """
+        Stream conversation processing with intent classification and routing.
+        
+        Args:
+            request: Contains 'message' with user input
+            context: Session context including educational_subject, session_id
+            
+        Yields:
+            Progress updates, routing decisions, and final response
+            
+        Example:
+            context = {
+                'session_id': 'user_123',
+                'educational_subject': 'Bases de Datos'
+            }
+            async for chunk in agent.stream({'message': query}, context):
+                if chunk['is_task_complete']:
+                    response = chunk['content']
+        """
+```
+
+#### Flask Integration Endpoints
+
+```python
+# Flask routes for web frontend
+@app.route('/chat', methods=['POST'])
+def chat():
+    """Main chat endpoint for web interface"""
+    # Uses OrchestratorAgentExecutor internally
+    
+@app.route('/conversations', methods=['GET', 'POST'])
+def manage_conversations():
+    """Conversation management endpoints"""
+
+@app.route('/conversations/<id>/messages')
+def get_conversation_history(id):
+    """Retrieve conversation message history"""
+```
+
 ### GapAnalyzer Agent
 
 The GapAnalyzer agent provides educational gap analysis capabilities through both streaming and non-streaming interfaces.
@@ -768,6 +822,253 @@ registry.register_tool(
     categories=["analysis", "custom"],
     agents=["gapanalyzer", "tutor"]
 )
+```
+
+## 🧪 Agent Testing Framework API
+
+### CLI Commands
+
+The Agent Testing Framework provides a comprehensive CLI for managing and executing agent tests:
+
+#### Suite Management
+
+```bash
+# Create test suite
+python -m agent-test.cli suite create <name> --agent=<type> [--description="..."]
+
+# Add questions to suite
+python -m agent-test.cli suite add-question <suite> \
+  --question="Test question" \
+  --expected="Expected response" \
+  --subject="Subject" \
+  --difficulty=<easy|medium|hard> \
+  --metrics='{"key": "value"}'
+
+# List and view suites
+python -m agent-test.cli suite list
+python -m agent-test.cli suite show <name>
+```
+
+#### Test Execution
+
+```bash
+# Run single suite
+python -m agent-test.cli run <suite_name> [--agent=<override>] [--iterations=<n>]
+
+# Run all suites
+python -m agent-test.cli run-all [--agent-filter=<type>] [--iterations=<n>]
+
+# View results
+python -m agent-test.cli results list [--suite=<name>] [--limit=<n>]
+python -m agent-test.cli results show <run_id>
+```
+
+#### Langfuse Integration
+
+```bash
+# Upload suite as dataset
+python -m agent-test.cli dataset upload <suite_name> [--name="Custom Name"]
+
+# List Langfuse datasets
+python -m agent-test.cli dataset list
+```
+
+### Python API
+
+#### Suite Manager
+
+```python
+from agent_test.core.suite_manager import SuiteManager
+
+manager = SuiteManager()
+
+# Create suite programmatically
+suite_path = manager.create_suite(
+    name="my_test_suite",
+    agent_type="orchestrator",
+    description="Automated test suite"
+)
+
+# Add questions
+question_id = manager.add_question("my_test_suite", {
+    'question': 'What is normalization?',
+    'expected_answer': 'Database normalization explanation...',
+    'subject': 'Databases',
+    'difficulty': 'medium',
+    'metrics': {'should_use_kg': True}
+})
+
+# List suites
+suites = manager.list_suites()
+```
+
+#### Test Runner
+
+```python
+from agent_test.core.test_runner import TestRunner
+
+runner = TestRunner()
+
+# Execute suite
+results = runner.run_suite(
+    suite_name="my_test_suite",
+    agent_override=None,  # Use suite default
+    iterations=3,
+    session_id="test_session_123"
+)
+
+print(f"Success rate: {results['success_rate']:.1%}")
+print(f"Total time: {results['total_time']:.2f}s")
+```
+
+#### Results Analysis
+
+```python
+from agent_test.core.results_manager import ResultsManager
+
+manager = ResultsManager()
+
+# Get run results
+run_data = manager.get_run_results("run_id_123")
+
+# Generate suite summary
+summary = manager.generate_suite_summary("my_test_suite")
+
+# Analyze performance trends
+trends = manager.get_performance_trends("my_test_suite", days=30)
+
+# Export results
+export_path = manager.export_results(
+    run_ids=["run_1", "run_2", "run_3"],
+    format="csv"
+)
+```
+
+#### Metrics Collection
+
+```python
+from agent_test.core.metrics_collector import MetricsCollector
+
+collector = MetricsCollector()
+
+# Collect metrics for a question result
+metrics = collector.collect_question_metrics(
+    question=test_question,
+    response=agent_response,
+    agent_type=AgentType.ORCHESTRATOR,
+    execution_time=2.5
+)
+
+# Calculate summary metrics
+summary_metrics = collector.calculate_summary_metrics(results_list)
+```
+
+### Data Schemas
+
+#### TestSuite
+
+```python
+from agent_test.schemas import TestSuite, TestQuestion, AgentType
+
+suite = TestSuite(
+    name="example_suite",
+    description="Example test suite",
+    agent_type=AgentType.ORCHESTRATOR,
+    questions=[
+        TestQuestion(
+            id="q1",
+            question="What is a database?",
+            expected_answer="A database is a structured collection...",
+            subject="Databases",
+            difficulty="easy",
+            metrics={"should_use_kg": True}
+        )
+    ],
+    default_iterations=1,
+    timeout_seconds=60
+)
+```
+
+#### TestRun Results
+
+```python
+from agent_test.schemas import TestRun, ExecutionResult
+
+# Access run results
+for result in test_run.results:
+    print(f"Question: {result.question_text}")
+    print(f"Success: {result.success}")
+    print(f"Time: {result.execution_time:.2f}s")
+    print(f"Metrics: {result.metrics}")
+    
+    if result.langfuse_trace_id:
+        print(f"Langfuse trace: {result.langfuse_trace_id}")
+```
+
+### Configuration
+
+```python
+# agent-test/config/config.yaml
+agents:
+  orchestrator:
+    enabled: true
+    timeout_seconds: 120
+  gapanalyzer:
+    enabled: true
+    timeout_seconds: 180
+
+langfuse:
+  enabled: true
+  auto_upload_datasets: true
+  auto_create_traces: true
+
+metrics:
+  collect_agent_metadata: true
+  collect_performance_metrics: true
+  collect_response_quality: true
+```
+
+### Integration Examples
+
+#### Custom Metrics
+
+```python
+from agent_test.core.metrics_collector import MetricsCollector
+
+class CustomMetricsCollector(MetricsCollector):
+    def _collect_custom_metrics(self, question, response):
+        metrics = super()._collect_orchestrator_metrics(question, response)
+        
+        # Add custom business logic metrics
+        content = response.get('content', '')
+        metrics['custom_relevance_score'] = self._calculate_relevance(content)
+        metrics['educational_value'] = self._assess_educational_value(content)
+        
+        return metrics
+```
+
+#### CI/CD Integration
+
+```python
+# scripts/ci_test_runner.py
+import sys
+from agent_test.core.test_runner import TestRunner
+
+def run_ci_tests():
+    runner = TestRunner()
+    
+    # Run critical test suite
+    results = runner.run_suite("ci_critical_tests", iterations=3)
+    
+    # Fail CI if success rate below threshold
+    if results['success_rate'] < 0.95:
+        print(f"❌ Tests failed with {results['success_rate']:.1%} success rate")
+        sys.exit(1)
+    
+    print(f"✅ Tests passed with {results['success_rate']:.1%} success rate")
+
+if __name__ == "__main__":
+    run_ci_tests()
 ```
 
 This API reference provides comprehensive coverage of all system interfaces and should be used in conjunction with the example code and integration guides.

@@ -13,6 +13,8 @@ The system consists of:
 - **AI Agents Ecosystem**: Multi-agent system built with the A2A framework
   - **Orchestrator Agent (orchestrator/)**: Main conversation manager and agent coordinator
   - **GapAnalyzer Agent (gapanalyzer/)**: Specialized learning gap analysis
+- **Agent Testing Framework (agent-test/)**: Comprehensive testing system for agent evaluation and metrics
+- **Flask Frontend (frontend/)**: Modern web interface for interacting with educational agents
 - **Database Scripts**: Knowledge graph creation and management utilities
 - **Utility Scripts (scripts/)**: Database cleanup and maintenance utilities
 
@@ -84,6 +86,37 @@ python scripts/cleanup_database.py --verbose
 ```
 
 **⚠️ WARNING**: Database cleanup permanently deletes ALL conversation data, checkpoints, and agent memory. Use only for development/testing.
+
+### Agent Testing Framework
+
+```bash
+# Install testing dependencies
+pip install langfuse click pydantic
+
+# Quick start with pre-built suites
+python -m agent-test.cli suite list
+python -m agent-test.cli run orchestrator_basic_qa
+python -m agent-test.cli results list
+
+# Create custom test suite
+python -m agent-test.cli suite create my_suite --agent=orchestrator
+python -m agent-test.cli suite add-question my_suite \
+  --question="¿Qué es normalización?" \
+  --expected="Explicación del proceso de normalización..." \
+  --subject="Bases de Datos" \
+  --difficulty=medium
+
+# Upload to Langfuse (optional)
+python -m agent-test.cli dataset upload my_suite
+
+# Run comprehensive testing
+python -m agent-test.cli run my_suite --iterations=3
+python -m agent-test.cli run-all --agent-filter=orchestrator
+
+# Analyze results
+python -m agent-test.cli results show <run_id>
+python -m agent-test.cli results list --suite=my_suite
+```
 
 ### Agent Development
 
@@ -274,8 +307,10 @@ Knowledge graph is populated from Excel files in `db/datasources/`:
 - **openai**: Embeddings generation and LLM API
 - **langfuse**: LLM observability and tracing
 - **uvicorn**: ASGI server for agent endpoints
-- **click**: CLI interface
+- **click**: CLI interface for testing framework
+- **pydantic**: Data validation and schemas
 - **pandas**: Data processing for Excel files
+- **flask**: Web framework for frontend interface
 
 ## Tool Usage in Agents
 
@@ -345,6 +380,235 @@ print(f"Using: {info['provider']} - {info['model']}")
 - **Knowledge Graph Tools**: Search KG, get subjects/topics/practices, theoretical content, find related content
 - **Utility Tools**: Text processing, calculations, data formatting, validation
 - **Tool Registry**: Centralized discovery, categorization, and agent-specific tool selection
+
+## Agent Testing Framework
+
+LUCA includes a comprehensive testing framework for evaluating and monitoring agent performance with Langfuse integration.
+
+### Architecture
+
+```
+agent-test/
+├── cli.py                    # Main CLI interface
+├── __main__.py              # Entry point
+├── schemas.py               # Pydantic data models
+├── config/
+│   └── config.yaml         # Framework configuration
+├── core/
+│   ├── suite_manager.py    # Test suite management
+│   ├── test_runner.py      # Agent execution engine
+│   ├── metrics_collector.py # Automated metrics collection
+│   ├── results_manager.py  # Results storage and analysis
+│   └── langfuse_integration.py # Langfuse datasets and traces
+├── suites/                 # JSON test suite files
+├── results/                # Execution results storage
+└── README.md              # Complete documentation
+```
+
+### Quick Start
+
+```bash
+# Install testing dependencies
+pip install langfuse click pydantic
+
+# Create your first test suite
+python -m agent-test.cli suite create my_suite --agent=orchestrator \
+  --description="Basic Q&A evaluation"
+
+# Add test questions
+python -m agent-test.cli suite add-question my_suite \
+  --question="¿Qué es un LEFT JOIN?" \
+  --expected="Explicación de LEFT JOIN con ejemplos" \
+  --subject="Bases de Datos" \
+  --difficulty=medium
+
+# Upload to Langfuse (optional)
+python -m agent-test.cli dataset upload my_suite
+
+# Run the test suite
+python -m agent-test.cli run my_suite
+
+# View results
+python -m agent-test.cli results list
+python -m agent-test.cli results show <run_id>
+```
+
+### Test Suite Structure
+
+Test suites are JSON files containing questions, expected answers, and evaluation metrics:
+
+```json
+{
+  "name": "orchestrator_basic_qa",
+  "agent_type": "orchestrator",
+  "questions": [
+    {
+      "id": "q_01",
+      "question": "¿Qué es un LEFT JOIN?",
+      "expected_answer": "Explicación detallada...",
+      "subject": "Bases de Datos",
+      "difficulty": "medium",
+      "metrics": {
+        "should_use_kg": true,
+        "expected_intent": "conceptual_explanation"
+      }
+    }
+  ]
+}
+```
+
+### Automated Metrics Collection
+
+The framework automatically collects comprehensive metrics:
+
+#### Orchestrator Agent Metrics
+- **Intent Classification**: Detected intents and confidence scores
+- **Routing Decisions**: When and why questions are routed to GapAnalyzer
+- **Knowledge Graph Usage**: Queries executed and results found
+- **Response Analysis**: Length, examples, mathematical notation usage
+- **Educational Quality**: Explanation type, conceptual depth
+
+#### GapAnalyzer Agent Metrics  
+- **Gap Analysis**: Number and types of learning gaps identified
+- **Content Retrieval**: Relevant educational content found
+- **Pedagogical Elements**: Use of scaffolding, hints, step-by-step explanations
+- **Response Depth**: Analysis of explanation comprehensiveness
+
+#### General Quality Metrics
+- **Performance**: Execution time, success rates
+- **Response Quality**: Completeness, clarity, relevance, educational value
+- **Language Quality**: Grammar, structure, variety
+
+### Langfuse Integration
+
+The framework provides seamless Langfuse integration:
+
+```bash
+# Configure Langfuse (optional)
+export LANGFUSE_HOST="http://localhost:3000"
+export LANGFUSE_PUBLIC_KEY="pk-lf-your-key" 
+export LANGFUSE_SECRET_KEY="sk-lf-your-key"
+
+# Upload test suites as datasets
+python -m agent-test.cli dataset upload my_suite --name="Production Test Suite"
+
+# All test runs automatically create traces in Langfuse
+python -m agent-test.cli run my_suite  # Creates traces automatically
+
+# List datasets in Langfuse
+python -m agent-test.cli dataset list
+```
+
+### Advanced Usage
+
+#### Multiple Agent Testing
+```bash
+# Test with both agents
+python -m agent-test.cli suite create comprehensive_test --agent=both
+
+# Run specific agent override
+python -m agent-test.cli run my_suite --agent=gapanalyzer
+```
+
+#### Batch Operations
+```bash
+# Run all suites
+python -m agent-test.cli run-all
+
+# Filter by agent type
+python -m agent-test.cli run-all --agent-filter=orchestrator
+```
+
+#### Results Analysis
+```bash
+# View run details
+python -m agent-test.cli results show <run_id>
+
+# Filter results
+python -m agent-test.cli results list --suite=my_suite --limit=10
+
+# Export to CSV
+python -c "
+from agent_test.core.results_manager import ResultsManager
+manager = ResultsManager()
+runs = manager.list_runs(limit=5)
+manager.export_results([r['run_id'] for r in runs], format='csv')
+"
+```
+
+#### Performance Monitoring
+```bash
+# Generate suite summary
+python -c "
+from agent_test.core.results_manager import ResultsManager
+manager = ResultsManager()
+summary = manager.generate_suite_summary('my_suite')
+print(summary)
+"
+
+# Analyze trends
+python -c "
+from agent_test.core.results_manager import ResultsManager
+manager = ResultsManager()
+trends = manager.get_performance_trends('my_suite', days=7)
+print(trends)
+"
+```
+
+### Example Test Suites
+
+The framework includes pre-built example suites:
+
+#### Orchestrator Basic Q&A
+```bash
+python -m agent-test.cli suite show orchestrator_basic_qa
+python -m agent-test.cli run orchestrator_basic_qa
+```
+
+#### GapAnalyzer Practice Analysis
+```bash  
+python -m agent-test.cli suite show gapanalyzer_practice_analysis
+python -m agent-test.cli run gapanalyzer_practice_analysis
+```
+
+### Configuration
+
+Framework behavior can be customized via `agent-test/config/config.yaml`:
+
+```yaml
+# Timeouts and performance
+agents:
+  orchestrator:
+    timeout_seconds: 120
+  gapanalyzer:
+    timeout_seconds: 180
+
+# Langfuse integration
+langfuse:
+  enabled: true
+  auto_upload_datasets: true
+  auto_create_traces: true
+
+# Metrics collection
+metrics:
+  collect_agent_metadata: true
+  collect_performance_metrics: true
+  collect_response_quality: true
+```
+
+### Development and Extension
+
+#### Adding Custom Metrics
+1. Update schemas in `agent-test/schemas.py`
+2. Implement collection logic in `metrics_collector.py`
+3. Add detection patterns for new metric types
+
+#### Supporting New Agent Types
+1. Add to `AgentType` enum in schemas
+2. Implement execution logic in `test_runner.py`
+3. Create agent-specific metrics collection
+
+For complete documentation, see `agent-test/README.md`.
 
 ## Debugging and Development
 

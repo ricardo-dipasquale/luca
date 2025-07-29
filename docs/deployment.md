@@ -15,6 +15,13 @@ This guide covers production deployment of the Luca system across different envi
 
 ### Complete Production Stack
 
+The current production stack includes:
+- Neo4j Knowledge Graph
+- Flask Web Frontend  
+- Orchestrator Agent
+- GapAnalyzer Agent
+- Langfuse Observability Stack
+
 Create `docker-compose.prod.yml`:
 
 ```yaml
@@ -50,6 +57,73 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "neo4j", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Flask Web Frontend
+  luca-frontend:
+    image: luca-frontend:latest
+    container_name: luca-frontend
+    ports:
+      - "5000:5000"
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEFAULT_LLM_MODEL=gpt-4o-mini
+      - DEFAULT_LLM_PROVIDER=openai
+      - DEFAULT_LLM_TEMPERATURE=0.1
+      - LANGFUSE_HOST=http://langfuse:3000
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - GRAPHBUILDER_URI=http://llm-graph-builder:8000/chat_bot
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    networks:
+      - luca-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/auth/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Orchestrator Agent
+  orchestrator:
+    image: luca-orchestrator:latest
+    container_name: luca-orchestrator
+    ports:
+      - "10001:10001"
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEFAULT_LLM_MODEL=gpt-4o-mini
+      - DEFAULT_LLM_PROVIDER=openai
+      - DEFAULT_LLM_TEMPERATURE=0.1
+      - LANGFUSE_HOST=http://langfuse:3000
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - GRAPHBUILDER_URI=http://llm-graph-builder:8000/chat_bot
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      gapanalyzer:
+        condition: service_healthy
+      langfuse:
+        condition: service_healthy
+    networks:
+      - luca-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10001/.well-known/agent.json"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -206,6 +280,8 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/ssl/certs:ro
     depends_on:
+      - luca-frontend
+      - orchestrator
       - gapanalyzer
       - langfuse
     networks:
@@ -250,6 +326,9 @@ LANGFUSE_SALT=your-secure-salt-16-chars-min
 MINIO_ROOT_USER=admin
 MINIO_ROOT_PASSWORD=your_secure_minio_password
 
+# Flask Configuration
+FLASK_SECRET_KEY=your-secure-flask-secret-key-for-sessions
+
 # Security
 JWT_SECRET=your-jwt-secret-key
 API_RATE_LIMIT=1000
@@ -265,11 +344,20 @@ events {
 }
 
 http {
+    upstream frontend {
+        server luca-frontend:5000;
+        # Add more instances for load balancing
+        # server luca-frontend-2:5000;
+    }
+
+    upstream orchestrator {
+        server orchestrator:10001;
+        # Add more instances for load balancing
+    }
+
     upstream gapanalyzer {
         server gapanalyzer:10000;
         # Add more instances for load balancing
-        # server gapanalyzer-2:10000;
-        # server gapanalyzer-3:10000;
     }
 
     upstream langfuse {
@@ -304,7 +392,37 @@ http {
         add_header X-XSS-Protection "1; mode=block";
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
 
-        # GapAnalyzer API
+        # Main Flask Frontend (default route)
+        location / {
+            limit_req zone=ui burst=50 nodelay;
+            proxy_pass http://frontend/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Support for streaming responses
+            proxy_buffering off;
+            proxy_cache off;
+            proxy_http_version 1.1;
+        }
+
+        # Orchestrator Agent API
+        location /api/orchestrator/ {
+            limit_req zone=api burst=20 nodelay;
+            proxy_pass http://orchestrator/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # WebSocket support for streaming
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        # GapAnalyzer Agent API
         location /api/gapanalyzer/ {
             limit_req zone=api burst=20 nodelay;
             proxy_pass http://gapanalyzer/;
@@ -356,6 +474,110 @@ docker-compose -f docker-compose.prod.yml logs -f gapanalyzer
 
 # Scale agents (if needed)
 docker-compose -f docker-compose.prod.yml up -d --scale gapanalyzer=3
+```
+
+### Agent Testing Framework in Production
+
+The Agent Testing Framework can be used for continuous monitoring and quality assurance in production:
+
+#### 1. Scheduled Testing
+
+```bash
+# Create cron job for regular testing
+cat > /etc/cron.d/luca-agent-testing << 'EOF'
+# Run agent tests every hour
+0 * * * * root cd /opt/luca && python -m agent-test.cli run orchestrator_basic_qa --iterations=3
+# Run comprehensive tests daily at 2 AM
+0 2 * * * root cd /opt/luca && python -m agent-test.cli run-all --iterations=2
+EOF
+```
+
+#### 2. Production Testing Container
+
+Add to `docker-compose.prod.yml`:
+
+```yaml
+  # Agent Testing Framework
+  agent-tester:
+    image: luca-testing:latest
+    container_name: luca-agent-tester
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LANGFUSE_HOST=http://langfuse:3000
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+    volumes:
+      - ./agent-test-results:/app/agent-test/results
+    depends_on:
+      - orchestrator
+      - gapanalyzer
+      - langfuse
+    networks:
+      - luca-network
+    restart: "no"  # Only run on demand
+    profiles:
+      - testing  # Only start with --profile testing
+```
+
+#### 3. Production Testing Commands
+
+```bash
+# Run production tests on-demand
+docker-compose -f docker-compose.prod.yml --profile testing run --rm agent-tester \
+  python -m agent-test.cli run orchestrator_basic_qa
+
+# Upload production suite to Langfuse
+docker-compose -f docker-compose.prod.yml --profile testing run --rm agent-tester \
+  python -m agent-test.cli dataset upload production_monitoring
+
+# Run full regression test
+docker-compose -f docker-compose.prod.yml --profile testing run --rm agent-tester \
+  python -m agent-test.cli run-all --iterations=5
+```
+
+#### 4. Production Monitoring Integration
+
+```python
+# scripts/production_monitor.py
+import os
+import subprocess
+from datetime import datetime
+from agent_test.core.results_manager import ResultsManager
+
+def run_production_tests():
+    """Run production agent tests and alert on failures."""
+    
+    # Run critical test suite
+    result = subprocess.run([
+        'python', '-m', 'agent-test.cli', 'run', 'production_critical',
+        '--iterations=3'
+    ], capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        send_alert(f"Production agent tests failed: {result.stderr}")
+        return False
+    
+    # Analyze results
+    manager = ResultsManager()
+    runs = manager.list_runs(suite_filter='production_critical', limit=1)
+    
+    if runs:
+        latest_run = runs[0]
+        if latest_run['success_rate'] < 0.9:  # Alert if success rate below 90%
+            send_alert(f"Low success rate in production: {latest_run['success_rate']:.1%}")
+    
+    return True
+
+def send_alert(message):
+    """Send alert via webhook, email, etc."""
+    # Implement your alerting mechanism
+    print(f"ALERT: {message}")
+
+if __name__ == "__main__":
+    run_production_tests()
 ```
 
 ## ☸️ Kubernetes Deployment

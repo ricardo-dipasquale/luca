@@ -10,7 +10,9 @@
 ### Key Features
 
 - 🧠 **Knowledge Graph Intelligence**: Neo4j-powered structured course data with semantic search
-- 🤖 **AI Agents Ecosystem**: Multiple specialized agents built with A2A framework
+- 🤖 **AI Agents Ecosystem**: Orchestrator and GapAnalyzer agents built with A2A framework
+- 🌐 **Modern Web Frontend**: Flask-based web interface with conversation management
+- 🧪 **Comprehensive Testing Framework**: Automated agent evaluation with Langfuse integration
 - 📊 **Educational Gap Analysis**: Advanced identification and prioritization of learning gaps
 - 🔧 **Centralized Tools**: Shared LangChain tools for consistent agent development
 - 📈 **Complete Observability**: Langfuse integration for LLM monitoring and tracing
@@ -21,14 +23,19 @@
 ```mermaid
 graph TB
     subgraph "Frontend Layer"
-        UI[Student Interface]
-        API[A2A API Gateway]
+        FLASK[Flask Web Interface]
+        UI[Student Chat Interface]
     end
     
     subgraph "Agent Layer"
+        ORCH[Orchestrator Agent]
         GA[GapAnalyzer Agent]
-        TA[Tutor Agent]
-        PA[Practice Agent]
+    end
+    
+    subgraph "Testing Layer"
+        ATF[Agent Testing Framework]
+        SUITES[Test Suites]
+        METRICS[Automated Metrics]
     end
     
     subgraph "Tools Layer"
@@ -45,28 +52,32 @@ graph TB
     
     subgraph "Observability"
         LF[Langfuse]
-        METRICS[Metrics & Traces]
+        TRACES[Traces & Datasets]
     end
     
-    UI --> API
-    API --> GA
-    API --> TA
-    API --> PA
+    FLASK --> UI
+    UI --> ORCH
+    ORCH --> GA
     
+    ATF --> SUITES
+    ATF --> ORCH
+    ATF --> GA
+    SUITES --> METRICS
+    
+    ORCH --> KGT
+    ORCH --> UT
     GA --> KGT
     GA --> UT
-    TA --> KGT
-    PA --> KGT
     
     KGT --> KG
     KGT --> EMB
     UT --> LLM
     
+    ORCH --> LF
     GA --> LF
-    TA --> LF
-    PA --> LF
+    ATF --> LF
     
-    LF --> METRICS
+    LF --> TRACES
 ```
 
 ## 🚀 Quick Start
@@ -146,17 +157,40 @@ docker run -d --env-file .env -p 7474:7474 -p 7687:7687 \
 python create_kg.py
 ```
 
-### 4. Run an Agent
+### 4. Start the Application
 
+#### Option A: Flask Web Interface (Recommended)
 ```bash
-# Start GapAnalyzer agent
+# Start the Flask frontend
+cd frontend
+python run.py
+
+# Access at http://localhost:5000
+# Login: visitante@uca.edu.ar / visitante!
+```
+
+#### Option B: Individual Agents (Development)
+```bash
+# Start Orchestrator agent
+python -m orchestrator --host localhost --port 10001
+
+# Start GapAnalyzer agent  
 python -m gapanalyzer --host localhost --port 10000
 
-# Test the agent
+# Test agents
+python orchestrator/test_client.py
 python gapanalyzer/test_client.py
+```
 
-# Or use local runner for debugging
-python -m gapanalyzer.local_runner --interactive
+#### Option C: Agent Testing Framework
+```bash
+# Install testing dependencies
+pip install langfuse click pydantic
+
+# Run pre-built test suites
+python -m agent-test.cli suite list
+python -m agent-test.cli run orchestrator_basic_qa
+python -m agent-test.cli results list
 ```
 
 ## 📚 Project Structure
@@ -164,29 +198,46 @@ python -m gapanalyzer.local_runner --interactive
 ```
 luca/
 ├── docs/                      # 📖 Project documentation
-├── kg/                        # 🔗 Knowledge Graph abstraction layer
-│   ├── connection.py          # Neo4j connection management
-│   ├── queries.py             # High-level query interface
-│   └── example.py             # Usage examples
-├── tools/                     # 🛠️ Centralized LangChain tools
-│   ├── kg_tools.py            # Knowledge graph tools
-│   ├── utility_tools.py       # General utility tools
-│   ├── llm_config.py          # LLM configuration
-│   ├── observability.py       # Langfuse integration
-│   └── registry.py            # Tool registry & factory
-├── gapanalyzer/              # 🔍 Educational gap analysis agent
-│   ├── agent.py               # Core agent implementation
-│   ├── workflow.py            # LangGraph workflow
-│   ├── schemas.py             # Pydantic data models
-│   ├── agent_executor.py      # A2A framework integration
-│   ├── local_runner.py        # Local debugging runner
-│   └── visualize_workflow.py  # Workflow visualization
-├── db/                        # 💾 Database scripts and data
-│   ├── create_kg.py           # Knowledge graph creation
-│   ├── datasources/           # Excel data files
-│   └── docker-compose.yml     # Database services
-├── test/                      # 🧪 Test suite
-└── CLAUDE.md                  # 🤖 AI assistant instructions
+├── frontend/                  # 🌐 Flask web interface
+│   ├── flask_app.py           # Main Flask application
+│   ├── auth.py                # User authentication & conversation management
+│   ├── templates/             # Jinja2 templates
+│   └── static/               # CSS, JS, and assets
+├── agent-test/               # 🧪 Agent testing framework
+│   ├── cli.py                # CLI interface
+│   ├── core/                 # Core testing modules
+│   ├── suites/               # JSON test suites
+│   └── results/              # Test execution results
+├── orchestrator/             # 🎯 Main conversation manager agent
+│   ├── agent.py              # Core orchestrator implementation
+│   ├── workflow.py           # LangGraph conversation workflow
+│   ├── schemas.py            # Conversation data models
+│   ├── agent_executor.py     # A2A framework integration
+│   └── local_runner.py       # Development testing
+├── gapanalyzer/             # 🔍 Educational gap analysis agent
+│   ├── agent.py             # Core gap analysis implementation
+│   ├── workflow.py          # LangGraph gap analysis workflow
+│   ├── schemas.py           # Gap analysis data models
+│   ├── agent_executor.py    # A2A framework integration
+│   └── local_runner.py      # Development testing
+├── kg/                      # 🔗 Knowledge Graph abstraction layer
+│   ├── connection.py        # Neo4j connection management
+│   ├── queries.py           # High-level query interface
+│   └── example.py           # Usage examples
+├── tools/                   # 🛠️ Centralized LangChain tools
+│   ├── kg_tools.py          # Knowledge graph tools
+│   ├── utility_tools.py     # General utility tools
+│   ├── llm_config.py        # LLM configuration
+│   ├── observability.py     # Langfuse integration
+│   └── registry.py          # Tool registry & factory
+├── db/                      # 💾 Database scripts and data
+│   ├── create_kg.py         # Knowledge graph creation
+│   ├── datasources/         # Excel data files
+│   └── docker-compose.yml   # Database services
+├── scripts/                 # 🔧 Utility scripts
+│   └── cleanup_database.py  # Database maintenance
+├── test/                    # 🧪 Unit test suite
+└── CLAUDE.md               # 🤖 AI assistant instructions
 ```
 
 ## 🧩 Core Components
@@ -221,21 +272,48 @@ Shared LangChain tools library for consistent agent development.
 All agents follow the A2A (Agent-to-Agent) framework pattern:
 
 1. **Agent Class**: Core business logic with streaming responses
-2. **Agent Executor**: A2A protocol integration and task management
+2. **Agent Executor**: A2A protocol integration and task management  
 3. **Schemas**: Pydantic models for data validation
 4. **Local Runner**: Development and debugging interface
 
+### Orchestrator Agent
+
+Main conversation manager that handles student interactions and coordinates with other agents.
+
+**Key Features**:
+- Intent classification for routing decisions
+- Multi-turn conversation management with memory
+- Educational subject context injection
+- Seamless GapAnalyzer integration for specific practice questions
+- Real-time streaming responses
+
 ### GapAnalyzer Agent
 
-Advanced educational gap analysis agent that identifies and prioritizes learning gaps in student questions.
+Specialized agent for analyzing learning gaps in practice exercises.
 
 **Workflow Steps**:
 1. `validate_context` - Validate educational context
 2. `analyze_gaps` - Identify specific learning gaps
 3. `evaluate_gaps` - Assess pedagogical relevance
-4. `prioritize_gaps` - Rank gaps by importance
-5. `feedback_analysis` - Optional quality improvement
-6. `generate_response` - Create structured response
+4. `generate_response` - Create structured educational response
+
+### Flask Frontend
+
+Modern web interface providing:
+- User authentication with UCA domain validation
+- Conversation management and persistence
+- Real-time chat with streaming responses  
+- Educational subject selection
+- Mathematical symbols panel for algebra queries
+
+### Agent Testing Framework
+
+Comprehensive testing system for agent evaluation:
+- JSON-based test suite management
+- Automated metrics collection
+- Langfuse dataset integration
+- Performance trend analysis
+- CLI-based workflow for continuous testing
 
 ## 🔧 Development
 
@@ -271,6 +349,7 @@ agent = create_react_agent(llm, tools=kg_tools + utility_tools)
 
 ### Testing
 
+#### Unit Tests
 ```bash
 # Run all tests
 pytest test/ -v
@@ -282,6 +361,35 @@ pytest test/ --cov=kg --cov-report=html
 pytest -m integration    # Integration tests
 pytest -m "not slow"     # Skip slow tests
 pytest -m tools          # Tools tests only
+```
+
+#### Agent Testing Framework
+```bash
+# Create test suite
+python -m agent-test.cli suite create my_test --agent=orchestrator
+
+# Add questions to suite
+python -m agent-test.cli suite add-question my_test \
+  --question="Test question" \
+  --expected="Expected answer" \
+  --subject="Test Subject"
+
+# Run agent evaluation
+python -m agent-test.cli run my_test
+
+# Analyze results
+python -m agent-test.cli results list
+python -m agent-test.cli results show <run_id>
+```
+
+#### Frontend Testing
+```bash
+# Test Flask application components
+cd frontend
+python test_frontend.py
+
+# Test security and authentication
+python test_security.py
 ```
 
 ## 📊 Knowledge Graph Schema

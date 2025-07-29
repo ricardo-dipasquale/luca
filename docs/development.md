@@ -647,6 +647,289 @@ RUN uv sync --group dev
 CMD ["python", "-m", "gapanalyzer.local_runner", "--interactive"]
 ```
 
+## 🧪 Agent Testing Framework
+
+LUCA includes a comprehensive testing framework for systematic agent evaluation and performance monitoring.
+
+### Framework Architecture
+
+```
+agent-test/
+├── cli.py                    # Main CLI interface
+├── __main__.py              # Entry point
+├── schemas.py               # Pydantic data models
+├── config/
+│   └── config.yaml         # Framework configuration
+├── core/
+│   ├── suite_manager.py    # Test suite management
+│   ├── test_runner.py      # Agent execution engine
+│   ├── metrics_collector.py # Automated metrics collection
+│   ├── results_manager.py  # Results storage and analysis
+│   └── langfuse_integration.py # Langfuse datasets and traces
+├── suites/                 # JSON test suite files
+└── results/                # Execution results storage
+```
+
+### Quick Start
+
+```bash
+# Install testing dependencies
+pip install langfuse click pydantic
+
+# Create your first test suite
+python -m agent-test.cli suite create my_suite --agent=orchestrator \
+  --description="Basic Q&A evaluation"
+
+# Add test questions
+python -m agent-test.cli suite add-question my_suite \
+  --question="¿Qué es un LEFT JOIN?" \
+  --expected="Explicación de LEFT JOIN con ejemplos" \
+  --subject="Bases de Datos" \
+  --difficulty=medium
+
+# Upload to Langfuse (optional)
+python -m agent-test.cli dataset upload my_suite
+
+# Run the test suite
+python -m agent-test.cli run my_suite
+
+# View results
+python -m agent-test.cli results list
+python -m agent-test.cli results show <run_id>
+```
+
+### Development Workflow with Testing
+
+#### 1. Create Test Suite for New Feature
+
+```bash
+# Create suite for specific agent functionality
+python -m agent-test.cli suite create feature_routing --agent=orchestrator \
+  --description="Test intent classification and routing"
+
+# Add targeted test cases
+python -m agent-test.cli suite add-question feature_routing \
+  --question="Necesito ayuda con el ejercicio 2.3" \
+  --expected="Should route to GapAnalyzer" \
+  --practice-id=2 \
+  --exercise-section="2.3" \
+  --metrics='{"should_route_to_gapanalyzer": true}'
+```
+
+#### 2. Run Tests During Development
+
+```bash
+# Run specific suite during development
+python -m agent-test.cli run feature_routing --iterations=5
+
+# Run with both agents for comparison
+python -m agent-test.cli run feature_routing --agent=both
+
+# Run all suites for regression testing
+python -m agent-test.cli run-all
+```
+
+#### 3. Analyze Results and Iterate
+
+```bash
+# View detailed results
+python -m agent-test.cli results show <run_id>
+
+# Export results for analysis
+python -c "
+from agent_test.core.results_manager import ResultsManager
+manager = ResultsManager()
+runs = manager.list_runs(suite_filter='feature_routing', limit=5)
+manager.export_results([r['run_id'] for r in runs], format='csv')
+"
+
+# Generate trend analysis
+python -c "
+from agent_test.core.results_manager import ResultsManager
+manager = ResultsManager()
+trends = manager.get_performance_trends('feature_routing', days=7)
+print(trends)
+"
+```
+
+### Creating Custom Metrics
+
+#### 1. Extend Schemas
+
+```python
+# agent-test/schemas.py
+class CustomAgentMetrics(BaseModel):
+    """Custom metrics for specific agent functionality."""
+    
+    custom_metric_1: float = Field(0.0, description="Custom performance metric")
+    custom_feature_detected: bool = Field(False, description="Feature detection")
+    response_quality_score: float = Field(0.0, description="Quality assessment")
+```
+
+#### 2. Implement Collection Logic
+
+```python
+# agent-test/core/metrics_collector.py
+def _collect_custom_metrics(self, question: TestQuestion, 
+                           response: Dict[str, Any]) -> Dict[str, Any]:
+    """Collect custom metrics for specific functionality."""
+    metrics = {}
+    content = response.get('content', '')
+    
+    # Implement custom metric calculation
+    metrics['custom_metric_1'] = self._calculate_custom_metric(content)
+    metrics['custom_feature_detected'] = self._detect_custom_feature(content)
+    metrics['response_quality_score'] = self._assess_response_quality(content)
+    
+    return metrics
+```
+
+#### 3. Add Detection Patterns
+
+```python
+def _detect_custom_feature(self, content: str) -> bool:
+    """Detect specific feature in agent response."""
+    feature_patterns = [
+        r"specific pattern 1",
+        r"specific pattern 2",
+        r"custom behavior indicator"
+    ]
+    
+    content_lower = content.lower()
+    return any(re.search(pattern, content_lower) for pattern in feature_patterns)
+```
+
+### Continuous Integration Integration
+
+#### 1. GitHub Actions Workflow
+
+```yaml
+# .github/workflows/agent-testing.yml
+name: Agent Testing
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  agent-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      neo4j:
+        image: neo4j:5.26.1
+        env:
+          NEO4J_AUTH: neo4j/testpassword
+        ports:
+          - 7687:7687
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install langfuse click pydantic
+    
+    - name: Setup database
+      run: |
+        python db/create_kg.py
+        
+    - name: Run agent tests
+      run: |
+        python -m agent-test.cli run-all --iterations=3
+        
+    - name: Upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: agent-test-results
+        path: agent-test/results/
+```
+
+#### 2. Pre-commit Testing Hook
+
+```bash
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: agent-tests
+        name: Run critical agent tests
+        entry: python -m agent-test.cli run orchestrator_basic_qa
+        language: system
+        pass_filenames: false
+        always_run: true
+```
+
+### Performance Monitoring
+
+#### 1. Set Up Performance Baselines
+
+```bash
+# Create performance monitoring suite
+python -m agent-test.cli suite create performance_baseline --agent=both \
+  --description="Performance baseline monitoring"
+
+# Add performance-focused questions
+python -m agent-test.cli suite add-question performance_baseline \
+  --question="Quick conceptual question" \
+  --expected="Fast response under 5 seconds" \
+  --metrics='{"max_execution_time": 5.0}'
+```
+
+#### 2. Monitor Performance Trends
+
+```python
+# scripts/monitor_performance.py
+from agent_test.core.results_manager import ResultsManager
+
+def check_performance_regression():
+    manager = ResultsManager()
+    
+    # Get recent trends
+    trends = manager.get_performance_trends('performance_baseline', days=7)
+    
+    # Alert on performance degradation
+    if trends['execution_time_trend']['direction'] == 'declining':
+        print("⚠️ Performance degradation detected!")
+        print(f"Trend: {trends['execution_time_trend']}")
+        
+    return trends
+
+if __name__ == "__main__":
+    check_performance_regression()
+```
+
+### Best Practices
+
+#### 1. Test Suite Organization
+
+- **Suite Naming**: Use descriptive names that indicate functionality
+- **Question Categories**: Group related questions in themed suites
+- **Expected Answers**: Be specific about expected behavior
+- **Metrics**: Define clear success criteria
+
+#### 2. Metrics Collection
+
+- **Agent-Specific**: Collect metrics relevant to each agent type
+- **Performance**: Track execution time, success rates, quality scores
+- **Business Logic**: Monitor educational effectiveness, gap detection accuracy
+- **Regression Detection**: Compare against historical baselines
+
+#### 3. CI/CD Integration
+
+- **Fast Feedback**: Run critical tests on every commit
+- **Comprehensive Testing**: Full test suite on releases
+- **Performance Monitoring**: Track trends over time
+- **Failure Analysis**: Automatic alerts on significant regressions
+
 ## 🤝 Contributing Guidelines
 
 ### Code Standards

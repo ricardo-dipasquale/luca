@@ -1,0 +1,63 @@
+# Configuración del sistema de testing de agentes LUCA
+
+# Directorios
+directories:
+  suites: "suites"
+  results: "results"
+  exports: "exports"
+
+# Configuración de agentes
+agents:
+  orchestrator:
+    enabled: true
+    timeout_seconds: 120
+    max_retries: 3
+  gapanalyzer:
+    enabled: true
+    timeout_seconds: 180
+    max_retries: 2
+
+# Configuración de Langfuse
+langfuse:
+  enabled: true
+  project_name: "luca-agent-testing"
+  auto_upload_datasets: true
+  auto_create_traces: true
+  batch_size: 50
+
+# Configuración de métricas
+metrics:
+  collect_agent_metadata: true
+  collect_performance_metrics: true
+  collect_response_quality: true
+  
+  # Umbrales para clasificación
+  thresholds:
+    response_length:
+      min: 50
+      max: 2000
+    execution_time:
+      warning: 60.0  # segundos
+      error: 120.0
+    success_rate:
+      good: 0.8
+      excellent: 0.9
+
+# Configuración de exportación
+export:
+  default_format: "json"
+  include_metadata: true
+  include_raw_responses: true
+  max_file_size_mb: 100
+
+# Configuración de reportes
+reporting:
+  auto_generate_summaries: true
+  trend_analysis_days: 30
+  performance_alerts: true
+
+# Configuración de logging
+logging:
+  level: "INFO"
+  include_agent_logs: true
+  include_metrics_logs: true
