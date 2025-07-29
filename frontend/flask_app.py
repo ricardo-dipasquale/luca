@@ -7,14 +7,14 @@ persistencia que tiene Streamlit con LangGraph.
 
 import os
 import sys
-import json
 import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 from uuid import uuid4
+from functools import wraps
 
-from flask import Flask, render_template, request, jsonify, session, stream_template
+from flask import Flask, render_template, request, jsonify, session
 from flask_cors import CORS
 from flask.json.provider import DefaultJSONProvider
 
@@ -23,8 +23,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from orchestrator.agent_executor import OrchestratorAgentExecutor
-from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, update_conversation, increment_message_count, add_message_to_conversation, get_conversation_messages
-from utils import get_subjects_from_kg, format_timestamp
+from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, increment_message_count, add_message_to_conversation, get_conversation_messages
+from utils import get_subjects_from_kg
 
 
 class Neo4jJSONProvider(DefaultJSONProvider):
@@ -46,12 +46,35 @@ CORS(app)
 # Global orchestrator instance (shared across requests for session persistence)
 orchestrator = OrchestratorAgentExecutor()
 
+def require_auth(f):
+    """Decorator to require authentication for protected endpoints."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'authenticated' not in session:
+            if request.is_json:
+                return jsonify({'error': 'Not authenticated'}), 401
+            else:
+                return render_template('login.html')
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses."""
+    # Prevent clickjacking
+    response.headers['X-Frame-Options'] = 'DENY'
+    # Prevent MIME type sniffing
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # Enable XSS protection
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    # Force HTTPS (uncomment for production)
+    # response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
+
 @app.route('/')
+@require_auth
 def index():
     """Main chat interface."""
-    if 'authenticated' not in session:
-        return render_template('login.html')
-    
     # Get subjects for dropdown
     subjects = get_subjects_from_kg()
     user_email = session.get('user_email', '')
@@ -70,32 +93,69 @@ def index():
 @app.route('/login', methods=['POST'])
 def login():
     """Handle user authentication."""
-    data = request.json
-    email = data.get('email', '').strip()
-    password = data.get('password', '').strip()
-    
-    if not email.endswith('@uca.edu.ar'):
-        return jsonify({'success': False, 'error': 'Email debe ser del dominio @uca.edu.ar'})
-    
-    user = authenticate_user(email, password)
-    if user:
-        session['authenticated'] = True
-        session['user_email'] = email
-        return jsonify({'success': True})
-    else:
-        return jsonify({'success': False, 'error': 'Email o contraseña incorrectos'})
+    try:
+        data = request.json
+        if not data:
+            print("⚠️ Login attempt with no data")
+            return jsonify({'success': False, 'error': 'Datos de login requeridos'}), 400
+        
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '').strip()
+        
+        # Basic validation
+        if not email or not password:
+            print(f"⚠️ Login attempt with missing credentials from IP: {request.remote_addr}")
+            return jsonify({'success': False, 'error': 'Email y contraseña son requeridos'}), 400
+        
+        # Domain validation
+        if not email.endswith('@uca.edu.ar'):
+            print(f"⚠️ Login attempt with invalid domain: {email} from IP: {request.remote_addr}")
+            return jsonify({'success': False, 'error': 'Email debe ser del dominio @uca.edu.ar'}), 400
+        
+        # Attempt authentication
+        user = authenticate_user(email, password)
+        if user:
+            # Successful login - clear any existing session data first
+            session.clear()
+            session['authenticated'] = True
+            session['user_email'] = email
+            session['login_time'] = datetime.now().isoformat()
+            
+            print(f"✅ Successful login for user: {email} from IP: {request.remote_addr}")
+            return jsonify({'success': True})
+        else:
+            # Failed login
+            print(f"❌ Failed login attempt for user: {email} from IP: {request.remote_addr}")
+            return jsonify({'success': False, 'error': 'Email o contraseña incorrectos'}), 401
+            
+    except Exception as e:
+        print(f"🚨 Login error: {e} from IP: {request.remote_addr}")
+        return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
 
 @app.route('/logout')
+@require_auth
 def logout():
     """Handle user logout."""
+    user_email = session.get('user_email', 'unknown')
+    print(f"🚪 User {user_email} logging out")
     session.clear()
     return jsonify({'success': True})
 
+@app.route('/auth/status')
+def auth_status():
+    """Check authentication status."""
+    if 'authenticated' in session and 'user_email' in session:
+        return jsonify({
+            'authenticated': True,
+            'user_email': session.get('user_email')
+        })
+    else:
+        return jsonify({'authenticated': False})
+
 @app.route('/chat', methods=['POST'])
+@require_auth
 def chat():
     """Handle chat messages with streaming response."""
-    if 'authenticated' not in session:
-        return jsonify({'error': 'Not authenticated'}), 401
     
     data = request.json
     message = data.get('message', '').strip()
@@ -220,22 +280,18 @@ def process_message_sync(message: str, session_id: str, subject: Optional[str] =
     return asyncio.run(_process())
 
 @app.route('/conversations')
+@require_auth
 def get_conversations():
     """Get user conversations."""
-    if 'authenticated' not in session:
-        return jsonify({'error': 'Not authenticated'}), 401
-    
     user_email = session.get('user_email', '')
     conversations = get_user_conversations(user_email)
     
     return jsonify(conversations)
 
 @app.route('/conversations', methods=['POST'])
+@require_auth
 def create_new_conversation():
     """Create a new conversation."""
-    if 'authenticated' not in session:
-        return jsonify({'error': 'Not authenticated'}), 401
-    
     data = request.json
     title = data.get('title', 'Nueva Conversación')
     subject = data.get('subject')
@@ -252,18 +308,26 @@ def create_new_conversation():
         return jsonify({'success': False, 'error': 'No se pudo crear la conversación'})
 
 @app.route('/subjects')
+@require_auth
 def get_subjects():
     """Get available subjects."""
     subjects = get_subjects_from_kg()
     return jsonify(subjects)
 
 @app.route('/conversations/<conversation_id>/messages')
+@require_auth
 def get_conversation_history(conversation_id):
     """Get message history for a conversation."""
-    if 'authenticated' not in session:
-        return jsonify({'error': 'Not authenticated'}), 401
-    
     try:
+        # Security: Verify the conversation belongs to the authenticated user
+        user_email = session.get('user_email', '')
+        user_conversations = get_user_conversations(user_email)
+        
+        # Check if the conversation_id exists in user's conversations
+        if not any(conv['id'] == conversation_id for conv in user_conversations):
+            print(f"⚠️ User {user_email} attempted to access conversation {conversation_id} without permission")
+            return jsonify({'success': False, 'error': 'Access denied to this conversation'}), 403
+        
         messages = get_conversation_messages(conversation_id, limit=20)
         return jsonify({'success': True, 'messages': messages})
     except Exception as e:
