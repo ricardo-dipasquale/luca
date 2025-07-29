@@ -1154,6 +1154,8 @@ Extrae los parámetros educativos del ejercicio al que se refiere el estudiante:
                 practice_context_parts.append(f"Descripción: {practice_details['description']}")
             if practice_details["objectives"]:
                 practice_context_parts.append(f"Objetivos: {practice_details['objectives']}")
+            if practice_details["criteriocorreccion"]:
+                practice_context_parts.append(f"Criterios de corrección: {practice_details['criteriocorreccion']}")
             if practice_details["topics"]:
                 practice_context_parts.append(f"Temas cubiertos: {', '.join(practice_details['topics'])}")
             

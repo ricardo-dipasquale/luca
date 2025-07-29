@@ -222,6 +222,7 @@ class KGQueryInterface:
                p.titulo AS name,
                p.descripcion AS description, 
                p.objetivos AS objectives,
+               p.criterioscorreccion AS criteriocorreccion,
                collect(DISTINCT t.descripcion) AS topics,
                collect(DISTINCT m.nombre) AS subjects
         """
@@ -234,8 +235,9 @@ class KGQueryInterface:
                     "name": record["name"],
                     "description": record["description"],
                     "objectives": record["objectives"],
+                    "criteriocorreccion": record["criteriocorreccion"],
                     "topics": [t for t in record["topics"] if t],
-                    "subjects": [s for s in record["subjects"] if s]
+                    "subjects": [s for s in record["subjects"] if s],
                 }
             return None
         except Exception as e:

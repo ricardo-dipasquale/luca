@@ -260,7 +260,7 @@ INSTRUCCIONES:
 1 Analizá la pregunta del estudiante en el contexto del material educativo
 2 Si la pregunta contiene una respuesta parcial o incompleta, comparala con las respuestas provistas en el contexto. Si la respuesta es buena igual o muy similar a la del estudiante, contestá positivamente que se trata de la respuesta correcta y no informes gaps. En este caso calificá calidad_de_la_respuesta_del_estudiante=correcta y la lista de gaps vacia, y no sigas adelante.
 3 Si la respuesta del estudiante no es buena como se indica en el punto 2, clasificala y seguí con el punto 4.
-4 Identificá gaps específicos de aprendizaje (NO genéricos) que apunten a la solución de la práctica prestando atención al material provisto.
+4 Identificá gaps específicos de aprendizaje (NO genéricos) que apunten a la solución de la práctica prestando atención al material provisto (principalmente los criterios de corrección provistos más arriba deben ser respetados, posteriormente los tips indicados son también importantes).
 5 No identifiques gaps que contradigan los tips provistos que son los lineamientos del profesor (tips).
 6 Clasificá cada gap por categoría: conceptual, procedural, theoretical, practical, prerequisite, communication
 7 Asigná severidad: critical, high, medium, low

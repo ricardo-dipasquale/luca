@@ -150,6 +150,17 @@
             }
         },
         {
+            "name": "Create Knowledge Graph",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/db/create_kg.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/db",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",

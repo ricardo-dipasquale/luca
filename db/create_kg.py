@@ -286,7 +286,7 @@ if __name__ == "__main__":
         neo4j_uri=os.environ["NEO4J_URI"],
         neo4j_user=os.environ["NEO4J_USERNAME"],
         neo4j_password=os.environ["NEO4J_PASSWORD"],
-        programa_path="./db/datasources/Programa.xlsx",
-        practicas_path="./db/datasources/Prácticas Bases de Datos.xlsx"
+        programa_path="./datasources/Programa.xlsx",
+        practicas_path="./datasources/Prácticas Bases de Datos.xlsx"
     )
 
