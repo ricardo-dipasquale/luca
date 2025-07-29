@@ -39,11 +39,16 @@
                 </div>
                 <div class="card-body" id="conversationsList">
                     {% for conv in conversations %}
-                    <div class="conversation-item" data-id="{{ conv.id }}" onclick="selectConversation('{{ conv.id }}')">
-                        <div class="fw-bold">{{ conv.title[:60] }}{% if conv.title|length > 60 %}...{% endif %}</div>
-                        <small class="text-muted">
-                            {{ conv.subject or 'Sin materia' }} • {{ conv.message_count }} mensajes
-                        </small>
+                    <div class="conversation-item" data-id="{{ conv.id }}">
+                        <div class="conversation-content" onclick="selectConversation('{{ conv.id }}')">
+                            <div class="fw-bold">{{ conv.title[:60] }}{% if conv.title|length > 60 %}...{% endif %}</div>
+                            <small class="text-muted">
+                                {{ conv.subject or 'Sin materia' }} • {{ conv.message_count }} mensajes
+                            </small>
+                        </div>
+                        <button class="delete-conversation-btn" onclick="deleteConversation('{{ conv.id }}', event)" title="Eliminar conversación">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                     {% endfor %}
                 </div>
@@ -510,17 +515,21 @@ function refreshConversationsList() {
             const convDiv = document.createElement('div');
             convDiv.className = 'conversation-item';
             convDiv.setAttribute('data-id', conv.id);
-            convDiv.onclick = () => selectConversation(conv.id);
             
             const title = conv.title.length > 60 ? conv.title.substring(0, 60) + '...' : conv.title;
             const subject = conv.subject || 'Sin materia';
             const messageCount = conv.message_count || 0;
             
             convDiv.innerHTML = `
-                <div class="fw-bold">${title}</div>
-                <small class="text-muted">
-                    ${subject} • ${messageCount} mensajes
-                </small>
+                <div class="conversation-content" onclick="selectConversation('${conv.id}')">
+                    <div class="fw-bold">${title}</div>
+                    <small class="text-muted">
+                        ${subject} • ${messageCount} mensajes
+                    </small>
+                </div>
+                <button class="delete-conversation-btn" onclick="deleteConversation('${conv.id}', event)" title="Eliminar conversación">
+                    <i class="fas fa-times"></i>
+                </button>
             `;
             
             conversationsContainer.appendChild(convDiv);
@@ -659,5 +668,77 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+function deleteConversation(conversationId, event) {
+    // Prevent the click from propagating to the conversation selection
+    event.stopPropagation();
+    
+    // Get conversation title for confirmation
+    const conversationElement = document.querySelector(`[data-id="${conversationId}"]`);
+    const titleElement = conversationElement?.querySelector('.fw-bold');
+    const conversationTitle = titleElement?.textContent || 'esta conversación';
+    
+    // Confirm deletion
+    if (!confirm(`¿Estás seguro de que quieres eliminar "${conversationTitle}"?\n\nEsta acción no se puede deshacer.`)) {
+        return;
+    }
+    
+    // Show loading state
+    const deleteBtn = event.target.closest('.delete-conversation-btn');
+    const originalContent = deleteBtn.innerHTML;
+    deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    deleteBtn.disabled = true;
+    
+    // Send delete request
+    fetch(`/conversations/${conversationId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            console.log(`✅ Conversation ${conversationId} deleted successfully`);
+            
+            // Remove the conversation from the UI
+            conversationElement.remove();
+            
+            // If this was the active conversation, reset the chat
+            if (currentConversationId === conversationId) {
+                currentConversationId = null;
+                usingExistingConversation = false;
+                
+                // Clear the chat container
+                const chatContainer = document.getElementById('chatContainer');
+                chatContainer.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-comment-dots fa-2x mb-2"></i>
+                        <p>¡Hola! Soy LUCA, tu asistente. ¿En qué puedo ayudarte hoy?</p>
+                    </div>
+                `;
+            }
+            
+            // Show success message
+            showTemporaryFeedback('Conversación eliminada exitosamente');
+            
+        } else {
+            console.error('❌ Error deleting conversation:', result.error);
+            alert(`Error al eliminar la conversación: ${result.error}`);
+            
+            // Restore button state
+            deleteBtn.innerHTML = originalContent;
+            deleteBtn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Network error deleting conversation:', error);
+        alert('Error de conexión al eliminar la conversación. Por favor, intenta nuevamente.');
+        
+        // Restore button state
+        deleteBtn.innerHTML = originalContent;
+        deleteBtn.disabled = false;
+    });
+}
 </script>
 {% endblock %}

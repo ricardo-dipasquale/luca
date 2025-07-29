@@ -23,7 +23,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from orchestrator.agent_executor import OrchestratorAgentExecutor
-from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, increment_message_count, add_message_to_conversation, get_conversation_messages
+from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, increment_message_count, add_message_to_conversation, get_conversation_messages, delete_conversation
 from utils import get_subjects_from_kg
 
 
@@ -333,6 +333,27 @@ def get_conversation_history(conversation_id):
     except Exception as e:
         print(f"Error loading conversation history: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/conversations/<conversation_id>', methods=['DELETE'])
+@require_auth
+def delete_conversation_endpoint(conversation_id):
+    """Delete a conversation and all its messages."""
+    try:
+        user_email = session.get('user_email', '')
+        
+        # Attempt to delete the conversation
+        success = delete_conversation(conversation_id, user_email)
+        
+        if success:
+            print(f"🗑️ User {user_email} deleted conversation {conversation_id}")
+            return jsonify({'success': True, 'message': 'Conversación eliminada exitosamente'})
+        else:
+            print(f"⚠️ Failed to delete conversation {conversation_id} for user {user_email}")
+            return jsonify({'success': False, 'error': 'No se pudo eliminar la conversación'}), 400
+            
+    except Exception as e:
+        print(f"Error in delete conversation endpoint: {e}")
+        return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
 
 if __name__ == '__main__':
     print("🚀 Starting LUCA Flask Frontend...")

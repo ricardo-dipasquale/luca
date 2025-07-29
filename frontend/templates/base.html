@@ -77,9 +77,16 @@
             padding: 0.75rem;
             margin: 0.25rem 0;
             border-radius: 0.5rem;
-            cursor: pointer;
             border: 1px solid #dee2e6;
             transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .conversation-content {
+            flex-grow: 1;
+            cursor: pointer;
         }
         
         .conversation-item:hover {
@@ -89,6 +96,45 @@
         .conversation-item.active {
             background-color: var(--uca-blue);
             color: white;
+        }
+        
+        .conversation-item.active .delete-conversation-btn {
+            color: white;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .conversation-item.active .delete-conversation-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .delete-conversation-btn {
+            background: transparent;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+            line-height: 1;
+            transition: all 0.2s;
+            margin-left: 0.5rem;
+            min-width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .delete-conversation-btn:hover {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .delete-conversation-btn:active {
+            transform: scale(0.95);
         }
         
         .progress-container {

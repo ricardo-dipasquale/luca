@@ -332,6 +332,56 @@ class AuthManager:
             print(f"Error loading conversation messages: {e}")
             return []
     
+    def delete_conversation(self, conversation_id: str, user_email: str) -> bool:
+        """
+        Delete a conversation and all its messages.
+        
+        Args:
+            conversation_id: Conversation ID to delete
+            user_email: Email of the user (for security verification)
+            
+        Returns:
+            True if deleted successfully, False otherwise
+        """
+        try:
+            # Security: Verify the conversation belongs to the user
+            query_verify = """
+            MATCH (u:Usuario {email: $email})-[:OWNS]->(c:Conversacion {id: $conversation_id})
+            RETURN c.id as id
+            """
+            
+            verification = self.kg_connection.execute_query(
+                query_verify, 
+                {"email": user_email, "conversation_id": conversation_id}
+            )
+            
+            if not verification:
+                print(f"⚠️ User {user_email} attempted to delete conversation {conversation_id} without permission")
+                return False
+            
+            # Delete all messages associated with the conversation
+            query_delete_messages = """
+            MATCH (c:Conversacion {id: $conversation_id})-[:CONTAINS]->(m:Mensaje)
+            DETACH DELETE m
+            """
+            
+            self.kg_connection.execute_query(query_delete_messages, {"conversation_id": conversation_id})
+            
+            # Delete the conversation itself
+            query_delete_conversation = """
+            MATCH (c:Conversacion {id: $conversation_id})
+            DETACH DELETE c
+            """
+            
+            self.kg_connection.execute_query(query_delete_conversation, {"conversation_id": conversation_id})
+            
+            print(f"✅ Successfully deleted conversation {conversation_id} for user {user_email}")
+            return True
+            
+        except Exception as e:
+            print(f"Error deleting conversation: {e}")
+            return False
+    
     def _neo4j_datetime_to_string(self, dt) -> str:
         """
         Convert Neo4j DateTime object to string for JSON serialization.
@@ -412,3 +462,7 @@ def add_message_to_conversation(conversation_id: str, content: str, role: str, o
 def get_conversation_messages(conversation_id: str, limit: int = 10) -> List[Dict]:
     """Get conversation messages - convenience wrapper."""
     return get_auth_manager().get_conversation_messages(conversation_id, limit)
+
+def delete_conversation(conversation_id: str, user_email: str) -> bool:
+    """Delete conversation - convenience wrapper."""
+    return get_auth_manager().delete_conversation(conversation_id, user_email)
