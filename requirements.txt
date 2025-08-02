@@ -1,21 +1,40 @@
-pandas
-neo4j
-openai
-a2a-sdk
-uvicorn
-langchain
-langgraph
-langchain-openai
-langfuse
-python-dotenv
-uv
-pytest
-pytest-cov
-pytest-mock
-openpyxl
-mcp-neo4j-cypher
+# Core framework
+a2a-sdk>=0.2.8
+click>=8.1.8
+httpx>=0.28.1
+pydantic>=2.10.6
+python-dotenv>=1.1.0
+uvicorn>=0.34.2
 
-# Frontend dependencies
+# AI and LLM
+langchain>=0.3.0
+langgraph>=0.3.18
+langchain-openai>=0.1.0
+openai>=1.0.0
+
+# Database
+neo4j>=5.0.0
+pandas>=2.0.0
+openpyxl>=3.0.0
+
+# Observability
+langfuse>=2.0.0
+
+# Frontend
 flask>=2.3.0
 flask-cors>=4.0.0
 aiohttp>=3.8.0
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.0.0
+
+# Tools and utilities
+uv>=0.1.0
+mcp-neo4j-cypher>=0.1.0
+
+# Development dependencies (optional)
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.0.0
