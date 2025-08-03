@@ -11,8 +11,17 @@ from typing import Any, AsyncIterable, Dict
 from .agent import OrchestratorAgent
 from .schemas import ConversationContext, OrchestratorResponse
 
-
 logger = logging.getLogger(__name__)
+
+# Import guardrails system
+try:
+    from guardrails.orchestrator_integration import GuardrailOrchestrator
+    from guardrails.schemas import GuardrailConfig
+    GUARDRAILS_AVAILABLE = True
+    logger.info("Guardrails system available for Orchestrator")
+except ImportError:
+    GUARDRAILS_AVAILABLE = False
+    logger.warning("Guardrails system not available - running without content safety")
 
 
 class OrchestratorAgentExecutor:
@@ -26,10 +35,27 @@ class OrchestratorAgentExecutor:
     4. Session management for educational conversations
     """
     
-    def __init__(self):
-        """Initialize the executor with orchestrator agent."""
+    def __init__(self, enable_guardrails: bool = True):
+        """Initialize the executor with orchestrator agent and optional guardrails."""
         try:
             self.agent = OrchestratorAgent()
+            
+            # Initialize guardrails if available and enabled
+            self.guardrail_orchestrator = None
+            if GUARDRAILS_AVAILABLE and enable_guardrails:
+                try:
+                    # Create guardrail config from environment variables
+                    from guardrails.config import load_guardrail_config_from_env
+                    guardrail_config = load_guardrail_config_from_env()
+                    
+                    self.guardrail_orchestrator = GuardrailOrchestrator(guardrail_config)
+                    logger.info("Guardrails enabled for Orchestrator Agent")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize guardrails: {e}")
+                    self.guardrail_orchestrator = None
+            else:
+                logger.info("Guardrails disabled for Orchestrator Agent")
+                
             logger.info("OrchestratorAgentExecutor initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize OrchestratorAgentExecutor: {e}")
@@ -37,7 +63,7 @@ class OrchestratorAgentExecutor:
     
     async def stream(self, request: Dict[str, Any], context: Dict[str, Any]) -> AsyncIterable[Dict[str, Any]]:
         """
-        Stream orchestrator responses following A2A protocol.
+        Stream orchestrator responses following A2A protocol with guardrails integration.
         
         Args:
             request: A2A request containing student message and context
@@ -65,9 +91,21 @@ class OrchestratorAgentExecutor:
             # Extract config for LangGraph callbacks if provided
             langfuse_config = context.get('config')
             
-            # Stream the orchestration process with subject injection
-            async for chunk in self.agent.stream(user_message, session_id, student_id, educational_subject, langfuse_config):
-                yield chunk
+            # If guardrails are enabled, use the guardrail wrapper
+            if self.guardrail_orchestrator:
+                async for chunk in self.guardrail_orchestrator.create_guardrail_streaming_wrapper(
+                    self.agent.stream,
+                    user_message,
+                    session_id,
+                    student_id,
+                    educational_subject,
+                    langfuse_config
+                ):
+                    yield chunk
+            else:
+                # Fallback to direct streaming without guardrails
+                async for chunk in self.agent.stream(user_message, session_id, student_id, educational_subject, langfuse_config):
+                    yield chunk
                 
         except Exception as e:
             logger.error(f"Error in orchestrator streaming: {e}")
@@ -219,6 +257,24 @@ class OrchestratorAgentExecutor:
             self.agent.cleanup_inactive_sessions(max_inactive_hours)
         except Exception as e:
             logger.error(f"Error cleaning up sessions: {e}")
+    
+    def get_guardrail_status(self, student_id: str = None) -> Dict[str, Any]:
+        """
+        Get current guardrail status and configuration.
+        
+        Args:
+            student_id: Optional student identifier for personalized status
+            
+        Returns:
+            Dictionary with guardrail status information
+        """
+        if self.guardrail_orchestrator:
+            return self.guardrail_orchestrator.get_guardrail_status(student_id)
+        else:
+            return {
+                "guardrails_enabled": False,
+                "message": "Guardrails system not available or disabled"
+            }
     
     async def handle_direct_request(self, message: str, session_id: str = None) -> Dict[str, Any]:
         """

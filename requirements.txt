@@ -20,6 +20,10 @@ openpyxl>=3.0.0
 # Observability
 langfuse>=2.0.0
 
+# Guardrails System
+# Note: OpenAI API for content moderation (already included above)
+# Note: All other guardrails dependencies are satisfied by existing packages
+
 # Frontend
 flask>=2.3.0
 flask-cors>=4.0.0

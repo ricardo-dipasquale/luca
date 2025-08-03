@@ -10,7 +10,7 @@ authors = [
 maintainers = [
     {name = "LUCA Development Team", email = "dev@uca.edu.ar"}
 ]
-keywords = ["ai", "education", "agent", "neo4j", "langchain", "knowledge-graph"]
+keywords = ["ai", "education", "agent", "neo4j", "langchain", "knowledge-graph", "guardrails", "content-safety"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Education",
@@ -83,7 +83,7 @@ luca-orchestrator = "orchestrator.__main__:main"
 luca-gapanalyzer = "gapanalyzer.__main__:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["frontend", "orchestrator", "gapanalyzer", "kg", "tools"]
+packages = ["frontend", "orchestrator", "gapanalyzer", "kg", "tools", "guardrails"]
 
 [build-system]
 requires = ["hatchling"]
@@ -134,7 +134,7 @@ warn_unreachable = true
 strict_equality = true
 
 [tool.coverage.run]
-source = ["frontend", "orchestrator", "gapanalyzer", "kg", "tools"]
+source = ["frontend", "orchestrator", "gapanalyzer", "kg", "tools", "guardrails"]
 omit = [
     "*/tests/*",
     "*/test_*",

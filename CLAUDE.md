@@ -13,6 +13,7 @@ The system consists of:
 - **AI Agents Ecosystem**: Multi-agent system built with the A2A framework
   - **Orchestrator Agent (orchestrator/)**: Main conversation manager and agent coordinator
   - **GapAnalyzer Agent (gapanalyzer/)**: Specialized learning gap analysis
+- **Guardrails System (guardrails/)**: Hybrid security layer for educational content safety and quality assurance
 - **Agent Testing Framework (agent-test/)**: Comprehensive testing system for agent evaluation and metrics
 - **Flask Frontend (frontend/)**: Modern web interface for interacting with educational agents
 - **Database Scripts**: Knowledge graph creation and management utilities
@@ -237,6 +238,17 @@ All agents follow the A2A (Agent-to-Agent) framework pattern:
 - **`__main__.py`**: CLI entry point and server setup using A2A Starlette application
 - **`test_client.py`**: Test client demonstrating gap analysis workflows
 
+### guardrails/ - Hybrid Educational Safety System
+- **`core.py`**: Main `EducationalGuardrailLayer` orchestrating all validation components
+- **`schemas.py`**: Pydantic data models for guardrail results, violations, and configurations
+- **`content_safety.py`**: OpenAI Moderation API and Spanish profanity filtering
+- **`educational_context.py`**: Academic relevance validation with LLM assessment
+- **`rate_limiting.py`**: Multi-tier usage limits with escalating penalties
+- **`agent_response_validation.py`**: Post-processing validation of agent responses for educational quality
+- **`orchestrator_integration.py`**: Transparent streaming wrapper for Orchestrator integration
+- **`config.py`**: Environment-based configuration management with predefined profiles
+- **`__init__.py`**: Package exports and main entry points
+
 ### Knowledge Graph Schema
 - **Materia** → **Carrera**, **Profesor**, **ObjetivoMateria**, **UnidadTematica**
 - **UnidadTematica** → **Tema**
@@ -275,6 +287,19 @@ INTERNAL_NEO4J_URI="bolt://localhost:7687"
 LANGFUSE_HOST="http://localhost:3000"
 LANGFUSE_PUBLIC_KEY="pk-lf-your-public-key"
 LANGFUSE_SECRET_KEY="sk-lf-your-secret-key"
+
+# Guardrails System (Optional - defaults provided)
+GUARDRAILS_ENABLE_OPENAI_MODERATION=true
+GUARDRAILS_ENABLE_PROFANITY_FILTER=true
+GUARDRAILS_ENABLE_EDUCATIONAL_VALIDATION=true
+GUARDRAILS_ENABLE_RATE_LIMITING=true
+GUARDRAILS_ENABLE_RESPONSE_VALIDATION=true
+GUARDRAILS_ENABLE_LANGFUSE_LOGGING=true
+GUARDRAILS_STRICT_ACADEMIC_MODE=false
+GUARDRAILS_ALLOW_GENERAL_KNOWLEDGE=true
+GUARDRAILS_MAX_REQUESTS_PER_MINUTE=30
+GUARDRAILS_MAX_REQUESTS_PER_HOUR=200
+GUARDRAILS_MAX_REQUESTS_PER_DAY=1000
 
 # Flask Application (for Docker deployment)
 FLASK_SECRET_KEY="your-secure-secret-key-for-production"
@@ -609,6 +634,241 @@ metrics:
 3. Create agent-specific metrics collection
 
 For complete documentation, see `agent-test/README.md`.
+
+## Guardrails System
+
+LUCA includes a comprehensive **hybrid guardrails system** designed to ensure safe, appropriate, and educationally valuable interactions between students and AI agents.
+
+### 🛡️ **Architecture Overview**
+
+The guardrails system implements a **hybrid architecture** combining centralized validation with distributed agent-specific protections:
+
+```
+Student Input → Centralized Guardrail Layer → Agent Processing → Response Validation → Student
+                ├─ Content Safety
+                ├─ Educational Context  
+                ├─ Rate Limiting
+                └─ Profanity Filtering
+```
+
+### **Key Features**
+
+- **Content Safety**: OpenAI Moderation API integration + Spanish profanity filtering contextual to Argentina/UCA
+- **Educational Context Validation**: Ensures academic relevance and curriculum alignment
+- **Rate Limiting**: Intelligent usage controls with escalating penalties
+- **Response Quality Validation**: Post-processing checks for educational value
+- **Complete Langfuse Integration**: Comprehensive observability and monitoring
+- **Transparent Integration**: Seamless operation with existing agent infrastructure
+
+### **Quick Start**
+
+```bash
+# Test the complete guardrails system
+python test_guardrails_demo.py
+
+# Enable guardrails in Orchestrator (enabled by default)
+from orchestrator.agent_executor import OrchestratorAgentExecutor
+executor = OrchestratorAgentExecutor(enable_guardrails=True)
+```
+
+### **System Components**
+
+#### **1. Centralized Guardrail Layer**
+**File**: `guardrails/core.py`
+
+```python
+from guardrails import EducationalGuardrailLayer, GuardrailConfig, EducationalContext
+
+# Initialize with configuration
+config = GuardrailConfig(
+    enable_openai_moderation=True,
+    enable_profanity_filter=True,
+    enable_educational_validation=True,
+    enable_rate_limiting=True
+)
+
+guardrail = EducationalGuardrailLayer(config)
+
+# Validate student input
+context = EducationalContext(
+    student_id="student_123",
+    session_id="session_456",
+    subject="Bases de Datos"
+)
+
+result = await guardrail.validate_input(user_message, context)
+```
+
+#### **2. Content Safety Guardrail**
+**File**: `guardrails/content_safety.py`
+
+- **OpenAI Moderation API**: Detects inappropriate content, harassment, violence
+- **Spanish Profanity Filter**: Context-aware detection for Argentine educational environment
+- **Academic Integrity**: Identifies attempts to bypass learning (e.g., "haceme la tarea")
+- **Manipulation Detection**: Prevents prompt injection and instruction bypassing
+
+#### **3. Educational Context Guardrail** 
+**File**: `guardrails/educational_context.py`
+
+- **Curriculum Alignment**: Validates relevance to engineering and computer science domains
+- **Academic Keywords**: Detects programming, databases, algorithms, mathematics terminology
+- **LLM Assessment**: Uses GPT-4 for ambiguous content evaluation
+- **Flexible vs Strict Modes**: Configurable academic strictness levels
+
+#### **4. Rate Limiting Guardrail**
+**File**: `guardrails/rate_limiting.py`
+
+- **Multi-tier Limits**: 30/minute, 200/hour, 1000/day (configurable)
+- **Escalating Penalties**: Progressive restrictions for abuse
+- **Student-specific Tracking**: Individual usage monitoring
+- **Graceful Degradation**: Continues operation if rate limiting fails
+
+#### **5. Response Validation**
+**File**: `guardrails/agent_response_validation.py`
+
+- **Educational Quality Assessment**: Validates pedagogical value of agent responses
+- **Content Appropriateness**: Ensures responses maintain professional educational tone
+- **Completeness Checks**: Verifies responses adequately address student questions
+
+### **Configuration Management**
+
+#### **Environment Variables**
+```bash
+# Content Safety
+export GUARDRAILS_ENABLE_OPENAI_MODERATION=true
+export GUARDRAILS_ENABLE_PROFANITY_FILTER=true
+export GUARDRAILS_CONTENT_SAFETY_THRESHOLD=0.7
+
+# Educational Context
+export GUARDRAILS_ENABLE_EDUCATIONAL_VALIDATION=true
+export GUARDRAILS_STRICT_ACADEMIC_MODE=false
+export GUARDRAILS_ALLOW_GENERAL_KNOWLEDGE=true
+
+# Rate Limiting
+export GUARDRAILS_ENABLE_RATE_LIMITING=true
+export GUARDRAILS_MAX_REQUESTS_PER_MINUTE=30
+export GUARDRAILS_MAX_REQUESTS_PER_HOUR=200
+
+# Observability
+export GUARDRAILS_ENABLE_LANGFUSE_LOGGING=true
+export GUARDRAILS_LOG_ALL_INTERACTIONS=true
+```
+
+#### **Predefined Configurations**
+```python
+from guardrails.config import (
+    get_development_config,    # Permissive for development
+    get_production_config,     # Strict for production
+    get_testing_config,        # Minimal for tests
+    create_config_for_environment  # Auto-detect environment
+)
+
+# Auto-configuration based on environment
+config = create_config_for_environment()
+```
+
+### **Integration with Agents**
+
+#### **Automatic Orchestrator Integration**
+The guardrails system integrates automatically with the Orchestrator agent:
+
+```python
+# Guardrails enabled by default in OrchestratorAgentExecutor
+executor = OrchestratorAgentExecutor(enable_guardrails=True)
+
+# Check guardrail status
+status = executor.get_guardrail_status("student_123")
+print(f"Guardrails active: {status['guardrails_enabled']}")
+```
+
+#### **Streaming Integration**
+All streaming responses are automatically validated:
+
+```python
+# Transparent guardrail validation during streaming
+async for chunk in executor.stream(request, context):
+    if chunk.get('guardrail_blocked'):
+        print("Request blocked by guardrails")
+    yield chunk
+```
+
+### **Observability and Monitoring**
+
+#### **Langfuse Integration**
+All guardrail validations are automatically traced in Langfuse:
+
+- **Violation Tracking**: Content safety, educational context, rate limiting violations
+- **Performance Metrics**: Validation timing, success rates, error rates
+- **Student Behavior Analysis**: Usage patterns, violation frequencies
+- **Quality Assessment**: Educational value scores, response quality metrics
+
+#### **Available Metrics**
+- **Block Rate**: Percentage of requests blocked vs total
+- **Violation Types**: Distribution of safety, educational, and rate limit violations
+- **Student Usage Patterns**: Peak hours, request frequencies, subject preferences
+- **Educational Quality Scores**: Relevance and pedagogical value assessments
+
+### **Testing and Validation**
+
+#### **Complete Demo**
+```bash
+# Run comprehensive guardrails demonstration
+python test_guardrails_demo.py
+```
+
+**Demo includes**:
+- Content safety validation with various input types
+- Educational context assessment with academic and non-academic queries
+- Rate limiting demonstration with escalating restrictions
+- Orchestrator integration verification
+- Langfuse observability confirmation
+
+#### **Unit Testing**
+```python
+import pytest
+from guardrails import EducationalGuardrailLayer, EducationalContext
+from guardrails.config import get_testing_config
+
+@pytest.fixture
+def guardrail_system():
+    return EducationalGuardrailLayer(get_testing_config())
+
+@pytest.mark.asyncio
+async def test_appropriate_academic_content(guardrail_system, edu_context):
+    result = await guardrail_system.validate_input(
+        "¿Cómo funciona un algoritmo de ordenamiento?", 
+        edu_context
+    )
+    assert result.passed
+    assert not result.violations
+```
+
+### **Error Handling and Fallbacks**
+
+The system implements **graceful degradation**:
+
+- **OpenAI API Failures**: Falls back to local profanity filters
+- **Langfuse Unavailable**: Continues validation without logging
+- **Rate Limiting Errors**: Temporarily disables limits
+- **Educational Assessment Failures**: Uses keyword-based fallback
+
+### **Security Considerations**
+
+- **API Key Management**: Secure handling of OpenAI and Langfuse credentials
+- **Data Privacy**: Student interactions logged only with appropriate consent
+- **Bypass Prevention**: Multiple validation layers prevent circumvention
+- **Audit Trail**: Complete logging of all guardrail decisions for accountability
+
+### **Performance Impact**
+
+The guardrails system is designed for minimal latency impact:
+
+- **Parallel Validation**: Multiple guardrails run concurrently
+- **Efficient Caching**: Rate limiting and profanity filters use in-memory caches
+- **Async Processing**: Non-blocking validation prevents response delays
+- **Configurable Strictness**: Balance between security and performance
+
+For complete documentation, configuration options, and advanced usage patterns, see `guardrails/README.md`.
 
 ## Debugging and Development
 
