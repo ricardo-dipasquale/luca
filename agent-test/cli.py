@@ -28,14 +28,17 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 
-# Add project root to path
+# Add project root and current directory to path
 project_root = Path(__file__).parent.parent
+current_dir = Path(__file__).parent
 sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(current_dir))
 
-from agent_test.core.suite_manager import SuiteManager
-from agent_test.core.langfuse_integration import LangfuseManager
-from agent_test.core.test_runner import TestRunner
-from agent_test.core.results_manager import ResultsManager
+from core.suite_manager import SuiteManager
+from core.langfuse_integration import LangfuseManager
+from core.test_runner import TestRunner
+from core.results_manager import ResultsManager
+from schemas import AgentType, DifficultyLevel
 
 @click.group()
 def cli():
@@ -231,7 +234,8 @@ def list():
               help='Agente específico a testear (override suite default)')
 @click.option('--iterations', default=1, help='Número de iteraciones por pregunta')
 @click.option('--session-id', help='ID de sesión personalizada')
-def run(suite_name: str, agent: str, iterations: int, session_id: str):
+@click.option('--run-name', help='Nombre personalizado para este run (aparece en Langfuse)')
+def run(suite_name: str, agent: str, iterations: int, session_id: str, run_name: str):
     """Ejecutar una suite de pruebas."""
     runner = TestRunner()
     
@@ -242,7 +246,8 @@ def run(suite_name: str, agent: str, iterations: int, session_id: str):
             suite_name=suite_name,
             agent_override=agent,
             iterations=iterations,
-            session_id=session_id
+            session_id=session_id,
+            run_name=run_name
         )
         
         click.echo(f"✅ Ejecución completada")
@@ -269,7 +274,8 @@ def run(suite_name: str, agent: str, iterations: int, session_id: str):
 @click.option('--iterations', default=1, help='Número de iteraciones por pregunta')
 @click.option('--agent-filter', type=click.Choice(['orchestrator', 'gapanalyzer']), 
               help='Filtrar por tipo de agente')
-def run_all(iterations: int, agent_filter: str):
+@click.option('--run-name-prefix', help='Prefijo para nombres de runs (se agrega timestamp automáticamente)')
+def run_all(iterations: int, agent_filter: str, run_name_prefix: str):
     """Ejecutar todas las suites disponibles."""
     suite_manager = SuiteManager()
     runner = TestRunner()
@@ -291,9 +297,16 @@ def run_all(iterations: int, agent_filter: str):
         for suite_info in suites:
             click.echo(f"   Ejecutando {suite_info['name']}...")
             
+            # Generate run name with prefix and timestamp if provided
+            suite_run_name = None
+            if run_name_prefix:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                suite_run_name = f"{run_name_prefix}_{suite_info['name']}_{timestamp}"
+            
             results = runner.run_suite(
                 suite_name=suite_info['name'],
-                iterations=iterations
+                iterations=iterations,
+                run_name=suite_run_name
             )
             
             all_results.append(results)

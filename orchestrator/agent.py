@@ -248,7 +248,7 @@ class OrchestratorAgent:
             logger.error(f"Error formatting response: {e}")
             return f"Error al formatear la respuesta: {str(e)}"
 
-    async def stream(self, query: str, session_id: str, student_id: Optional[str] = None, educational_subject: Optional[str] = None) -> AsyncIterable[Dict[str, Any]]:
+    async def stream(self, query: str, session_id: str, student_id: Optional[str] = None, educational_subject: Optional[str] = None, config: Optional[Dict[str, Any]] = None) -> AsyncIterable[Dict[str, Any]]:
         """
         Stream the orchestration process to provide real-time feedback.
         
@@ -257,6 +257,7 @@ class OrchestratorAgent:
             session_id: Session identifier for conversation continuity
             student_id: Optional student identifier
             educational_subject: Optional subject to inject into educational context
+            config: Optional LangGraph config (for callbacks, etc.)
             
         Yields:
             Progress updates during orchestration with structured responses
@@ -304,8 +305,8 @@ class OrchestratorAgent:
                 'content': 'Sintetizando información y preparando orientación educativa...',
             }
             
-            # Run the actual orchestration
-            result = await self.workflow.run_conversation(conversation_context, session_id)
+            # Run the actual orchestration with optional config
+            result = await self.workflow.run_conversation(conversation_context, session_id, config)
             
             # Step 6: Final result
             yield self.get_final_response(result)

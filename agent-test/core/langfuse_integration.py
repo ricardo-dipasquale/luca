@@ -24,7 +24,9 @@ except ImportError:
     LANGFUSE_AVAILABLE = False
     print("⚠️ Langfuse no disponible. Instala con: pip install langfuse")
 
-from ..schemas import TestSuite, TestRun, ExecutionResult
+# Add parent directory to path for schemas import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from schemas import TestSuite, TestRun, ExecutionResult
 
 class LangfuseManager:
     """Gestor de integración con Langfuse."""
@@ -43,12 +45,15 @@ class LangfuseManager:
         
         # Verify connection
         try:
-            # Test connection by trying to list datasets
-            self.client.get_datasets()
+            # Test connection by trying to access a non-existent dataset
+            self.client.get_dataset("__connection_test__")
             print("✅ Conexión a Langfuse establecida")
         except Exception as e:
-            print(f"⚠️ Error conectando a Langfuse: {e}")
-            print("Verifica las variables de entorno LANGFUSE_* ")
+            if "not found" in str(e).lower():
+                print("✅ Conexión a Langfuse establecida")
+            else:
+                print(f"⚠️ Error conectando a Langfuse: {e}")
+                print("Verifica las variables de entorno LANGFUSE_* ")
     
     def upload_dataset(self, name: str, description: str, suite_data: Dict[str, Any]) -> str:
         """
@@ -138,21 +143,10 @@ class LangfuseManager:
             Lista de datasets con información básica
         """
         try:
-            datasets = self.client.get_datasets()
-            
-            dataset_list = []
-            for dataset in datasets.data:
-                dataset_info = {
-                    "id": dataset.id,
-                    "name": dataset.name,
-                    "description": dataset.description or "",
-                    "item_count": len(dataset.items) if hasattr(dataset, 'items') else 0,
-                    "created_at": dataset.created_at.isoformat() if dataset.created_at else "",
-                    "metadata": dataset.metadata or {}
-                }
-                dataset_list.append(dataset_info)
-            
-            return dataset_list
+            # Current Langfuse SDK doesn't have get_datasets (plural), only get_dataset (singular)
+            # This is a limitation of the current API version
+            print("⚠️ La versión actual de Langfuse no soporta listado de datasets")
+            return []
             
         except Exception as e:
             print(f"❌ Error listando datasets: {e}")
@@ -193,79 +187,286 @@ class LangfuseManager:
             print(f"❌ Error obteniendo dataset '{name}': {e}")
             return None
     
-    def create_test_run(self, run_data: TestRun, dataset_name: Optional[str] = None) -> str:
+    def create_test_run(self, run_data: TestRun, dataset_name: Optional[str] = None, 
+                       run_name: Optional[str] = None) -> str:
         """
         Crear un run de prueba en Langfuse.
         
         Args:
             run_data: Datos del run de prueba
             dataset_name: Nombre del dataset asociado (opcional)
+            run_name: Nombre personalizado para el run (opcional)
             
         Returns:
             ID del run creado en Langfuse
         """
         try:
-            print(f"📈 Creando run de prueba en Langfuse...")
+            print(f"📈 Creando dataset run en Langfuse...")
             
-            # Create the run
-            run = self.client.create_run(
-                name=f"agent-test-{run_data.suite_name}-{run_data.run_id[:8]}",
-                description=f"Ejecución de suite {run_data.suite_name} con agente {run_data.agent_type}",
-                metadata={
-                    "suite_name": run_data.suite_name,
-                    "agent_type": run_data.agent_type,
-                    "run_id": run_data.run_id,
-                    "session_id": run_data.session_id,
-                    "iterations": run_data.iterations,
-                    "total_questions": run_data.total_questions,
-                    "successful_questions": run_data.successful_questions,
-                    "success_rate": run_data.get_success_rate(),
-                    "total_time": run_data.total_time,
-                    "average_time": run_data.get_average_execution_time(),
-                    "start_time": run_data.start_time.isoformat(),
-                    "end_time": run_data.end_time.isoformat(),
-                    "dataset_name": dataset_name,
-                    "summary_metrics": run_data.summary_metrics
-                }
-            )
-            
-            # Add individual question results as spans
-            for i, result in enumerate(run_data.results):
-                span = self.client.create_span(
-                    name=f"question-{i+1}",
-                    trace_id=run.id,  # Associate with the run
-                    input={
-                        "question": result.question_text,
-                        "question_id": result.question_id,
-                        "session_id": result.session_id
-                    },
-                    output={
-                        "response": result.agent_response,
-                        "success": result.success,
-                        "execution_time": result.execution_time
-                    },
+            # Step 1: Ensure dataset exists and create base items only once
+            actual_dataset_name = dataset_name or f"{run_data.suite_name}_dataset"
+            try:
+                dataset = self.client.get_dataset(actual_dataset_name)
+                print(f"   📊 Dataset '{actual_dataset_name}' ya existe")
+            except:
+                # Dataset doesn't exist, create it with base items
+                print(f"   📊 Creando dataset '{actual_dataset_name}' con items base...")
+                dataset = self.client.create_dataset(
+                    name=actual_dataset_name,
+                    description=f"Dataset para suite {run_data.suite_name} - Agente {run_data.agent_type}",
                     metadata={
-                        "metrics": result.metrics,
-                        "agent_metadata": result.agent_metadata,
-                        "error": result.error,
-                        "timestamp": result.timestamp.isoformat()
+                        "suite_name": run_data.suite_name,
+                        "agent_type": run_data.agent_type,
+                        "created_by": "agent-test-framework"
                     }
                 )
                 
-                # If there's a specific trace_id from the agent execution, link it
-                if result.langfuse_trace_id:
-                    span.metadata["original_trace_id"] = result.langfuse_trace_id
+                # Create base dataset items only once
+                for i, result in enumerate(run_data.results):
+                    try:
+                        base_item = self.client.create_dataset_item(
+                            dataset_name=actual_dataset_name,
+                            input={
+                                "question": result.question_text,
+                                "question_id": result.question_id,
+                                "context": {
+                                    "agent_type": run_data.agent_type,
+                                    "suite_name": run_data.suite_name
+                                }
+                            },
+                            expected_output={
+                                "success": True,
+                                "response_type": "educational_response",
+                                "expected_quality_metrics": {
+                                    "relevance_score": ">= 0.7",
+                                    "educational_value": ">= 0.4",
+                                    "response_completeness": ">= 0.8"
+                                }
+                            },
+                            metadata={
+                                "question_type": result.question_id.split('_')[0] if '_' in result.question_id else "general",
+                                "created_for": "agent-testing"
+                            }
+                        )
+                        print(f"      📝 Item base {i+1}/{len(run_data.results)} creado")
+                    except Exception as e:
+                        print(f"      ⚠️ Error creando item base {i+1}: {e}")
                 
-                print(f"   📊 Span {i+1}/{len(run_data.results)} creado")
+                # Re-fetch dataset to get items
+                dataset = self.client.get_dataset(actual_dataset_name)
+                        
             
-            print(f"✅ Run de prueba creado en Langfuse")
-            print(f"   ID: {run.id}")
+            # Step 2: Create proper dataset run using item.run() context manager
+            actual_run_name = run_name if run_name else f"TestRun-{run_data.suite_name}-{run_data.run_id[:8]}"
+            print(f"   🏃 Creando dataset run: {actual_run_name}")
             
-            return run.id
+            # Process each dataset item with proper run context AND agent execution
+            run_traces = []
+            
+            for i, (result, dataset_item) in enumerate(zip(run_data.results, dataset.items)):
+                try:
+                    print(f"   📊 Procesando question {i+1}/{len(run_data.results)} en dataset run...")
+                    
+                    with dataset_item.run(
+                        run_name=actual_run_name,
+                        run_description=f"Ejecución automatizada de suite {run_data.suite_name}",
+                        run_metadata={
+                            "agent_type": run_data.agent_type,
+                            "suite_name": run_data.suite_name,
+                            "run_id": run_data.run_id,
+                            "question_index": i + 1,
+                            "total_questions": len(run_data.results),
+                            "execution_time": result.execution_time,
+                            "success": result.success,
+                            "timestamp": run_data.start_time.isoformat(),
+                            "agent_test_mode": True  # Flag to indicate this is from agent testing
+                        }
+                    ) as root_span:
+                        # Execute the agent with full LangGraph observability WITHIN the dataset item context
+                        print(f"      🔍 Ejecutando agente con observabilidad completa dentro del dataset item...")
+                        
+                        try:
+                            # Create CallbackHandler for LangGraph observability
+                            from langfuse.langchain import CallbackHandler
+                            langfuse_handler = CallbackHandler()
+                            
+                            # Import agent executor on demand
+                            from orchestrator.agent_executor import OrchestratorAgentExecutor
+                            agent_executor = OrchestratorAgentExecutor()
+                            
+                            # Prepare context for agent execution
+                            question_context = {
+                                'session_id': f"{run_data.session_id}_dataset_q{i+1}",
+                                'user_id': 'agent_test_dataset_run',
+                                'agent_test_mode': True,
+                                'educational_subject': result.question_text.get('subject', 'Bases de Datos') if isinstance(result.question_text, dict) else 'Bases de Datos'
+                            }
+                            
+                            # Execute agent with LangGraph callback - this creates the complete workflow trace
+                            async def run_agent_in_dataset_context():
+                                request = {'message': result.question_text}
+                                final_response = ""
+                                
+                                async for chunk in agent_executor.stream(
+                                    request=request, 
+                                    context={**question_context, "config": {"callbacks": [langfuse_handler]}}
+                                ):
+                                    if chunk.get('is_task_complete'):
+                                        final_response = chunk.get('content', '')
+                                        break
+                                
+                                return final_response
+                            
+                            # Execute the agent within the dataset item context
+                            import asyncio
+                            agent_response = asyncio.run(run_agent_in_dataset_context())
+                            
+                            # Set the actual agent response as the output for this dataset item
+                            root_span.update(output={"agent_response": agent_response})
+                            
+                            print(f"      ✅ Agente ejecutado con traza completa del workflow")
+                            
+                        except Exception as agent_error:
+                            print(f"      ⚠️ Error ejecutando agente: {agent_error}")
+                            # Still record the result but mark as error
+                            root_span.update(output={"error": str(agent_error), "original_result": result.response})
+                        
+                        # Add evaluation scores based on metrics
+                        if result.metrics:
+                            # Educational quality scores
+                            if "educational_value" in result.metrics:
+                                root_span.score_trace(
+                                    name="educational_value",
+                                    value=result.metrics["educational_value"],
+                                    comment="Automated evaluation of educational quality"
+                                )
+                            
+                            if "relevance_score" in result.metrics:
+                                root_span.score_trace(
+                                    name="relevance_score", 
+                                    value=result.metrics["relevance_score"],
+                                    comment="Automated evaluation of response relevance"
+                                )
+                            
+                            if "response_completeness" in result.metrics:
+                                root_span.score_trace(
+                                    name="response_completeness",
+                                    value=result.metrics["response_completeness"],
+                                    comment="Automated evaluation of response completeness"
+                                )
+                        
+                        run_traces.append(root_span.trace_id)
+                        print(f"      📊 Dataset item completado (trace: {root_span.trace_id[:8]}...)")
+                        
+                except Exception as e:
+                    print(f"   ⚠️ Error procesando question {i+1}: {e}")
+            
+            # Flush to ensure data is sent to Langfuse
+            self.client.flush()
+            
+            print(f"✅ Dataset run creado en Langfuse")
+            print(f"   🏃 Run Name: {actual_run_name}")
+            print(f"   📊 Dataset: {actual_dataset_name}")
+            print(f"   📝 Preguntas procesadas: {len(run_traces)}")
+            print(f"   🕒 Timestamp: {run_data.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Return run information
+            return {
+                'run_name': actual_run_name,
+                'dataset_name': actual_dataset_name,
+                'trace_ids': run_traces,
+                'complete_execution': True  # Flag indicating agent execution happened within dataset context
+            }
             
         except Exception as e:
             print(f"❌ Error creando run de prueba: {e}")
             raise
+    
+    def enhance_dataset_run_with_agent_traces(self, run_data: TestRun, dataset_run_info: dict, 
+                                            agent_executor, test_context: dict) -> None:
+        """
+        Re-ejecutar agentes con observabilidad completa de LangGraph para mostrar cada nodo del workflow.
+        
+        Esta función ejecuta cada pregunta nuevamente con CallbackHandler habilitado para capturar
+        la observabilidad completa de LangGraph, mostrando cada nodo del workflow con su input/output real.
+        
+        Args:
+            run_data: Datos del run original
+            dataset_run_info: Info del dataset run creado
+            agent_executor: Ejecutor del agente (OrchestratorAgentExecutor o GapAnalyzerAgentExecutor)
+            test_context: Contexto adicional de testing
+        """
+        try:
+            print(f"🔍 Ejecutando agentes con observabilidad completa de LangGraph...")
+            print(f"    Esto mostrará cada nodo del workflow con timing real y input/output detallado")
+            
+            for i, result in enumerate(run_data.results):
+                try:
+                    print(f"   🔍 Ejecutando question {i+1} con CallbackHandler habilitado...")
+                    
+                    # Configure Langfuse CallbackHandler for detailed LangGraph observability
+                    from langfuse.langchain import CallbackHandler
+                    
+                    # Create a CallbackHandler that will capture REAL LangGraph execution details
+                    langfuse_handler = CallbackHandler()
+                    
+                    # Prepare question context
+                    question_context = {
+                        'session_id': f"{run_data.session_id}_langgraph_q{i+1}",
+                        'user_id': 'agent_test_langgraph_tracing',
+                        'agent_test_mode': True,
+                        'educational_subject': test_context.get('subject_name', 'Bases de Datos')
+                    }
+                    
+                    # Execute with proper LangGraph observability
+                    if hasattr(agent_executor, 'stream'):
+                        # For Orchestrator-style agents
+                        async def run_with_full_langgraph_observability():
+                            request = {'message': result.question_text}
+                            
+                            # Execute with LangGraph callback - this will show every workflow node
+                            final_response = ""
+                            
+                            async for chunk in agent_executor.stream(
+                                request=request, 
+                                context={**question_context, "config": {"callbacks": [langfuse_handler]}}
+                            ):
+                                if chunk.get('is_task_complete'):
+                                    final_response = chunk.get('content', '')
+                                    break
+                            
+                            return final_response
+                        
+                        # Run the async function to get real LangGraph traces
+                        import asyncio
+                        final_response = asyncio.run(run_with_full_langgraph_observability())
+                        
+                        # Check if trace was created
+                        langgraph_trace_id = getattr(langfuse_handler, 'last_trace_id', None)
+                        if langgraph_trace_id:
+                            print(f"      ✅ LangGraph trace completa creada: {langgraph_trace_id[:8]}...")
+                            print(f"         Esta traza muestra cada nodo del workflow con timing real")
+                        else:
+                            print(f"      ⚠️ No se detectó trace_id del CallbackHandler")
+                    
+                    print(f"   ✅ Question {i+1} ejecutada con observabilidad completa de LangGraph")
+                    
+                except Exception as e:
+                    print(f"   ⚠️ Error ejecutando question {i+1} con observabilidad: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Flush to ensure all traces are sent to Langfuse
+            self.client.flush()
+            
+            print(f"✅ Observabilidad completa de LangGraph completada")
+            print(f"   Ahora deberías ver trazas detalladas en Langfuse mostrando cada nodo del workflow")
+            
+        except Exception as e:
+            print(f"❌ Error en observabilidad de LangGraph: {e}")
+            import traceback
+            traceback.print_exc()
+            # Don't raise - this is enhancement, not critical
     
     def create_trace_for_question(self, question_text: str, agent_response: str, 
                                  metadata: Dict[str, Any]) -> str:
@@ -281,14 +482,25 @@ class LangfuseManager:
             ID del trace creado
         """
         try:
-            trace = self.client.create_trace(
+            # Create trace ID and start span for individual question
+            trace_id = self.client.create_trace_id(seed=f"question-{uuid4().hex[:8]}")
+            trace_context = {"trace_id": trace_id}
+            
+            span = self.client.start_span(
                 name=f"agent-question-{uuid4().hex[:8]}",
+                trace_context=trace_context,
                 input={"question": question_text},
                 output={"response": agent_response},
                 metadata=metadata
             )
             
-            return trace.id
+            # End the span immediately since this is a completed interaction
+            span.end()
+            
+            # Flush to ensure data is sent to Langfuse
+            self.client.flush()
+            
+            return trace_id
             
         except Exception as e:
             print(f"❌ Error creando trace: {e}")
@@ -386,13 +598,13 @@ class LangfuseManager:
             Información sobre el estado de la conexión
         """
         try:
-            # Try to make a simple API call
-            datasets = self.client.get_datasets()
+            # Try to make a simple API call by testing dataset access
+            self.client.get_dataset("__connection_test__")
             
             return {
                 "connected": True,
                 "host": os.getenv("LANGFUSE_HOST", "http://localhost:3000"),
-                "datasets_count": len(datasets.data) if datasets else 0,
+                "datasets_count": 0,  # Cannot count without get_datasets API
                 "error": None
             }
             

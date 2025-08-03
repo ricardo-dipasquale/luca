@@ -1449,13 +1449,14 @@ Genera una respuesta de ayuda y feedback.""")
             logger.error(f"Error building exercise context: {e}")
             return f"Ejercicio: {ctx.current_message}"
     
-    async def run_conversation(self, conversation_context: ConversationContext, thread_id: str = None) -> OrchestratorResponse:
+    async def run_conversation(self, conversation_context: ConversationContext, thread_id: str = None, config: Optional[Dict[str, Any]] = None) -> OrchestratorResponse:
         """
         Run the complete orchestration workflow.
         
         Args:
             conversation_context: Context about the conversation
             thread_id: Optional thread ID for conversation continuity
+            config: Optional LangGraph config (for callbacks, etc.)
             
         Returns:
             Complete orchestrator response
@@ -1464,11 +1465,21 @@ Genera una respuesta de ayuda y feedback.""")
             # Initialize state
             initial_state = WorkflowState(conversation_context=conversation_context)
             
-            # Configure for conversation continuity
-            config = {"configurable": {"thread_id": thread_id or str(uuid4())}}
+            # Configure for conversation continuity and merge with provided config
+            base_config = {"configurable": {"thread_id": thread_id or str(uuid4())}}
             
-            # Run workflow
-            final_state = await self.graph.ainvoke(initial_state, config)
+            # Merge provided config with base config
+            if config:
+                # Merge callbacks if provided
+                if "callbacks" in config:
+                    base_config["callbacks"] = config["callbacks"]
+                # Merge other config items
+                for key, value in config.items():
+                    if key != "callbacks":
+                        base_config[key] = value
+            
+            # Run workflow with merged config
+            final_state = await self.graph.ainvoke(initial_state, base_config)
             
             return final_state["final_response"]
             

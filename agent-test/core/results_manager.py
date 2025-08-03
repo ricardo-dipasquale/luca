@@ -7,12 +7,15 @@ de suites de pruebas.
 
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from uuid import uuid4
 
-from ..schemas import TestRun, ExecutionResult
+# Add parent directory to path for schemas import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from schemas import TestRun, ExecutionResult
 
 class ResultsManager:
     """Gestor de resultados de ejecuciones."""

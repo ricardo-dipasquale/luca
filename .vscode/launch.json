@@ -161,6 +161,37 @@
             }
         },
         {
+            "name": "Langfuse Dataset Upload",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "agent-test.cli",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "dataset",
+                "upload",
+                "${input:suiteName}",
+                "--name=${input:datasetName}"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Langfuse: Run All Suites",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "agent-test.cli",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "run-all"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
@@ -170,6 +201,20 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "suiteName",
+            "description": "Enter the test suite name to upload",
+            "default": "mi_suite",
+            "type": "promptString"
+        },
+        {
+            "id": "datasetName",
+            "description": "Enter the dataset name for Langfuse",
+            "default": "Suite Básica BD",
+            "type": "promptString"
         }
     ]
 }

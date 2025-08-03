@@ -19,11 +19,17 @@ sys.path.insert(0, str(project_root))
 
 from orchestrator.agent_executor import OrchestratorAgentExecutor
 from gapanalyzer.agent_executor import GapAnalyzerAgentExecutor
-from ..schemas import TestSuite, TestRun, ExecutionResult, AgentType, OrchestratorMetrics, GapAnalyzerMetrics
-from .suite_manager import SuiteManager
-from .results_manager import ResultsManager
-from .metrics_collector import MetricsCollector
-from .langfuse_integration import LangfuseManager, check_langfuse_availability
+
+# Add agent-test directory to path for schemas import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from schemas import TestSuite, TestRun, ExecutionResult, AgentType, OrchestratorMetrics, GapAnalyzerMetrics
+
+# Import from current directory
+sys.path.insert(0, str(Path(__file__).parent))
+from suite_manager import SuiteManager
+from results_manager import ResultsManager
+from metrics_collector import MetricsCollector
+from langfuse_integration import LangfuseManager, check_langfuse_availability
 
 class TestRunner:
     """Ejecutor de suites de pruebas."""
@@ -51,7 +57,8 @@ class TestRunner:
             print("ℹ️ Langfuse no disponible - solo almacenamiento local")
     
     def run_suite(self, suite_name: str, agent_override: Optional[str] = None, 
-                  iterations: int = 1, session_id: Optional[str] = None) -> Dict[str, Any]:
+                  iterations: int = 1, session_id: Optional[str] = None,
+                  run_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Ejecutar una suite de pruebas.
         
@@ -60,6 +67,7 @@ class TestRunner:
             agent_override: Override del tipo de agente (opcional)
             iterations: Número de iteraciones por pregunta
             session_id: ID de sesión personalizada
+            run_name: Nombre personalizado para el run (aparece en Langfuse)
             
         Returns:
             Resultados de la ejecución
@@ -123,14 +131,23 @@ class TestRunner:
             results_file = self.results_manager.save_run_results(run_data)
             
             # Upload to Langfuse if enabled
-            langfuse_run_id = None
+            langfuse_run_info = None
             if self.langfuse_enabled:
                 try:
-                    langfuse_run_id = self.langfuse_manager.create_test_run(
+                    langfuse_run_info = self.langfuse_manager.create_test_run(
                         run_data, 
-                        dataset_name=f"{suite_name}_dataset"
+                        dataset_name=f"{suite_name}_dataset",
+                        run_name=run_name
                     )
-                    run_data.langfuse_run_id = langfuse_run_id
+                    run_data.langfuse_run_id = langfuse_run_info.get('run_name') if langfuse_run_info else None
+                    
+                    # Check if complete execution already happened within dataset context
+                    if langfuse_run_info and langfuse_run_info.get('complete_execution'):
+                        print(f"✅ Ejecución completa de agentes ya realizada dentro del contexto del dataset")
+                        print(f"   Las trazas completas del workflow están disponibles en Langfuse")
+                    else:
+                        print(f"⚠️ Dataset run creado sin ejecución completa de agentes")
+                    
                 except Exception as e:
                     print(f"⚠️ Error subiendo a Langfuse: {e}")
             
@@ -149,7 +166,7 @@ class TestRunner:
                 'average_time': run_data.get_average_execution_time(),
                 'results_file': str(results_file),
                 'summary': summary_metrics,
-                'langfuse_run_id': langfuse_run_id
+                'langfuse_run_id': langfuse_run_info.get('run_name') if langfuse_run_info else None
             }
             
         except Exception as e:
@@ -345,25 +362,38 @@ class TestRunner:
         if not question.practice_id:
             raise ValueError("GapAnalyzer requiere practice_id en la pregunta")
         
-        request = {
-            'practice_id': question.practice_id,
-            'exercise_section': question.exercise_section or "1.a",
-            'student_query': question.question
-        }
+        # Create message with practice context
+        message_content = f"practice_id:{question.practice_id}|exercise_section:{question.exercise_section or '1.a'}|query:{question.question}"
         
-        # Execute synchronously (GapAnalyzer might not have async stream)
+        # Execute using agent's stream method
         try:
-            # Note: This would need to be adapted based on GapAnalyzer's actual interface
-            response = await self.gapanalyzer.execute(request=request, context=context)
+            # Use the agent's stream method and collect the final response
+            context_id = context.get('session_id', 'test_session')
+            
+            final_response = ""
+            async for chunk in self.gapanalyzer.agent.stream(question.question, context_id):
+                if chunk.get('is_task_complete', False):
+                    final_response = chunk.get('content', '')
+                    break
+                elif chunk.get('content'):
+                    # This is a progress update, we can ignore or log it
+                    pass
+            
+            if not final_response:
+                # If we didn't get a final response, try to get the last content
+                final_response = chunk.get('content', 'No response generated')
             
             return {
-                'content': response.get('content', ''),
-                'metadata': response.get('metadata', {})
+                'content': final_response,
+                'metadata': {'agent': 'gapanalyzer', 'practice_id': question.practice_id}
             }
         except Exception as e:
-            # Fallback for synchronous execution
-            print(f"⚠️ GapAnalyzer async execution failed, trying sync: {e}")
-            raise
+            # If that fails, try simple text response
+            print(f"⚠️ GapAnalyzer execution failed, using fallback: {e}")
+            return {
+                'content': f"Error executing GapAnalyzer: {str(e)}",
+                'metadata': {'error': True}
+            }
     
     def _aggregate_question_results(self, results: List[ExecutionResult]) -> ExecutionResult:
         """Agregar resultados de múltiples iteraciones de una pregunta."""

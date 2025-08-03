@@ -62,8 +62,11 @@ class OrchestratorAgentExecutor:
                 }
                 return
             
+            # Extract config for LangGraph callbacks if provided
+            langfuse_config = context.get('config')
+            
             # Stream the orchestration process with subject injection
-            async for chunk in self.agent.stream(user_message, session_id, student_id, educational_subject):
+            async for chunk in self.agent.stream(user_message, session_id, student_id, educational_subject, langfuse_config):
                 yield chunk
                 
         except Exception as e:

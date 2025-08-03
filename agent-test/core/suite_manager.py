@@ -7,12 +7,15 @@ como archivos JSON en el filesystem.
 
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from uuid import uuid4
 
-from ..schemas import TestSuite, TestQuestion, AgentType, DifficultyLevel
+# Add parent directory to path for schemas import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from schemas import TestSuite, TestQuestion, AgentType, DifficultyLevel
 
 class SuiteManager:
     """Gestor de suites de pruebas."""
@@ -130,7 +133,7 @@ class SuiteManager:
         Obtener datos de una suite.
         
         Args:
-            name: Nombre de la suite
+            name: Nombre de la suite (puede ser el nombre interno o el nombre del archivo)
             
         Returns:
             Datos de la suite como diccionario
@@ -138,12 +141,23 @@ class SuiteManager:
         Raises:
             ValueError: Si la suite no existe
         """
+        # First try with direct filename
         suite_file = self.suites_dir / f"{name}.json"
-        if not suite_file.exists():
-            raise ValueError(f"La suite '{name}' no existe")
+        if suite_file.exists():
+            with open(suite_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
         
-        with open(suite_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        # If not found, search by internal name in all JSON files
+        for suite_file in self.suites_dir.glob("*.json"):
+            try:
+                with open(suite_file, 'r', encoding='utf-8') as f:
+                    suite_data = json.load(f)
+                    if suite_data.get('name') == name:
+                        return suite_data
+            except (json.JSONDecodeError, KeyError):
+                continue
+        
+        raise ValueError(f"La suite '{name}' no existe")
     
     def list_suites(self) -> List[Dict[str, Any]]:
         """

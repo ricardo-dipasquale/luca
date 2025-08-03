@@ -182,3 +182,5 @@ db/langfuse*/*
 
 
 .vscode/settings.json
+agent-test/results/*/*
+agent-test/results/runs_index.json
