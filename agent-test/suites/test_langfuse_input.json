@@ -1,0 +1,42 @@
+{
+  "name": "test_langfuse_input",
+  "description": "Suite para probar input enriquecido en Langfuse",
+  "agent_type": "orchestrator",
+  "version": "1.0",
+  "author": "",
+  "questions": [
+    {
+      "id": "q_a165ef96",
+      "question": "¿Qué es un LEFT JOIN?",
+      "expected_answer": "Explicación de LEFT JOIN con ejemplos",
+      "context": null,
+      "subject": "Bases de Datos Relacionales",
+      "difficulty": "medium",
+      "metrics": {},
+      "practice_id": null,
+      "exercise_section": null,
+      "tags": [],
+      "created_at": "2025-08-03T17:20:20.306700",
+      "updated_at": "2025-08-03T17:20:20.306704"
+    },
+    {
+      "id": "q_ebbe9851",
+      "question": "¿Cómo optimizar una consulta SQL lenta?",
+      "expected_answer": "Estrategias de optimización con índices",
+      "context": null,
+      "subject": "Bases de Datos Relacionales",
+      "difficulty": "hard",
+      "metrics": {},
+      "practice_id": null,
+      "exercise_section": null,
+      "tags": [],
+      "created_at": "2025-08-03T17:20:32.900022",
+      "updated_at": "2025-08-03T17:20:32.900027"
+    }
+  ],
+  "default_iterations": 1,
+  "timeout_seconds": 120,
+  "global_metrics": {},
+  "created_at": "2025-08-03T17:20:14.157170",
+  "updated_at": "2025-08-03T17:20:32.900084"
+}

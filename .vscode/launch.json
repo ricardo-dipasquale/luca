@@ -171,7 +171,7 @@
                 "dataset",
                 "upload",
                 "${input:suiteName}",
-                "--name=${input:datasetName}"
+                "--name=${input:suiteName}_dataset"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
@@ -186,6 +186,23 @@
             "cwd": "${workspaceFolder}",
             "args": [
                 "run-all"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Langfuse: Run 1 Suite",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "agent-test.cli",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "run",
+                "${input:suiteName}",
+                "--iterations=1",
+                "--run-name=${input:runName}"
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
@@ -215,6 +232,12 @@
             "description": "Enter the dataset name for Langfuse",
             "default": "Suite Básica BD",
             "type": "promptString"
-        }
+        },
+        {
+            "id": "runName",
+            "description": "Enter the RUN name for Langfuse",
+            "default": "run_001",
+            "type": "promptString"
+        }        
     ]
 }

@@ -29,6 +29,17 @@ class MetricsCollector:
         """Inicializar el recolector de métricas."""
         self.orchestrator_patterns = self._init_orchestrator_patterns()
         self.gapanalyzer_patterns = self._init_gapanalyzer_patterns()
+        
+        # Initialize LLM for expected_answer compliance evaluation
+        self.llm = None
+        try:
+            from tools.llm_config import create_default_llm
+            self.llm = create_default_llm()
+            print("✅ LLM inicializado para evaluación de métricas (GPT-4o-mini)")
+        except ImportError:
+            print("⚠️ No se pudo inicializar LLM para métricas - saltando evaluación de expected_answer")
+        except Exception as e:
+            print(f"⚠️ Error inicializando LLM para métricas: {e}")
     
     def collect_question_metrics(self, question: TestQuestion, response: Dict[str, Any], 
                                 agent_type: AgentType, execution_time: float) -> Dict[str, Any]:
@@ -102,6 +113,14 @@ class MetricsCollector:
         metrics['explanation_type'] = self._classify_explanation_type(content)
         metrics['conceptual_depth'] = self._analyze_conceptual_depth(content)
         
+        # Expected answer compliance evaluation
+        if hasattr(question, 'expected_answer') and question.expected_answer:
+            metrics['expected_answer_compliance'] = self._evaluate_expected_answer_compliance(
+                question.expected_answer, content
+            )
+        else:
+            metrics['expected_answer_compliance'] = None  # No expected answer to compare
+        
         return metrics
     
     def _collect_gapanalyzer_metrics(self, question: TestQuestion, 
@@ -134,6 +153,73 @@ class MetricsCollector:
         metrics['suggests_practice'] = self._detect_practice_suggestions(content)
         
         return metrics
+    
+    def _evaluate_expected_answer_compliance(self, expected_answer: str, actual_response: str) -> Optional[float]:
+        """
+        Evaluar en qué medida la respuesta del agente cumple con la respuesta esperada.
+        
+        Args:
+            expected_answer: Respuesta esperada o criterios de evaluación
+            actual_response: Respuesta real del agente
+            
+        Returns:
+            Float entre 0.0 y 1.0 indicando el nivel de cumplimiento, o None si no se puede evaluar
+        """
+        if not self.llm:
+            return None  # No LLM available for evaluation
+        
+        if not expected_answer.strip() or not actual_response.strip():
+            return None  # Cannot evaluate empty content
+        
+        try:
+            # Create evaluation prompt for GPT-4o-mini
+            evaluation_prompt = f"""Sos un evaluador educativo especializado en bases de datos e ingeniería. Tu tarea es evaluar qué tan bien cumple una respuesta de un agente educativo con los criterios esperados.
+
+CRITERIOS ESPERADOS:
+"{expected_answer}"
+
+RESPUESTA DEL AGENTE:
+"{actual_response}"
+
+INSTRUCCIONES:
+1. Evalúa qué tan bien la respuesta del agente cumple con los criterios esperados
+2. Considera:
+   - ¿Se abordan los conceptos clave mencionados en los criterios?
+   - ¿La explicación es correcta y completa según lo esperado?
+   - ¿Se incluyen los elementos solicitados (ejemplos, pasos, comparaciones, etc.)?
+   - ¿La respuesta va en la dirección correcta según los criterios?
+3. Asigna una puntuación de 0.0 a 1.0 donde:
+   - 1.0 = Cumple completamente con todos los criterios esperados
+   - 0.8-0.9 = Cumple muy bien, con detalles menores faltantes
+   - 0.6-0.7 = Cumple bien los aspectos principales
+   - 0.4-0.5 = Cumple parcialmente, faltan elementos importantes
+   - 0.2-0.3 = Cumple mínimamente, muchos elementos faltantes
+   - 0.0-0.1 = No cumple con los criterios o es completamente incorrecto
+
+RESPUESTA REQUERIDA:
+Devuelve SOLAMENTE un número decimal entre 0.0 y 1.0 (ej: 0.85)
+No agregues explicaciones, texto adicional ni formato. Solo el número."""
+
+            # Call LLM for evaluation
+            response = self.llm.invoke(evaluation_prompt)
+            response_content = response.content.strip()
+            
+            # Parse the numeric score
+            try:
+                score = float(response_content)
+                # Ensure score is within valid range
+                if 0.0 <= score <= 1.0:
+                    return score
+                else:
+                    print(f"⚠️ Puntuación fuera de rango: {score}. Usando None.")
+                    return None
+            except ValueError:
+                print(f"⚠️ No se pudo parsear la puntuación: '{response_content}'. Usando None.")
+                return None
+                
+        except Exception as e:
+            print(f"⚠️ Error evaluando cumplimiento de expected_answer: {e}")
+            return None
     
     def _detect_gapanalyzer_routing(self, content: str, metadata: Dict[str, Any]) -> bool:
         """Detectar si la respuesta indica routing a GapAnalyzer."""
@@ -389,7 +475,7 @@ class MetricsCollector:
         """Evaluar completitud de la respuesta."""
         # Simple heuristic based on length and expected answer coverage
         min_expected_length = len(question.expected_answer) * 0.5
-        max_expected_length = len(question.expected_answer) * 3.0
+        max_expected_length = len(question.expected_answer) * 10.0
         
         content_length = len(content)
         

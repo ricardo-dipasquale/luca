@@ -224,16 +224,51 @@ class LangfuseManager:
                 # Create base dataset items only once
                 for i, result in enumerate(run_data.results):
                     try:
+                        # Enrich input with complete question information and memory context
+                        rich_input = {
+                            "question": result.question_text,
+                            "question_id": result.question_id,
+                            
+                            # Educational context
+                            "educational_context": {
+                                "subject": getattr(result, 'subject', None),
+                                "difficulty": getattr(result, 'difficulty', 'medium'),
+                                "practice_id": getattr(result, 'practice_id', None),
+                                "exercise_section": getattr(result, 'exercise_section', None),
+                                "academic_level": "university",
+                                "institution": "UCA",
+                                "language": "es"
+                            },
+                            
+                            # Agent execution context  
+                            "agent_context": {
+                                "agent_type": run_data.agent_type,
+                                "suite_name": run_data.suite_name,
+                                "session_id": run_data.session_id,
+                                "question_index": i + 1,
+                                "total_questions": len(run_data.results)
+                            },
+                            
+                            # Memory context - check if this is part of a multi-turn conversation
+                            "memory_context": {
+                                "has_previous_questions": i > 0,
+                                "previous_questions_count": i,
+                                "conversation_flow": "isolated_question" if i == 0 else "continuing_conversation",
+                                "session_continuity": run_data.session_id if run_data.session_id else "new_session"
+                            },
+                            
+                            # Testing metadata
+                            "test_metadata": {
+                                "run_id": run_data.run_id,
+                                "execution_timestamp": run_data.start_time.isoformat(),
+                                "is_automated_test": True,
+                                "framework_version": "luca-agent-test-v1.0"
+                            }
+                        }
+                        
                         base_item = self.client.create_dataset_item(
                             dataset_name=actual_dataset_name,
-                            input={
-                                "question": result.question_text,
-                                "question_id": result.question_id,
-                                "context": {
-                                    "agent_type": run_data.agent_type,
-                                    "suite_name": run_data.suite_name
-                                }
-                            },
+                            input=rich_input,
                             expected_output={
                                 "success": True,
                                 "response_type": "educational_response",
@@ -294,21 +329,65 @@ class LangfuseManager:
                             from orchestrator.agent_executor import OrchestratorAgentExecutor
                             agent_executor = OrchestratorAgentExecutor()
                             
-                            # Prepare context for agent execution
+                            # Prepare enriched context for agent execution
+                            # Get subject from result attributes or fallback
+                            subject = getattr(result, 'subject', None) or 'Bases de Datos'
+                            if isinstance(result.question_text, dict):
+                                subject = result.question_text.get('subject', subject)
+                            
                             question_context = {
                                 'session_id': f"{run_data.session_id}_dataset_q{i+1}",
                                 'user_id': 'agent_test_dataset_run',
                                 'agent_test_mode': True,
-                                'educational_subject': result.question_text.get('subject', 'Bases de Datos') if isinstance(result.question_text, dict) else 'Bases de Datos'
+                                'educational_subject': subject,
+                                
+                                # Add rich context for memory and continuity
+                                'conversation_context': {
+                                    'question_number': i + 1,
+                                    'total_questions': len(run_data.results),
+                                    'has_conversation_history': i > 0,
+                                    'previous_questions': [r.question_text for r in run_data.results[:i]] if i > 0 else [],
+                                    'session_continuity': True,
+                                    'educational_flow': 'test_suite_execution'
+                                },
+                                
+                                # Educational context
+                                'educational_metadata': {
+                                    'practice_id': getattr(result, 'practice_id', None),
+                                    'exercise_section': getattr(result, 'exercise_section', None),
+                                    'difficulty_level': getattr(result, 'difficulty', 'medium'),
+                                    'academic_context': 'automated_testing'
+                                }
                             }
                             
                             # Execute agent with LangGraph callback - this creates the complete workflow trace
                             async def run_agent_in_dataset_context():
-                                request = {'message': result.question_text}
+                                # Create enriched request with full context information
+                                enriched_request = {
+                                    'message': result.question_text,
+                                    
+                                    # Include educational context in the request itself
+                                    'educational_context': {
+                                        'subject': subject,
+                                        'difficulty': getattr(result, 'difficulty', 'medium'),
+                                        'practice_id': getattr(result, 'practice_id', None),
+                                        'exercise_section': getattr(result, 'exercise_section', None)
+                                    },
+                                    
+                                    # Conversation memory indicators
+                                    'conversation_metadata': {
+                                        'question_number': i + 1,
+                                        'total_questions_in_suite': len(run_data.results),
+                                        'has_previous_context': i > 0,
+                                        'session_type': 'test_suite_execution',
+                                        'memory_enabled': True
+                                    }
+                                }
+                                
                                 final_response = ""
                                 
                                 async for chunk in agent_executor.stream(
-                                    request=request, 
+                                    request=enriched_request, 
                                     context={**question_context, "config": {"callbacks": [langfuse_handler]}}
                                 ):
                                     if chunk.get('is_task_complete'):

@@ -113,6 +113,13 @@ class ExecutionResult(BaseModel):
     # Traceability
     session_id: str = Field(description="ID de sesión usado")
     langfuse_trace_id: Optional[str] = Field(None, description="ID de trace en Langfuse")
+    
+    # Educational context (from original question)
+    subject: Optional[str] = Field(None, description="Materia educativa")
+    difficulty: Optional[str] = Field(None, description="Nivel de dificultad")
+    practice_id: Optional[int] = Field(None, description="ID de práctica")
+    exercise_section: Optional[str] = Field(None, description="Sección de ejercicio")
+    tags: List[str] = Field(default_factory=list, description="Tags de la pregunta")
 
 class TestRun(BaseModel):
     """Resultado completo de ejecutar una suite."""

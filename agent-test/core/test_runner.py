@@ -175,6 +175,25 @@ class TestRunner:
             traceback.print_exc()
             raise
     
+    def _create_error_result(self, question, question_id: str, error: str, 
+                           session_id: str, execution_time: float = 0.0) -> ExecutionResult:
+        """Helper para crear ExecutionResult con error incluyendo contexto educativo."""
+        return ExecutionResult(
+            question_id=question_id,
+            question_text=question.question,
+            success=False,
+            error=error,
+            execution_time=execution_time,
+            session_id=session_id,
+            
+            # Educational context from original question
+            subject=question.subject,
+            difficulty=question.difficulty.value if hasattr(question.difficulty, 'value') else str(question.difficulty),
+            practice_id=question.practice_id,
+            exercise_section=question.exercise_section,
+            tags=question.tags
+        )
+    
     def _run_with_single_agent(self, suite: TestSuite, agent_type: AgentType, 
                               iterations: int, session_id: str) -> List[ExecutionResult]:
         """Ejecutar suite con un solo agente."""
@@ -195,13 +214,12 @@ class TestRunner:
                     question_results.append(result)
                     
                 except Exception as e:
-                    error_result = ExecutionResult(
+                    error_result = self._create_error_result(
+                        question=question,
                         question_id=question.id,
-                        question_text=question.question,
-                        success=False,
                         error=str(e),
-                        execution_time=0.0,
-                        session_id=iteration_session
+                        session_id=iteration_session,
+                        execution_time=0.0
                     )
                     question_results.append(error_result)
             
@@ -231,13 +249,12 @@ class TestRunner:
                 orchestrator_result.agent_metadata['agent_used'] = 'orchestrator'
                 results.append(orchestrator_result)
             except Exception as e:
-                error_result = ExecutionResult(
+                error_result = self._create_error_result(
+                    question=question,
                     question_id=f"{question.id}_orchestrator",
-                    question_text=question.question,
-                    success=False,
                     error=str(e),
-                    execution_time=0.0,
-                    session_id=f"{session_id}_q{i+1}_orchestrator"
+                    session_id=f"{session_id}_q{i+1}_orchestrator",
+                    execution_time=0.0
                 )
                 error_result.agent_metadata['agent_used'] = 'orchestrator'
                 results.append(error_result)
@@ -251,13 +268,12 @@ class TestRunner:
                     gapanalyzer_result.agent_metadata['agent_used'] = 'gapanalyzer'
                     results.append(gapanalyzer_result)
                 except Exception as e:
-                    error_result = ExecutionResult(
+                    error_result = self._create_error_result(
+                        question=question,
                         question_id=f"{question.id}_gapanalyzer",
-                        question_text=question.question,
-                        success=False,
                         error=str(e),
-                        execution_time=0.0,
-                        session_id=f"{session_id}_q{i+1}_gapanalyzer"
+                        session_id=f"{session_id}_q{i+1}_gapanalyzer",
+                        execution_time=0.0
                     )
                     error_result.agent_metadata['agent_used'] = 'gapanalyzer'
                     results.append(error_result)
@@ -322,7 +338,14 @@ class TestRunner:
                 session_id=session_id,
                 metrics=metrics,
                 agent_metadata=response.get('metadata', {}),
-                langfuse_trace_id=langfuse_trace_id
+                langfuse_trace_id=langfuse_trace_id,
+                
+                # Educational context from original question
+                subject=question.subject,
+                difficulty=question.difficulty.value if hasattr(question.difficulty, 'value') else str(question.difficulty),
+                practice_id=question.practice_id,
+                exercise_section=question.exercise_section,
+                tags=question.tags
             )
             
         except Exception as e:
@@ -334,7 +357,14 @@ class TestRunner:
                 success=False,
                 error=str(e),
                 execution_time=execution_time,
-                session_id=session_id
+                session_id=session_id,
+                
+                # Educational context from original question
+                subject=question.subject,
+                difficulty=question.difficulty.value if hasattr(question.difficulty, 'value') else str(question.difficulty),
+                practice_id=question.practice_id,
+                exercise_section=question.exercise_section,
+                tags=question.tags
             )
     
     async def _execute_with_orchestrator(self, question, context: Dict[str, Any]) -> Dict[str, Any]:
