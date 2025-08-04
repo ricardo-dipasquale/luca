@@ -137,7 +137,8 @@ class TestRunner:
                     langfuse_run_info = self.langfuse_manager.create_test_run(
                         run_data, 
                         dataset_name=f"{suite_name}_dataset",
-                        run_name=run_name
+                        run_name=run_name,
+                        original_suite=suite  # Pass original suite with question metrics
                     )
                     run_data.langfuse_run_id = langfuse_run_info.get('run_name') if langfuse_run_info else None
                     

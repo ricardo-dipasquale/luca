@@ -24,12 +24,12 @@
     },
     {
       "id": "q_02",
-      "question": "Necesito ayuda con el ejercicio 2.3 de la práctica de álgebra relacional. No entiendo cómo resolver la consulta con múltiples joins.",
-      "expected_answer": "El sistema debería detectar que es una consulta práctica específica y enrutar al GapAnalyzer para análisis detallado del ejercicio.",
+      "question": "Necesito ayuda con el ejercicio 6.b de la práctica 2 de álgebra relacional. Está bien pensado si resuelvo el problema haciendo JOIN de GUSTA y VIDEOTECA?",
+      "expected_answer": "El sistema debería detectar que el alumno está bien orientado y reforzarle de alguna manera cómo salir adelante.",
       "subject": "Bases de Datos Relacionales",
       "difficulty": "hard",
       "context": "Ejercicio específico de práctica",
-      "tags": ["algebra-relacional", "ejercicios", "routing", "joins"],
+      "tags": ["algebra-relacional", "ejercicios", "joins"],
       "metrics": {
         "should_route_to_gapanalyzer": true,
         "expected_intent": "practical_specific",
@@ -57,18 +57,16 @@
     },
     {
       "id": "q_04",
-      "question": "¿Cómo normalizo una tabla a tercera forma normal?",
-      "expected_answer": "Explicación paso a paso del proceso de normalización hasta 3NF con ejemplos",
+      "question": "Estuve trabajando sobre la práctica 2 en el problema 6.c y llegué a esta respuesta: π_{aficionado} ((SOCIO⋈_{SOCIO.videoclub=VIDEOTECA.videoclub} VIDEOTECA)⋈_{SOCIO.aficionado=GUSTA.aficionado∧VIDEOTECA.pelicula=GUSTA.pelicula} GUSTA) ¿Estoy bien orientado?",
+      "expected_answer": "El sistema debería felicitar al alumno por haber llegado a la respuesta correcta",
       "subject": "Bases de Datos Relacionales",
-      "difficulty": "hard",
-      "context": "Proceso de normalización",
-      "tags": ["normalizacion", "3nf", "diseño", "procedural"],
+      "difficulty": "medium",
+      "context": "Ejercicio específico de práctica",
+      "tags": ["algebra-relacional", "ejercicios", "joins"],
       "metrics": {
-        "should_use_kg": true,
-        "expected_intent": "procedural_explanation",
-        "should_include_steps": true,
-        "should_include_examples": true,
-        "expected_response_length": 400
+        "should_route_to_gapanalyzer": true,
+        "expected_intent": "practical_specific",
+        "should_detect_practice_context": true
       },
       "created_at": "2024-01-15T10:15:00",
       "updated_at": "2024-01-15T10:15:00"

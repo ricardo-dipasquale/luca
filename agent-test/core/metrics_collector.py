@@ -89,10 +89,44 @@ class MetricsCollector:
         content = response.get('content', '')
         metadata = response.get('metadata', {})
         
-        # Intent detection (if available in metadata)
+        # Intent detection - check both metadata and structured_response
+        detected_intent = None
+        intent_confidence = 0.0
+        
+        # Try metadata first (legacy)
         if 'detected_intent' in metadata:
-            metrics['detected_intent'] = metadata['detected_intent']
-            metrics['intent_confidence'] = metadata.get('intent_confidence', 0.0)
+            detected_intent = metadata['detected_intent']
+            intent_confidence = metadata.get('intent_confidence', 0.0)
+        
+        # Try structured_response (new format from orchestrator)
+        structured_response = response.get('structured_response', {})
+        if structured_response and 'intent' in structured_response:
+            detected_intent = structured_response['intent']
+            # Convert intent enum to string if needed
+            if hasattr(detected_intent, 'value'):
+                detected_intent = detected_intent.value
+        
+        # If no structured_response available, try to infer intent from content patterns
+        if not detected_intent:
+            detected_intent = self._infer_intent_from_content(content, question)
+        
+        # Store detected intent if found
+        if detected_intent:
+            metrics['detected_intent'] = detected_intent
+            metrics['intent_confidence'] = intent_confidence
+            
+        # Intent matching - compare expected vs detected intent
+        expected_intent = None
+        if hasattr(question, 'metrics') and question.metrics and 'expected_intent' in question.metrics:
+            expected_intent = question.metrics['expected_intent']
+        
+        if expected_intent and detected_intent:
+            # Compare expected vs detected intent (case-insensitive)
+            intent_match = 1 if expected_intent.lower() == detected_intent.lower() else 0
+            metrics['intent_match'] = intent_match
+        else:
+            # If either expected or detected intent is missing, set to None for analysis
+            metrics['intent_match'] = None
         
         # Routing decisions
         metrics['routed_to_gapanalyzer'] = self._detect_gapanalyzer_routing(content, metadata)
@@ -153,6 +187,73 @@ class MetricsCollector:
         metrics['suggests_practice'] = self._detect_practice_suggestions(content)
         
         return metrics
+    
+    def _infer_intent_from_content(self, content: str, question) -> Optional[str]:
+        """
+        Inferir el intent clasificado basándose en patrones en el contenido y la pregunta.
+        
+        Args:
+            content: Contenido de la respuesta del agente
+            question: Pregunta original
+            
+        Returns:
+            Intent inferido o None si no se puede determinar
+        """
+        # Get question text
+        question_text = question.question if hasattr(question, 'question') else str(question)
+        question_lower = question_text.lower()
+        content_lower = content.lower()
+        
+        # Patterns for different intents based on orchestrator logic
+        
+        # PRACTICAL_SPECIFIC - mentions of specific exercises, practices, or step-by-step guidance
+        if any(pattern in question_lower for pattern in [
+            "ejercicio", "práctica", "paso a paso", "no entiendo cómo", "mi consulta no funciona",
+            "resolver", "ayuda con", "problema con"
+        ]):
+            # Check if response contains specific practical guidance
+            if any(pattern in content_lower for pattern in [
+                "empecemos", "primer paso", "necesitas", "revisa", "identifica", 
+                "esquema", "diagrama", "paso a paso"
+            ]):
+                return "practical_specific"
+        
+        # PRACTICAL_GENERAL - general how-to or optimization questions
+        if any(pattern in question_lower for pattern in [
+            "cómo", "optimizar", "mejorar", "estrategia", "enfoque", "método"
+        ]):
+            return "practical_general"
+        
+        # THEORETICAL_QUESTION - what/define/explain questions
+        if any(pattern in question_lower for pattern in [
+            "qué es", "cuál es", "diferencia entre", "define", "explica", "concepto"
+        ]):
+            # Check if response contains theoretical explanations
+            if any(pattern in content_lower for pattern in [
+                "definición", "concepto", "se define", "es una", "permite", "significa"
+            ]):
+                return "conceptual_explanation"
+        
+        # COMPARISON - questions asking for differences or comparisons
+        if any(pattern in question_lower for pattern in [
+            "diferencia", "comparar", "vs", "frente a", "contraste"
+        ]):
+            return "conceptual_explanation"
+        
+        # Default fallback - if content has procedural language, likely practical
+        if any(pattern in content_lower for pattern in [
+            "te sugiero", "recomiendo", "siguiente paso", "intenta", "practica"
+        ]):
+            return "practical_general"
+        
+        # Default fallback - if content is explanatory, likely theoretical
+        if any(pattern in content_lower for pattern in [
+            "respuesta principal", "información de apoyo", "orientación educativa"
+        ]):
+            return "conceptual_explanation"
+        
+        # If no patterns match, return None
+        return None
     
     def _evaluate_expected_answer_compliance(self, expected_answer: str, actual_response: str) -> Optional[float]:
         """

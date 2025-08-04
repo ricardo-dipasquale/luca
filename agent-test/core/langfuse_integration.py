@@ -188,7 +188,7 @@ class LangfuseManager:
             return None
     
     def create_test_run(self, run_data: TestRun, dataset_name: Optional[str] = None, 
-                       run_name: Optional[str] = None) -> str:
+                       run_name: Optional[str] = None, original_suite=None) -> str:
         """
         Crear un run de prueba en Langfuse.
         
@@ -196,6 +196,7 @@ class LangfuseManager:
             run_data: Datos del run de prueba
             dataset_name: Nombre del dataset asociado (opcional)
             run_name: Nombre personalizado para el run (opcional)
+            original_suite: Suite original con preguntas y métricas esperadas (opcional)
             
         Returns:
             ID del run creado en Langfuse
@@ -266,18 +267,48 @@ class LangfuseManager:
                             }
                         }
                         
+                        # Build enriched expected_output with metrics from original suite
+                        enriched_expected_output = {
+                            "success": True,
+                            "response_type": "educational_response",
+                            "expected_answer": result.expected_answer if hasattr(result, 'expected_answer') else None,
+                            
+                            # Default quality thresholds
+                            "expected_quality_metrics": {
+                                "relevance_score": ">= 0.7",
+                                "educational_value": ">= 0.4", 
+                                "response_completeness": ">= 0.8"
+                            }
+                        }
+                        
+                        # Add expected metrics from original suite if available
+                        if original_suite and i < len(original_suite.questions):
+                            original_question = original_suite.questions[i]
+                            
+                            # Include expected_answer from original question
+                            enriched_expected_output["expected_answer"] = original_question.expected_answer
+                            
+                            # Include all metrics from the original question
+                            if hasattr(original_question, 'metrics') and original_question.metrics:
+                                enriched_expected_output["expected_behavioral_metrics"] = original_question.metrics
+                                
+                                # Extract specific expected values for comparison
+                                metrics = original_question.metrics
+                                if "expected_intent" in metrics:
+                                    enriched_expected_output["expected_intent"] = metrics["expected_intent"]
+                                if "should_route_to_gapanalyzer" in metrics:
+                                    enriched_expected_output["should_route_to_gapanalyzer"] = metrics["should_route_to_gapanalyzer"]
+                                if "should_use_kg" in metrics:
+                                    enriched_expected_output["should_use_kg"] = metrics["should_use_kg"]
+                                if "should_include_examples" in metrics:
+                                    enriched_expected_output["should_include_examples"] = metrics["should_include_examples"]
+                                if "expected_response_length" in metrics:
+                                    enriched_expected_output["expected_response_length"] = metrics["expected_response_length"]
+                        
                         base_item = self.client.create_dataset_item(
                             dataset_name=actual_dataset_name,
                             input=rich_input,
-                            expected_output={
-                                "success": True,
-                                "response_type": "educational_response",
-                                "expected_quality_metrics": {
-                                    "relevance_score": ">= 0.7",
-                                    "educational_value": ">= 0.4",
-                                    "response_completeness": ">= 0.8"
-                                }
-                            },
+                            expected_output=enriched_expected_output,
                             metadata={
                                 "question_type": result.question_id.split('_')[0] if '_' in result.question_id else "general",
                                 "created_for": "agent-testing"
@@ -410,29 +441,25 @@ class LangfuseManager:
                             # Still record the result but mark as error
                             root_span.update(output={"error": str(agent_error), "original_result": result.response})
                         
-                        # Add evaluation scores based on metrics
+                        # Add evaluation scores based on ALL numeric metrics
                         if result.metrics:
-                            # Educational quality scores
-                            if "educational_value" in result.metrics:
-                                root_span.score_trace(
-                                    name="educational_value",
-                                    value=result.metrics["educational_value"],
-                                    comment="Automated evaluation of educational quality"
-                                )
+                            # Publish all numeric metrics to Langfuse as scores
+                            for metric_name, metric_value in result.metrics.items():
+                                # Only publish numeric metrics (int, float) as scores
+                                if isinstance(metric_value, (int, float)):
+                                    # Generate appropriate comment based on metric name
+                                    comment = self._generate_metric_comment(metric_name)
+                                    
+                                    try:
+                                        root_span.score_trace(
+                                            name=metric_name,
+                                            value=float(metric_value),
+                                            comment=comment
+                                        )
+                                    except Exception as e:
+                                        print(f"      ⚠️ Error publicando métrica '{metric_name}': {e}")
                             
-                            if "relevance_score" in result.metrics:
-                                root_span.score_trace(
-                                    name="relevance_score", 
-                                    value=result.metrics["relevance_score"],
-                                    comment="Automated evaluation of response relevance"
-                                )
-                            
-                            if "response_completeness" in result.metrics:
-                                root_span.score_trace(
-                                    name="response_completeness",
-                                    value=result.metrics["response_completeness"],
-                                    comment="Automated evaluation of response completeness"
-                                )
+                            print(f"      📊 {len([v for v in result.metrics.values() if isinstance(v, (int, float))])} métricas numéricas publicadas en Langfuse")
                         
                         run_traces.append(root_span.trace_id)
                         print(f"      📊 Dataset item completado (trace: {root_span.trace_id[:8]}...)")
@@ -668,6 +695,74 @@ class LangfuseManager:
         except Exception as e:
             print(f"❌ Error eliminando dataset: {e}")
             return False
+    
+    def _generate_metric_comment(self, metric_name: str) -> str:
+        """
+        Generar comentario descriptivo para una métrica basándose en su nombre.
+        
+        Args:
+            metric_name: Nombre de la métrica
+            
+        Returns:
+            Comentario descriptivo para la métrica
+        """
+        # Mapa de comentarios específicos para métricas conocidas
+        metric_comments = {
+            # Métricas de calidad educativa
+            "expected_answer_compliance": "Porcentaje de cumplimiento con la respuesta esperada evaluado por LLM",
+            "educational_value": "Valor educativo de la respuesta evaluado automáticamente",
+            "relevance_score": "Puntuación de relevancia de la respuesta al contexto educativo",
+            "response_completeness": "Completitud de la respuesta en términos de información proporcionada",
+            "clarity_score": "Claridad y comprensibilidad de la explicación",
+            "language_quality": "Calidad del lenguaje y estructura de la respuesta",
+            
+            # Métricas de contenido
+            "contains_examples": "Número de ejemplos incluidos en la respuesta",
+            "contains_code": "Presencia de bloques de código en la respuesta (1/0)",
+            "contains_mathematical_notation": "Presencia de notación matemática (1/0)",
+            "conceptual_depth": "Profundidad conceptual de la explicación",
+            
+            # Métricas de agente Orchestrator
+            "routed_to_gapanalyzer": "Si la respuesta fue enrutada al GapAnalyzer (1/0)",
+            "kg_queries_executed": "Número de consultas ejecutadas al Knowledge Graph", 
+            "kg_results_found": "Si se encontraron resultados en el Knowledge Graph (1/0)",
+            "detected_intent": "Intención del estudiante detectada por el agente",
+            "intent_confidence": "Confianza en la clasificación de intención del estudiante",
+            "intent_match": "Si la intención detectada coincide con la esperada (1/0)",
+            
+            # Métricas de agente GapAnalyzer
+            "gaps_identified": "Número de gaps de aprendizaje identificados",
+            "provides_hints": "Si la respuesta proporciona pistas pedagógicas (1/0)",
+            "uses_scaffolding": "Si utiliza técnicas de scaffolding educativo (1/0)",
+            "suggests_practice": "Si sugiere ejercicios de práctica adicionales (1/0)",
+            
+            # Métricas de ejecución
+            "execution_time": "Tiempo de ejecución de la consulta en segundos",
+            "response_length": "Longitud de la respuesta en caracteres",
+            "question_length": "Longitud de la pregunta en caracteres",
+        }
+        
+        # Buscar comentario específico o generar uno genérico
+        if metric_name in metric_comments:
+            return metric_comments[metric_name]
+        
+        # Comentarios genéricos basados en patrones en el nombre
+        if "compliance" in metric_name:
+            return f"Métrica de cumplimiento: {metric_name}"
+        elif "score" in metric_name:
+            return f"Puntuación evaluativa: {metric_name}"
+        elif "contains" in metric_name:
+            return f"Métrica de contenido: {metric_name}"
+        elif "provides" in metric_name or "uses" in metric_name or "suggests" in metric_name:
+            return f"Métrica pedagógica: {metric_name}"
+        elif "time" in metric_name:
+            return f"Métrica de rendimiento temporal: {metric_name}"
+        elif "length" in metric_name:
+            return f"Métrica de longitud: {metric_name}"
+        elif "count" in metric_name or "queries" in metric_name:
+            return f"Métrica de conteo: {metric_name}"
+        else:
+            return f"Métrica automatizada: {metric_name}"
     
     def get_connection_status(self) -> Dict[str, Any]:
         """
