@@ -201,20 +201,20 @@ def observe_openai_call(
     try:
         from langfuse.openai import openai as langfuse_openai
         
-        # Create an observed OpenAI client
+        # Create an observed OpenAI client (no session_id in constructor)
         observed_client = langfuse_openai.OpenAI(
-            api_key=client.api_key,
+            api_key=client.api_key
+        )
+        
+        # Make the call with automatic observability, including session and metadata
+        response = observed_client.chat.completions.create(
+            model=model,
+            messages=messages,
             langfuse_session_id=session_id or f"thread_{threading.current_thread().ident}",
             langfuse_metadata={
                 "operation": operation_name,
                 **(metadata or {})
-            }
-        )
-        
-        # Make the call with automatic observability
-        response = observed_client.chat.completions.create(
-            model=model,
-            messages=messages,
+            },
             **kwargs
         )
         
