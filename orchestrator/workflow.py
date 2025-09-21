@@ -383,6 +383,7 @@ Clasifica la intención de este mensaje.""")
                 gap_result = await self._call_gap_analyzer_with_context(student_context, ctx.session_id)
                 state.agent_responses["gap_analyzer"] = gap_result["text_summary"]  # Store text for backward compatibility
                 state.gap_analysis_result = gap_result  # Store full structured result
+                state.student_context = student_context  # Store for synthesis phase
                 logger.info("Specific practical question handled successfully with KG context")
                 
             except ValueError as e:
@@ -589,7 +590,6 @@ ESTILO: Conciso, empático pero específico al ejercicio, usa español argentino
 ESTRUCTURA:
 1. Felicitación breve y genuina específica de lo que hizo bien 
 2. Refuerzo del aprendizaje logrado
-3. Motivación para continuar
 
 EVITAR: Ser excesivamente efusivo, dar información no solicitada, extenderse demasiado."""),
                     ("human", """EJERCICIO: {exercise_context}
@@ -600,7 +600,14 @@ Felicitá al estudiante por su respuesta correcta de manera específica y motiva
                 ])
                 
                 ctx = state.conversation_context
-                exercise_context = self._extract_exercise_context_from_state(state)
+                solucion=""
+                if state.student_context.exercise_context:
+                    exercise_context = state.student_context.exercise_context
+                else:
+                    exercise_context = self._extract_exercise_context_from_state(state)
+                if state.student_context.solution_context:
+                    solucion = state.student_context.solution_context
+                practice_context=state.student_context.practice_context
                 
                 formatted_prompt = congratulations_prompt.format_messages(
                     exercise_context=exercise_context,
@@ -650,15 +657,9 @@ PRINCIPIOS PEDAGÓGICOS:
 2. FRAMEWORK ESPECÍFICO: Mantener la orientación en el marco conceptual de la práctica
 3. PASOS CONCRETOS: Dar acciones específicas, no conceptos vagos
 
-ESTRUCTURA DE RESPUESTA:
-1. Reconocimiento empático del problema muy breve
-2. Orientación metodológica concreta en el framework de la práctica respecto de los gaps identificados (más importante es lo referente a los criterios de corrección, luego analizar los tips para reforzar.)
-3. Pregunta reflexiva para guiar el autodescubrimiento o Sugerencia de siguiente paso específico a realizar.
-
-EJEMPLOS DE ORIENTACIÓN:
-- "En álgebra relacional, empezá por definir exactamente qué conjuntos necesitás..."
-- "Antes de escribir SQL, dibujá qué tablas participan y qué conexión querés lograr..."
-- "Para este tipo de JOIN, preguntate: ¿qué registros quiero que queden afuera?"
+ESTRUCTURA DE RESPUESTA: 
+1. Orientación metodológica concreta en el marco de la práctica concreta respecto de los gaps identificados (más importante es lo referente a los criterios de corrección, luego analizar los tips para reforzar.)
+2. Pregunta reflexiva o sugerencias para guiar al estudiante a llegar a la respuesta sin mostrarla explícitamente.
 
 EVITAR ABSOLUTAMENTE:
 - Mostrar respuestas provistas.
@@ -667,8 +668,8 @@ EVITAR ABSOLUTAMENTE:
                 ("human", """CONTEXTO DEL EJERCICIO:
 Estudiante: {student_message}
 Materia: {subject}
-Práctica: {practice} 
 Ejercicio: {exercise_context}
+{solucion}
 
 ANÁLISIS DE GAPS IDENTIFICADOS:
 {gap_analysis}
@@ -682,9 +683,16 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
             ctx = state.conversation_context
             
             # Extract exercise and practice context from handler responses or conversation context
-            exercise_context = self._extract_exercise_context_from_state(state)
-            practice_context = self._extract_practice_context_from_state(state)
-            
+            #practice_context = self._extract_practice_context_from_state(state)
+            solucion=""
+            if state.student_context.exercise_context:
+                exercise_context = state.student_context.exercise_context
+            else:
+                exercise_context = self._extract_exercise_context_from_state(state)
+            if state.student_context.solution_context:
+                solucion = state.student_context.solution_context
+            practice_context=state.student_context.practice_context
+
             # If we have structured gap analysis results, extract them
             gap_summary = gap_analysis_response
             if not gap_summary:
@@ -693,9 +701,9 @@ Crea una respuesta pedagógica que guíe al estudiante a destrabar su situación
             formatted_prompt = synthesis_prompt.format_messages(
                 student_message=ctx.current_message,
                 subject=ctx.memory.educational_context.current_subject or "No especificada",
-                practice=f"Práctica {ctx.memory.educational_context.current_practice}" if ctx.memory.educational_context.current_practice else "Práctica no identificada",
                 exercise_context=exercise_context,
                 gap_analysis=gap_summary,
+                solucion=solucion,
                 practice_context=practice_context
             )
             

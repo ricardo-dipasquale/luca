@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any, Literal, Union
 from pydantic import BaseModel, Field
 from enum import Enum
 from datetime import datetime
-
+from gapanalyzer.schemas import StudentContext
 
 class StudentIntent(str, Enum):
     """Types of student intents that can be identified."""
@@ -190,6 +190,8 @@ class WorkflowState(BaseModel):
     retry_count: int = 0
     max_retries: int = 3
     
+    student_context: StudentContext=None
+
     class Config:
         arbitrary_types_allowed = True
 
