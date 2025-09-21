@@ -159,6 +159,88 @@ class GapAnalysisWorkflow:
         
         return "complete"
     
+    def _format_conversation_history(self, conversation_history: List) -> str:
+        """Format conversation history for prompt inclusion."""
+        if not conversation_history:
+            return "No hay historial previo"
+        
+        formatted_turns = []
+        for turn in conversation_history:
+            if hasattr(turn, 'role') and hasattr(turn, 'content'):
+                # New structured format
+                role_label = "Estudiante" if turn.role == "student" else "Tutor"
+                formatted_turns.append(f"{role_label}: {turn.content}")
+            else:
+                # Backward compatibility with old string format
+                formatted_turns.append(f"Estudiante: {turn}")
+        
+        return "\n".join(formatted_turns)
+    
+    def _add_assistant_response_to_history(self, state: WorkflowState, response_content: str) -> None:
+        """Add the assistant's response to the conversation history."""
+        from .schemas import ConversationTurn
+        
+        if state.student_context and hasattr(state.student_context, 'conversation_history'):
+            assistant_turn = ConversationTurn(
+                role="assistant",
+                content=response_content,
+                metadata={"confidence_score": state.final_result.confidence_score if state.final_result else 0.0}
+            )
+            state.student_context.conversation_history.append(assistant_turn)
+            logger.info("Added assistant response to conversation history")
+    
+    async def _generate_user_friendly_response(self, state: WorkflowState) -> Optional[str]:
+        """Generate a user-friendly response based on the gap analysis results."""
+        try:
+            if not state.final_result:
+                return None
+            
+            result = state.final_result
+            
+            # Handle case where no gaps were found (response is correct)
+            if (result.response_quality and 
+                result.response_quality.quality and 
+                result.response_quality.quality.value == "correcta"):
+                return ("¡Excelente! Tu respuesta es correcta. " + 
+                       (result.response_quality.reasoning or "Has demostrado una buena comprensión del concepto."))
+            
+            # Generate response for identified gaps
+            if result.identified_gaps:
+                response_parts = []
+                
+                # Opening based on response quality
+                if result.response_quality and result.response_quality.quality:
+                    quality = result.response_quality.quality.value
+                    if quality == "incorrecta":
+                        response_parts.append("He revisado tu respuesta y he identificado algunas áreas donde podemos mejorar.")
+                    elif quality == "parcial":
+                        response_parts.append("Tu respuesta está en el camino correcto, pero hay algunos puntos que podemos refinar.")
+                    else:
+                        response_parts.append("He analizado tu consulta y he identificado algunas oportunidades de mejora.")
+                else:
+                    response_parts.append("He analizado tu consulta y he identificado algunas oportunidades de mejora.")
+                
+                # Add summary
+                response_parts.append(result.summary)
+                
+                # Add top priority gaps
+                high_priority_gaps = [gap for gap in result.identified_gaps 
+                                    if gap.severity.value in ["critical", "high"]]
+                
+                if high_priority_gaps:
+                    response_parts.append("\nPuntos principales a revisar:")
+                    for i, gap in enumerate(high_priority_gaps[:3], 1):
+                        response_parts.append(f"{i}. {gap.title}: {gap.description}")
+                
+                return "\n".join(response_parts)
+            else:
+                # No gaps found but not marked as correct - generic response
+                return "He analizado tu consulta. " + result.summary
+                
+        except Exception as e:
+            logger.error(f"Error generating user-friendly response: {e}")
+            return "He completado el análisis de tu consulta."
+    
     async def _validate_context(self, state: WorkflowState) -> WorkflowState:
         """
         Node 1: Validate and prepare educational context.
@@ -311,7 +393,7 @@ Analizá esta pregunta e identificá los gaps de aprendizaje específicos.""")
                 theory_background=edu_ctx.theory_background or "No se recuperó teoría adicional",
                 iteration_info=iteration_info,
                 student_question=ctx.student_question,
-                conversation_history="\n".join(ctx.conversation_history) if ctx.conversation_history else "No hay historial previo"
+                conversation_history=self._format_conversation_history(ctx.conversation_history)
             )
             
             # Get LLM response (automatically observed via Langfuse callback)
@@ -548,6 +630,11 @@ Evalúa cada gap según los criterios pedagógicos.""")
             
             # Store gap analysis results in long-term memory
             await self._store_gap_analysis_memory(state)
+            
+            # Generate a user-friendly response and add to conversation history
+            user_response = await self._generate_user_friendly_response(state)
+            if user_response:
+                self._add_assistant_response_to_history(state, user_response)
             
         except Exception as e:
             logger.error(f"Error generating final response: {e}")

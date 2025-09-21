@@ -5,9 +5,10 @@ This module defines the structured data models used throughout the gap analysis 
 including input contexts, analysis results, and final gap reports.
 """
 
-from typing import List, Optional, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Literal, Union
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
+from datetime import datetime
 
 
 class GapSeverity(str, Enum):
@@ -36,13 +37,45 @@ class ResponseQuality(str, Enum):
     NO_PROVISTA = "no_provista"     # No response provided/analyzed
 
 
+class ConversationTurn(BaseModel):
+    """A single turn in the conversation."""
+    timestamp: datetime = Field(default_factory=datetime.now)
+    role: Literal["student", "assistant"] = Field(description="Who sent this message")
+    content: str = Field(description="The message content")
+    metadata: Dict[str, Any] = Field(default={}, description="Additional metadata about this turn")
+
+
 class StudentContext(BaseModel):
     """Context information about the student and their question."""
     student_question: str = Field(description="The student's original question or concern")
-    conversation_history: List[str] = Field(
+    conversation_history: List[ConversationTurn] = Field(
         default=[],
-        description="Previous messages in the conversation for context"
+        description="Previous conversation turns with roles for context"
     )
+    
+    @field_validator('conversation_history', mode='before')
+    @classmethod
+    def convert_string_history(cls, v):
+        """Convert strings in conversation_history to ConversationTurn objects for backward compatibility."""
+        if not v:
+            return []
+        
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                # Convert string to ConversationTurn - assume it's from student
+                result.append(ConversationTurn(role="student", content=item))
+            elif isinstance(item, dict):
+                # Handle dict format (from JSON)
+                result.append(ConversationTurn(**item))
+            elif hasattr(item, 'role') and hasattr(item, 'content'):
+                # Already a ConversationTurn object
+                result.append(item)
+            else:
+                # Fallback: convert to string and treat as student message
+                result.append(ConversationTurn(role="student", content=str(item)))
+        
+        return result
     subject_name: str = Field(description="Name of the subject/course")
     practice_context: str = Field(description="Complete practice context including objectives and description")
     exercise_context: str = Field(description="Specific exercise statement and requirements")
@@ -69,8 +102,18 @@ class StudentContext(BaseModel):
             "example": {
                 "student_question": "No entiendo por qué esta consulta SQL no devuelve los resultados esperados",
                 "conversation_history": [
-                    "Estoy trabajando en el ejercicio h de la práctica 2",
-                    "Mi consulta devuelve filas duplicadas"
+                    {
+                        "role": "student",
+                        "content": "Estoy trabajando en el ejercicio h de la práctica 2"
+                    },
+                    {
+                        "role": "assistant", 
+                        "content": "Te ayudo con el ejercicio h. ¿Puedes mostrarme tu consulta SQL?"
+                    },
+                    {
+                        "role": "student",
+                        "content": "Mi consulta devuelve filas duplicadas"
+                    }
                 ],
                 "subject_name": "Bases de Datos Relacionales",
                 "practice_context": "Práctica: 2 - Resolver estos ejercicios de álgebra relacional y SQL. Objetivos: Aplicar operaciones de álgebra relacional, escribir consultas SQL complejas con JOIN.",

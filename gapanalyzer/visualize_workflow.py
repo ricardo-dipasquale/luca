@@ -45,10 +45,7 @@ def create_sample_context() -> StudentContext:
     """Create a sample student context for workflow visualization."""
     return StudentContext(
         student_question="No entiendo por qué mi consulta SQL con LEFT JOIN no funciona correctamente",
-        conversation_history=[
-            "Estoy trabajando en el ejercicio 1.d de la práctica 2",
-            "Mi consulta devuelve resultados duplicados"
-        ],
+        conversation_history=[],
         subject_name="Bases de Datos Relacionales",
         practice_context="""
         Práctica: 2 - Algebra Relacional: Resolución de ejercicios en Algebra Relacional.

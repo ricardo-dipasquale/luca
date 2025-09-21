@@ -152,18 +152,18 @@ class AuthManager:
             Primer mensaje: {message}
             
             INSTRUCCIONES IMPORTANTES:
-            1. Si el mensaje menciona un ejercicio específico (ej: "ejercicio 2", "práctica 3", "punto 1.a"), inclúyelo en el título
+            1. Si el mensaje menciona un ejercicio específico (ej: "ejercicio 2", "práctica 3", "punto 1.a"), SIEMPRE inclúyelo en el título
             2. Usa abreviaciones comunes: "Álgebra Relacional" → "A.R.", "Base de Datos" → "BD"
             3. Sé específico sobre el tema si es posible
             4. Máximo 60 caracteres
             5. Responde SOLO con el título, sin comillas ni explicaciones
             
-            Ejemplos buenos:
+            Ejemplos buenos de títulos:
             - "Ejercicio 2.3 - JOIN con múltiples tablas en A.R."
             - "Práctica 1 - Normalización de BD y formas normales"
             - "LEFT JOIN vs RIGHT JOIN - diferencias y uso"
             - "Consulta σ con múltiples condiciones y operadores"
-            - "Punto 1.d - División relacional paso a paso"
+            - "Punto 1.d - Cociente de conjuntos paso a paso"
             """
             
             response = self.llm.invoke(prompt)

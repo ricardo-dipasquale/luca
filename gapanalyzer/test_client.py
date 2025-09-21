@@ -115,8 +115,18 @@ async def main() -> None:
         student_context_json = '''{
             "student_question": "No entiendo por qué mi consulta SQL con LEFT JOIN no me trae los clientes que no han comprado nada",
             "conversation_history": [
-                "Estoy trabajando en el ejercicio 1.d de la práctica 2",
-                "Mi consulta devuelve filas duplicadas y no los resultados esperados"
+                {
+                    "role": "student",
+                    "content": "Estoy trabajando en el ejercicio 1.d de la práctica 2"
+                },
+                {
+                    "role": "assistant",
+                    "content": "Te ayudo con el ejercicio 1.d. ¿Podrías mostrarme tu consulta actual?"
+                },
+                {
+                    "role": "student",
+                    "content": "Mi consulta devuelve filas duplicadas y no los resultados esperados"
+                }
             ],
             "subject_name": "Bases de Datos Relacionales",
             "practice_context": "Práctica: 2 - Algebra Relacional: Resolución de ejercicios en Algebra Relacional. Existen preguntas conceptuales que están relacionados. Objetivo: Que los alumnos sean capaces de resolver situaciones problemáticas con álgebra relacional utilizando los preceptos dados en clase. Temas cubiertos: - Modelo Relacional - Algebra relacional: Operaciones, Práctica - Lenguajes relacionalmente completos - Consultas Algebra relacional",
