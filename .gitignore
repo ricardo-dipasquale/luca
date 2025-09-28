@@ -184,3 +184,6 @@ db/langfuse*/*
 .vscode/settings.json
 agent-test/results/*/*
 agent-test/results/runs_index.json
+conversaciones_luca.xlsx
+conversaciones_visitante.xlsx
+usuarios-luca.xlsx
