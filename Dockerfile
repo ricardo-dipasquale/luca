@@ -22,25 +22,23 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the entire application
 COPY . .
 
-# Create non-root user for security
-RUN groupadd -r luca && useradd -r -g luca luca
-RUN chown -R luca:luca /app
-USER luca
+# Note: Running as root in Docker container for SSL support
+# In production, consider using a reverse proxy like nginx for SSL termination
 
 # Set environment variables for Flask
 ENV FLASK_ENV=production
 ENV FLASK_SECRET_KEY=production-secret-key-change-me
 ENV PYTHONPATH=/app
 
-# Health check
+# Health check (supports both HTTP and HTTPS)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/ || exit 1
+    CMD curl -f -k https://localhost:443/ || curl -f http://localhost:5000/ || exit 1
 
-# Expose port
-EXPOSE 5000
+# Expose ports for both HTTP and HTTPS
+EXPOSE 5000 443
 
 # Set the working directory to frontend for proper imports
 WORKDIR /app/frontend
 
 # Command to run the application
-CMD ["python", "run.py"]
+CMD ["python", "docker_run.py"]

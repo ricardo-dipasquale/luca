@@ -24,10 +24,13 @@ from .rate_limiting import RateLimitingGuardrail
 
 # Import Langfuse for observability
 try:
-    from tools.observability import get_langfuse_client
+    from tools.observability import get_langfuse_client, is_langfuse_enabled
     LANGFUSE_AVAILABLE = True
 except ImportError:
     LANGFUSE_AVAILABLE = False
+
+    def is_langfuse_enabled():
+        return False
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,7 @@ class EducationalGuardrailLayer:
         self.langfuse_client = None
         
         # Try to initialize Langfuse client if available and enabled
-        if LANGFUSE_AVAILABLE and self.config.enable_langfuse_logging:
+        if LANGFUSE_AVAILABLE and self.config.enable_langfuse_logging and is_langfuse_enabled():
             try:
                 self.langfuse_client = get_langfuse_client()
                 # Test that the client works by checking if it has the required methods

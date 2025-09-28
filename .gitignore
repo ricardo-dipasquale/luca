@@ -187,3 +187,5 @@ agent-test/results/runs_index.json
 conversaciones_luca.xlsx
 conversaciones_visitante.xlsx
 usuarios-luca.xlsx
+ssl/luca.crt
+ssl/luca.key

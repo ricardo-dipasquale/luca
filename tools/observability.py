@@ -21,43 +21,70 @@ _client_lock = threading.Lock()
 def get_langfuse_client():
     """
     Get or create a shared Langfuse client instance.
-    
+
     Returns:
-        Langfuse client instance or None if not configured
+        Langfuse client instance or None if not configured or disabled
     """
     global _langfuse_client
-    
+
+    # Check if Langfuse is explicitly disabled
+    langfuse_enabled = os.getenv('LANGFUSE_ENABLED', 'true').lower() in ('true', '1', 'yes', 'on')
+
+    if not langfuse_enabled:
+        logger.info("Langfuse observability is disabled by LANGFUSE_ENABLED environment variable")
+        return None
+
     if _langfuse_client is None:
         with _client_lock:
             if _langfuse_client is None:
                 try:
                     from langfuse import Langfuse
-                    
+
                     # Get configuration from environment
                     host = os.getenv('LANGFUSE_HOST')
                     public_key = os.getenv('LANGFUSE_PUBLIC_KEY')
                     secret_key = os.getenv('LANGFUSE_SECRET_KEY')
-                    
+
                     if not all([host, public_key, secret_key]):
-                        logger.warning("Langfuse not configured - missing environment variables")
+                        logger.warning("Langfuse not configured - missing environment variables (LANGFUSE_HOST, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY)")
                         return None
-                    
+
                     _langfuse_client = Langfuse(
                         host=host,
                         public_key=public_key,
                         secret_key=secret_key
                     )
-                    
+
                     logger.info("Langfuse client initialized successfully")
-                    
+
                 except ImportError:
                     logger.warning("Langfuse not available - install langfuse package")
                     return None
                 except Exception as e:
                     logger.error(f"Failed to initialize Langfuse client: {e}")
                     return None
-    
+
     return _langfuse_client
+
+
+def is_langfuse_enabled() -> bool:
+    """
+    Check if Langfuse observability is enabled.
+
+    Returns:
+        bool: True if Langfuse is enabled and configured, False otherwise
+    """
+    langfuse_enabled = os.getenv('LANGFUSE_ENABLED', 'true').lower() in ('true', '1', 'yes', 'on')
+
+    if not langfuse_enabled:
+        return False
+
+    # Also check if we have the required configuration
+    host = os.getenv('LANGFUSE_HOST')
+    public_key = os.getenv('LANGFUSE_PUBLIC_KEY')
+    secret_key = os.getenv('LANGFUSE_SECRET_KEY')
+
+    return all([host, public_key, secret_key])
 
 
 def observe_llm_call(
