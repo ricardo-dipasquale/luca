@@ -1,6 +1,6 @@
 [project]
 name = "luca-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "LUCA - Educational AI Assistant with Multi-Agent Architecture"
 readme = "README.md"
 license = {text = "MIT"}
@@ -23,26 +23,27 @@ classifiers = [
 requires-python = ">=3.12"
 dependencies = [
     # Core framework
-    "a2a-sdk==0.2.8",
+    # a2a-sdk 1.x has breaking API changes (A2AStarletteApplication removed, proto types restructured)
+    "a2a-sdk>=0.2.8,<1.0",
     "click>=8.1.8",
     "httpx>=0.28.1",
     "pydantic>=2.10.6",
     "python-dotenv>=1.1.0",
     "uvicorn>=0.34.2",
-    
+
     # AI and LLM
-    "langchain>=0.3.0",
-    "langgraph>=0.3.18",
-    "langchain-openai>=0.1.0",
-    "openai>=1.0.0",
-    
+    "langchain>=1.4.3",
+    "langgraph>=1.2.12",
+    "langchain-openai>=1.6.7",
+    "openai>=2.45.0",
+
     # Database
     "neo4j>=5.0.0",
-    "pandas>=2.0.0",
+    "pandas>=3.0.0",
     "openpyxl>=3.0.0",
-    
+
     # Observability
-    "langfuse>=2.0.0",
+    "langfuse>=4.0.0",
     
     # Frontend
     "flask>=2.3.0",
