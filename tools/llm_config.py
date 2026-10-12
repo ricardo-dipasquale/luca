@@ -9,7 +9,10 @@ for different use cases.
 import os
 import logging
 from typing import Optional, Dict, Any
+
+import httpx
 from langchain_openai import ChatOpenAI
+from openai import DefaultAsyncHttpxClient
 from langchain_core.language_models import BaseLanguageModel
 
 logger = logging.getLogger(__name__)
@@ -75,6 +78,12 @@ def chat_completion_params(model: str, temperature: Optional[float], max_tokens:
     return params
 
 
+def _async_http_client() -> DefaultAsyncHttpxClient:
+    # Flask runs each request in its own asyncio.run(). Pooled keep-alive connections stay bound
+    # to the loop that opened them, so the next request would pick a dead one ("Event loop is closed").
+    return DefaultAsyncHttpxClient(limits=httpx.Limits(max_keepalive_connections=0))
+
+
 def create_default_llm(**kwargs) -> BaseLanguageModel:
     """
     Create a default LLM instance using environment configuration.
@@ -101,6 +110,7 @@ def create_default_llm(**kwargs) -> BaseLanguageModel:
                 model=config["model"],
                 api_key=config["api_key"],
                 temperature=temperature_for(config["model"], config["temperature"]),
+                http_async_client=_async_http_client(),
                 max_tokens=config["max_tokens"],
                 timeout=config["timeout"]
             )
@@ -136,6 +146,7 @@ def create_openai_llm(
         model=model,
         api_key=config["api_key"],
         temperature=temperature_for(model, temperature if temperature is not None else config["temperature"]),
+        http_async_client=_async_http_client(),
         max_tokens=config["max_tokens"],
         timeout=config["timeout"],
         **kwargs
