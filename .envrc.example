@@ -6,9 +6,9 @@ export NEO4J_PASSWORD="CHANGEME"
 export OPENAI_API_KEY="CHANGEME"
 
 # Default LLM Configuration for Agents
-export DEFAULT_LLM_MODEL="gpt-4o-mini"  # OpenAI's efficient model
+export DEFAULT_LLM_MODEL="gpt-6-luna"
 export DEFAULT_LLM_PROVIDER="openai"    # Provider: currently only OpenAI supported
-export DEFAULT_LLM_TEMPERATURE="0.1"    # Low temperature for consistent responses
+export DEFAULT_LLM_TEMPERATURE="0.1"    # Ignorada por gpt-6-* y o-series (solo aceptan 1)
 
 export GRAPHBUILDER_URI="http://127.0.0.1:8000/chat_bot"
 

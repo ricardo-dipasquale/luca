@@ -365,10 +365,12 @@ def create_observed_llm():
         # Try creating LLM without callbacks as fallback
         try:
             from langchain_openai import ChatOpenAI
+            from tools.llm_config import DEFAULT_MODEL, temperature_for
+            model = os.getenv("DEFAULT_LLM_MODEL", DEFAULT_MODEL)
             return ChatOpenAI(
-                model=os.getenv("DEFAULT_LLM_MODEL", "gpt-4o-mini"),
+                model=model,
                 api_key=os.getenv("OPENAI_API_KEY"),
-                temperature=float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.1"))
+                temperature=temperature_for(model, float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.1"))),
             )
         except Exception as fallback_error:
             logger.error(f"Even simple LLM creation failed: {fallback_error}")
@@ -378,10 +380,12 @@ def create_observed_llm():
         # Final fallback - create basic LLM
         try:
             from langchain_openai import ChatOpenAI
+            from tools.llm_config import DEFAULT_MODEL, temperature_for
+            model = os.getenv("DEFAULT_LLM_MODEL", DEFAULT_MODEL)
             return ChatOpenAI(
-                model=os.getenv("DEFAULT_LLM_MODEL", "gpt-4o-mini"),
+                model=model,
                 api_key=os.getenv("OPENAI_API_KEY"),
-                temperature=float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.1"))
+                temperature=temperature_for(model, float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.1"))),
             )
         except Exception as fallback_error:
             logger.error(f"Final fallback LLM creation failed: {fallback_error}")

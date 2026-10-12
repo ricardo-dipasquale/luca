@@ -23,6 +23,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from orchestrator.agent_executor import OrchestratorAgentExecutor
+from course.practices import get_practice_repository
 from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, increment_message_count, add_message_to_conversation, get_conversation_messages, delete_conversation
 from utils import get_subjects as load_subjects
 
@@ -42,6 +43,9 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 app.json = Neo4jJSONProvider(app)  # Use custom JSON provider
 CORS(app)
+
+# Fail at startup rather than on the first page load if `python -m ingest` hasn't run.
+get_practice_repository()
 
 # Global orchestrator instance (shared across requests for session persistence)
 orchestrator = OrchestratorAgentExecutor()

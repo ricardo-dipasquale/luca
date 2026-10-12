@@ -175,11 +175,12 @@ def _get_fallback_theoretical_content(topic_description: str) -> str:
     import threading
     from openai import OpenAI
     from .observability import observe_openai_call
-    
+    from .llm_config import DEFAULT_MODEL, chat_completion_params
+
     try:
         # Get configuration from environment
         api_key = os.getenv('OPENAI_API_KEY')
-        model = os.getenv('DEFAULT_LLM_MODEL', 'gpt-4o-mini')
+        model = os.getenv('DEFAULT_LLM_MODEL', DEFAULT_MODEL)
         temperature = float(os.getenv('DEFAULT_LLM_TEMPERATURE', '0.1'))
         
         if not api_key:
@@ -209,10 +210,11 @@ Mantené la respuesta en español argentino y sé específico pero breve."""
         session_id = f"theoretical_content_{thread_id}"
         
         # Make observed API call
+        params = chat_completion_params(model, temperature, max_tokens=300)
         response = observe_openai_call(
             client=client,
             messages=messages,
-            model=model,
+            model=params.pop("model"),
             operation_name="theoretical_content_fallback",
             session_id=session_id,
             metadata={
@@ -220,8 +222,7 @@ Mantené la respuesta en español argentino y sé específico pero breve."""
                 "source": "fallback_llm",
                 "tool": "get_theoretical_content"
             },
-            temperature=temperature,
-            max_tokens=300
+            **params,
         )
         
         content = response.choices[0].message.content.strip()

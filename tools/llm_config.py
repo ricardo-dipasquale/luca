@@ -14,9 +14,10 @@ from langchain_core.language_models import BaseLanguageModel
 
 logger = logging.getLogger(__name__)
 
-# NOTE: Temporarily commenting out Pydantic fix due to compatibility issues
-# This may require updating LangChain/OpenAI packages in the project
-# For now, observability will gracefully fall back to unobserved LLMs
+DEFAULT_MODEL = "gpt-6-luna"
+
+# These models reject any temperature other than the default (1) with a 400.
+_DEFAULT_TEMPERATURE_ONLY = ("gpt-6", "o1", "o3", "o4")
 
 
 class LLMConfigError(Exception):
@@ -35,7 +36,7 @@ def get_default_llm_config() -> Dict[str, Any]:
         LLMConfigError: If required environment variables are missing
     """
     config = {
-        "model": os.getenv("DEFAULT_LLM_MODEL", "gpt-4o-mini"),
+        "model": os.getenv("DEFAULT_LLM_MODEL", DEFAULT_MODEL),
         "provider": os.getenv("DEFAULT_LLM_PROVIDER", "openai"),
         "temperature": float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.1")),
         "api_key": None,
@@ -58,6 +59,20 @@ def get_default_llm_config() -> Dict[str, Any]:
         raise LLMConfigError(f"Unsupported LLM provider: {config['provider']}. Supported providers: openai, anthropic")
     
     return config
+
+
+def temperature_for(model: str, temperature: Optional[float]) -> Optional[float]:
+    """None means "don't send it", so the API uses the model's default."""
+    return None if model.startswith(_DEFAULT_TEMPERATURE_ONLY) else temperature
+
+
+def chat_completion_params(model: str, temperature: Optional[float], max_tokens: int) -> Dict[str, Any]:
+    """Model/sampling kwargs for a raw client.chat.completions.create call."""
+    params: Dict[str, Any] = {"model": model, "max_completion_tokens": max_tokens}
+    temperature = temperature_for(model, temperature)
+    if temperature is not None:
+        params["temperature"] = temperature
+    return params
 
 
 def create_default_llm(**kwargs) -> BaseLanguageModel:
@@ -85,7 +100,7 @@ def create_default_llm(**kwargs) -> BaseLanguageModel:
             return ChatOpenAI(
                 model=config["model"],
                 api_key=config["api_key"],
-                temperature=config["temperature"],
+                temperature=temperature_for(config["model"], config["temperature"]),
                 max_tokens=config["max_tokens"],
                 timeout=config["timeout"]
             )
@@ -115,11 +130,12 @@ def create_openai_llm(
         Configured ChatOpenAI instance
     """
     config = get_default_llm_config()
-    
+    model = model or config["model"]
+
     return ChatOpenAI(
-        model=model or config["model"],
+        model=model,
         api_key=config["api_key"],
-        temperature=temperature if temperature is not None else config["temperature"],
+        temperature=temperature_for(model, temperature if temperature is not None else config["temperature"]),
         max_tokens=config["max_tokens"],
         timeout=config["timeout"],
         **kwargs
@@ -137,6 +153,7 @@ def get_available_models() -> Dict[str, list]:
     """
     return {
         "openai": [
+            "gpt-6-luna",
             "gpt-4o",           # Most capable model
             "gpt-4o-mini",      # Efficient, fast model (recommended default)
             "gpt-4-turbo",      # High performance model

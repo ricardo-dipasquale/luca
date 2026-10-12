@@ -8,6 +8,8 @@ import logging
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
+from tools.llm_config import DEFAULT_MODEL, chat_completion_params
+
 from .schemas import (
     GuardrailResult, 
     GuardrailViolation, 
@@ -29,6 +31,7 @@ class EducationalContextGuardrail:
         
         # Initialize OpenAI for educational relevance assessment
         self.openai_client = None
+        self.model = os.getenv("DEFAULT_LLM_MODEL", DEFAULT_MODEL)
         if os.getenv("OPENAI_API_KEY"):
             try:
                 self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -297,10 +300,8 @@ Responde en formato JSON:
 """
             
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=200
+                **chat_completion_params(self.model, temperature=0.1, max_tokens=200),
             )
             
             # Parse JSON response
@@ -358,10 +359,8 @@ Responde en JSON:
 """
             
             response_eval = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=200
+                **chat_completion_params(self.model, temperature=0.1, max_tokens=200),
             )
             
             import json

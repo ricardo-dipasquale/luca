@@ -192,3 +192,6 @@ ssl/luca.key
 
 # Salida de python -m ingest
 artifacts/
+
+# Claves privadas (p. ej. luca.pem para AWS)
+*.pem
