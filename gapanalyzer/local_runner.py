@@ -15,7 +15,7 @@ from uuid import uuid4
 
 from gapanalyzer.agent import GapAnalyzerAgent
 from gapanalyzer.schemas import StudentContext
-from kg import KGConnection, KGQueryInterface
+from course.practices import get_practice_repository
 
 
 # Configure logging
@@ -34,49 +34,32 @@ class LocalGapAnalyzerRunner:
         try:
             self.agent = GapAnalyzerAgent()
             self.context_id = str(uuid4())
-            # Initialize KG interface for data retrieval
-            self.kg_connection = KGConnection()
-            self.kg_interface = KGQueryInterface(self.kg_connection)
-            logger.info("GapAnalyzer agent and KG interface initialized successfully")
+            self.practices = get_practice_repository()
+            logger.info("GapAnalyzer agent and practice data initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize agent or KG interface: {e}")
+            logger.error(f"Failed to initialize agent or practice data: {e}")
             raise
-    
-    def close(self):
-        """Close KG connection and cleanup resources."""
-        try:
-            if hasattr(self, 'kg_connection'):
-                self.kg_connection.close()
-                logger.info("KG connection closed successfully")
-        except Exception as e:
-            logger.error(f"Error closing KG connection: {e}")
-    
-    def create_context_from_kg(self, question: str, practice_number: int, section_number: str, exercise_identifier: str) -> StudentContext:
+
+    def create_practice_context(self, question: str, practice_number: int, section_number: str, exercise_identifier: str) -> StudentContext:
         """
-        Create a StudentContext using knowledge graph data.
-        
+        Create a StudentContext from the ingested practice data.
+
         Args:
             question: Student's question
             practice_number: Practice number
-            section_number: Section number (string, e.g., "1", "2")  
+            section_number: Section number (string, e.g., "1", "2")
             exercise_identifier: Exercise identifier (string, e.g., 'd', 'a', 'b')
-            
-        Returns:
-            StudentContext built from knowledge graph data
         """
         try:
-            # Get practice details
-            practice_details = self.kg_interface.get_practice_details(practice_number)
+            practice_details = self.practices.get_practice_details(practice_number)
             if not practice_details:
-                raise ValueError(f"Practice {practice_number} not found in knowledge graph")
-            
-            # Get exercise details
-            exercise_details = self.kg_interface.get_exercise_details(practice_number, section_number, exercise_identifier)
+                raise ValueError(f"Practice {practice_number} not found in practice data")
+
+            exercise_details = self.practices.get_exercise_details(practice_number, section_number, exercise_identifier)
             if not exercise_details:
-                raise ValueError(f"Exercise {practice_number}.{section_number}.{exercise_identifier} not found in knowledge graph")
-            
-            # Get tips for the specific practice, section, and exercise
-            practice_tips = self.kg_interface.get_practice_tips(practice_number, section_number, exercise_identifier)
+                raise ValueError(f"Exercise {practice_number}.{section_number}.{exercise_identifier} not found in practice data")
+
+            practice_tips = self.practices.get_practice_tips(practice_number, section_number, exercise_identifier)
             
             # Build subject name from practice details
             subject_name = practice_details["subjects"][0] if practice_details["subjects"] else "Materia Desconocida"
@@ -106,7 +89,7 @@ class LocalGapAnalyzerRunner:
             if exercise_details["answers"]:
                 solution_context = f"Soluciones esperadas:\n" + "\n".join([f"- {answer}" for answer in exercise_details["answers"]])
             else:
-                solution_context = "No se encontraron soluciones en el grafo de conocimiento"
+                solution_context = "No hay soluciones esperadas cargadas para este ejercicio"
             
             # Build tips context
             tips_context_parts = []
@@ -311,21 +294,15 @@ async def main():
             print(f"❌ Error: {e}")
             sys.exit(1)
         
-        # Initialize runner and create context from KG
         print(f"🔍 Inicializando análisis para práctica {practice_number}, ejercicio {exercise_code}")
         print(f"📝 Pregunta: {question}")
         print("-" * 50)
-        
-        runner = None
-        try:
-            runner = LocalGapAnalyzerRunner()
-            context = runner.create_context_from_kg(question, practice_number, section_num, exercise_id)
-            result = await runner.run_analysis(context)
-            runner.print_result(result)
-        finally:
-            if runner:
-                runner.close()
-            
+
+        runner = LocalGapAnalyzerRunner()
+        context = runner.create_practice_context(question, practice_number, section_num, exercise_id)
+        result = await runner.run_analysis(context)
+        runner.print_result(result)
+
     except KeyboardInterrupt:
         print("\n\n👋 Análisis interrumpido por el usuario")
     except Exception as e:

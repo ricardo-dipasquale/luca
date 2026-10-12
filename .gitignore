@@ -189,3 +189,6 @@ conversaciones_visitante.xlsx
 usuarios-luca.xlsx
 ssl/luca.crt
 ssl/luca.key
+
+# Salida de python -m ingest
+artifacts/

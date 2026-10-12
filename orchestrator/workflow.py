@@ -18,7 +18,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from tools import get_kg_tools, create_default_llm
 from tools.observability import create_observed_llm
-from tools.kg_tools import get_kg_interface
+from course.practices import get_practice_repository
 from kg.persistence import create_neo4j_persistence
 from .schemas import (
     WorkflowState,
@@ -370,7 +370,7 @@ Clasifica la intención de este mensaje.""")
             
             # Create context from KG using extracted parameters
             try:
-                student_context = await self._create_context_from_kg(
+                student_context = await self._create_practice_context(
                     question=ctx.current_message,
                     subject_name=educational_params["subject_name"],
                     practice_number=educational_params["practice_number"],
@@ -1107,50 +1107,35 @@ Extrae los parámetros educativos del ejercicio al que se refiere el estudiante:
             logger.error(f"Error in LLM-based educational parameter extraction: {e}")
             return None
     
-    async def _create_context_from_kg(
-        self, 
-        question: str, 
+    async def _create_practice_context(
+        self,
+        question: str,
         subject_name: str,
-        practice_number: int, 
-        section_number: str, 
+        practice_number: int,
+        section_number: str,
         exercise_identifier: str,
         conversation_history: List[str]
     ) -> 'StudentContext':
         """
-        Create a StudentContext using knowledge graph data.
-        
-        Args:
-            question: Student's question
-            subject_name: Subject name
-            practice_number: Practice number
-            section_number: Section number (string)
-            exercise_identifier: Exercise identifier (string)
-            conversation_history: Recent conversation history
-            
-        Returns:
-            StudentContext built from knowledge graph data
-            
+        Create a StudentContext from the ingested practice data.
+
         Raises:
-            ValueError: If practice/exercise not found in KG
+            ValueError: If practice/exercise is not in the practice data
         """
         from gapanalyzer.schemas import StudentContext
-        
+
         try:
-            # Initialize KG interface
-            kg_interface = get_kg_interface()
-            
-            # Get practice details
-            practice_details = kg_interface.get_practice_details(practice_number)
+            practices = get_practice_repository()
+
+            practice_details = practices.get_practice_details(practice_number)
             if not practice_details:
-                raise ValueError(f"Práctica {practice_number} no encontrada en el grafo de conocimiento")
-            
-            # Get exercise details
-            exercise_details = kg_interface.get_exercise_details(practice_number, section_number, exercise_identifier)
+                raise ValueError(f"Práctica {practice_number} no encontrada en los datos de prácticas")
+
+            exercise_details = practices.get_exercise_details(practice_number, section_number, exercise_identifier)
             if not exercise_details:
-                raise ValueError(f"Ejercicio {practice_number}.{section_number}.{exercise_identifier} no encontrado en el grafo de conocimiento")
-            
-            # Get tips for the specific practice, section, and exercise
-            practice_tips = kg_interface.get_practice_tips(practice_number, section_number, exercise_identifier)
+                raise ValueError(f"Ejercicio {practice_number}.{section_number}.{exercise_identifier} no encontrado en los datos de prácticas")
+
+            practice_tips = practices.get_practice_tips(practice_number, section_number, exercise_identifier)
             
             # Build practice context
             practice_context_parts = []
@@ -1179,8 +1164,8 @@ Extrae los parámetros educativos del ejercicio al que se refiere el estudiante:
             if exercise_details["answers"]:
                 solution_context = f"Soluciones esperadas:\n" + "\n".join([f"- {answer}" for answer in exercise_details["answers"]])
             else:
-                solution_context = "No se encontraron soluciones en el grafo de conocimiento"
-            
+                solution_context = "No hay soluciones esperadas cargadas para este ejercicio"
+
             # Build tips context
             tips_context_parts = []
             if practice_tips:
@@ -1207,7 +1192,7 @@ Extrae los parámetros educativos del ejercicio al que se refiere el estudiante:
             
             tips_context = "\n".join(tips_context_parts) if tips_context_parts else "No se encontraron tips específicos para este ejercicio"
             
-            logger.info(f"Successfully built context from KG for practice {practice_number}, exercise {section_number}.{exercise_identifier}")
+            logger.info(f"Built practice context for practice {practice_number}, exercise {section_number}.{exercise_identifier}")
             
             return StudentContext(
                 student_question=question,
@@ -1220,7 +1205,7 @@ Extrae los parámetros educativos del ejercicio al que se refiere el estudiante:
             )
             
         except Exception as e:
-            logger.error(f"Failed to create context from KG: {e}")
+            logger.error(f"Failed to create practice context: {e}")
             raise ValueError(str(e))
     
     async def _call_gap_analyzer_with_context(self, student_context: 'StudentContext', session_id: str) -> Dict[str, Any]:

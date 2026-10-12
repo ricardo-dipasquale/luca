@@ -24,7 +24,7 @@ sys.path.insert(0, str(project_root))
 
 from orchestrator.agent_executor import OrchestratorAgentExecutor
 from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, increment_message_count, add_message_to_conversation, get_conversation_messages, delete_conversation
-from utils import get_subjects_from_kg
+from utils import get_subjects as load_subjects
 
 
 class Neo4jJSONProvider(DefaultJSONProvider):
@@ -76,7 +76,7 @@ def add_security_headers(response):
 def index():
     """Main chat interface."""
     # Get subjects for dropdown
-    subjects = get_subjects_from_kg()
+    subjects = load_subjects()
     user_email = session.get('user_email', '')
     conversations = get_user_conversations(user_email)
     
@@ -311,7 +311,7 @@ def create_new_conversation():
 @require_auth
 def get_subjects():
     """Get available subjects."""
-    subjects = get_subjects_from_kg()
+    subjects = load_subjects()
     return jsonify(subjects)
 
 @app.route('/conversations/<conversation_id>/messages')

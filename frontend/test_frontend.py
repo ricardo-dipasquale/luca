@@ -54,10 +54,10 @@ def test_utils():
     print("\n🛠 Testing Utilities...")
     
     try:
-        from utils import get_subjects_from_kg, format_timestamp, validate_email
+        from utils import get_subjects, format_timestamp, validate_email
         
         # Test subject loading
-        subjects = get_subjects_from_kg()
+        subjects = get_subjects()
         print(f"✅ Loaded {len(subjects)} subjects: {subjects[:3]}...")
         
         # Test email validation

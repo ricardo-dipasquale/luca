@@ -1,0 +1,159 @@
+"""Parity of ingest/practicas + course/practices against a snapshot of the old Neo4j KG output."""
+
+import json
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from course.practices import PracticeRepository
+from ingest.__main__ import main as ingest_main
+from ingest.practicas import IngestValidationError, build_practicas, run
+
+SNAPSHOT = json.loads((Path(__file__).parent / "fixtures" / "kg_snapshot.json").read_text())
+CONTENT = Path(__file__).resolve().parent.parent / "content"
+PROGRAMA_COLS = {
+    "Cabecera": ["Materia", "Carrera", "Profesor"],
+    "Objetivos": ["Objetivo"],
+    "UnidadesTematicas": ["Numero", "Titulo"],
+    "Temas": ["Tema", "NumeroUnidadTematica", "Apunte Relacionado"],
+}
+ENUNCIADO_COLS = ["Tipo", "NumeroPractica", "Seccion", "Ejercicio", "Enunciado", "Respuesta", "Tips Nivel Ejercicio"]
+
+
+def _write_xlsx(path: Path, sheets: dict[str, list[dict]], columns: dict[str, list[str]]) -> Path:
+    with pd.ExcelWriter(path) as w:
+        for name, rows in sheets.items():
+            pd.DataFrame(rows, columns=columns.get(name)).to_excel(w, sheet_name=name, index=False)
+    return path
+
+
+def _programa(tmp_path: Path, topics: list[str]) -> Path:
+    return _write_xlsx(tmp_path / "Programa.xlsx", {
+        "Cabecera": [{"Materia": SNAPSHOT["subjects"][0]["name"], "Carrera": "Ingeniería", "Profesor": "['A', 'B']"}],
+        "Objetivos": [{"Objetivo": "Objetivo 1"}],
+        "UnidadesTematicas": [{"Numero": 1, "Titulo": "Unidad 1"}],
+        "Temas": [{"Tema": t, "NumeroUnidadTematica": 1, "Apunte Relacionado": None} for t in topics],
+    }, PROGRAMA_COLS)
+
+
+def _practicas_from_snapshot(tmp_path: Path) -> Path:
+    """Rebuild the practices workbook, in the layout db/create_kg.py read, from the KG snapshot."""
+    cabecera, tips_practica, enunciado = [], [], []
+    for num, p in SNAPSHOT["practices"].items():
+        d = p["details"]
+        cabecera.append({"NumeroPractica": int(num), "Titulo": d["name"], "Descripcion": d["description"],
+                         "Objetivos": d["objectives"], "Teoria Relacionada": str(d["topics"])})
+        tips_practica += [{"NumeroPractica": int(num), "Tip": t["tip_text"]} for t in p["tips_practice_only"]]
+        seen_sections = set()
+        for ex in p["exercises"].values():
+            e = ex["details"]
+            sec = e["section_number"]
+            if sec not in seen_sections:
+                seen_sections.add(sec)
+                sec_tips = [t["tip_text"] for t in p["section_tips"][sec] if t["level"] == "section"]
+                enunciado.append({"Tipo": "S", "NumeroPractica": int(num), "Seccion": int(sec),
+                                  "Enunciado": e["section_statement"],
+                                  "Tips Nivel Ejercicio": str(sec_tips) if sec_tips else None})
+            ex_tips = [t["tip_text"] for t in ex["tips"] if t["level"] == "exercise"]
+            answers = e["answers"]
+            enunciado.append({"Tipo": "E", "NumeroPractica": int(num), "Seccion": int(sec),
+                              "Ejercicio": e["exercise_number"], "Enunciado": e["exercise_statement"],
+                              "Respuesta": answers[0] if len(answers) == 1 else json.dumps(answers),
+                              "Tips Nivel Ejercicio": str(ex_tips) if ex_tips else None})
+    return _write_xlsx(tmp_path / "Prácticas Bases de Datos.xlsx", {
+        "Cabecera": cabecera, "TipsNivelPractica": tips_practica, "Enunciado": enunciado,
+    }, {"Enunciado": ENUNCIADO_COLS})
+
+
+def _sorted_tips(tips: list[dict]) -> list[tuple]:
+    return sorted((t["level"], t["section_number"] or "", t["exercise_number"] or "", t["tip_text"]) for t in tips)
+
+
+def _assert_parity(repo: PracticeRepository) -> None:
+    assert [s["name"] for s in repo.get_subjects()] == [s["name"] for s in SNAPSHOT["subjects"]]
+    for num, p in SNAPSHOT["practices"].items():
+        n = int(num)
+        got, want = repo.get_practice_details(n), p["details"]
+        assert {**got, "topics": sorted(got["topics"])} == {**want, "topics": sorted(want["topics"])}
+        assert _sorted_tips(repo.get_practice_tips(n)) == _sorted_tips(p["tips_practice_only"])
+        for sec, tips in p["section_tips"].items():
+            assert _sorted_tips(repo.get_practice_tips(n, sec)) == _sorted_tips(tips), f"tips sección {sec}"
+        for key, ex in p["exercises"].items():
+            sec, ej = key.split(".", 1)
+            assert repo.get_exercise_details(n, sec, ej) == ex["details"], key
+            assert _sorted_tips(repo.get_practice_tips(n, sec, ej)) == _sorted_tips(ex["tips"]), key
+
+
+@pytest.fixture
+def repo_from_snapshot(tmp_path: Path) -> PracticeRepository:
+    topics = next(iter(SNAPSHOT["practices"].values()))["details"]["topics"]
+    out = tmp_path / "practicas.json"
+    run(_programa(tmp_path, topics), _practicas_from_snapshot(tmp_path), out)
+    return PracticeRepository(out)
+
+
+def test_parity_with_kg_snapshot(repo_from_snapshot):
+    _assert_parity(repo_from_snapshot)
+
+
+@pytest.mark.skipif(not (CONTENT / "Prácticas Bases de Datos.xlsx").exists(), reason="faltan los originales en content/")
+def test_parity_real_sources(tmp_path):
+    out = tmp_path / "practicas.json"
+    run(CONTENT / "Programa.xlsx", CONTENT / "Prácticas Bases de Datos.xlsx", out)
+    _assert_parity(PracticeRepository(out))
+
+
+def test_unknown_ids_return_none(repo_from_snapshot):
+    assert repo_from_snapshot.get_practice_details(99) is None
+    assert repo_from_snapshot.get_exercise_details(2, "1", "zz") is None
+    assert repo_from_snapshot.get_exercise_details(2, "99", "a") is None
+    assert repo_from_snapshot.get_practice_tips(99) == []
+
+
+def test_missing_artifact_points_to_ingest(tmp_path):
+    with pytest.raises(FileNotFoundError, match="python -m ingest"):
+        PracticeRepository(tmp_path / "nope.json")
+
+
+def _practicas_xlsx(tmp_path: Path, enunciado: list[dict], tips: list[dict] = ()) -> Path:
+    return _write_xlsx(tmp_path / "p.xlsx", {
+        "Cabecera": [{"NumeroPractica": 1, "Titulo": "T", "Descripcion": "D", "Objetivos": "O", "Teoria Relacionada": "[]"}],
+        "TipsNivelPractica": list(tips) or [{"NumeroPractica": 1, "Tip": "tip"}],
+        "Enunciado": enunciado,
+    }, {"Enunciado": ENUNCIADO_COLS})
+
+
+def test_exercise_without_section_reports_sheet_and_row(tmp_path):
+    xlsx = _practicas_xlsx(tmp_path, [
+        {"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 2, "Ejercicio": "a", "Enunciado": "E", "Respuesta": "R"},
+    ])
+    with pytest.raises(IngestValidationError, match=r"hoja 'Enunciado', fila 3"):
+        build_practicas(_programa(tmp_path, []), xlsx)
+
+
+def test_tip_for_unknown_practice_is_an_error(tmp_path):
+    xlsx = _practicas_xlsx(tmp_path, [{"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"}],
+                           tips=[{"NumeroPractica": 7, "Tip": "x"}])
+    with pytest.raises(IngestValidationError, match="práctica 7"):
+        build_practicas(_programa(tmp_path, []), xlsx)
+
+
+def test_cell_normalization_and_warnings(tmp_path):
+    xlsx = _practicas_xlsx(tmp_path, [
+        {"Tipo": "S", "NumeroPractica": 1, "Seccion": 1.0, "Enunciado": "S1"},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 1.0, "Ejercicio": "a", "Enunciado": "E", "Respuesta": '"una sola"'},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 1.0, "Ejercicio": "b", "Enunciado": "E", "Respuesta": None},
+    ])
+    artifact, warnings = build_practicas(_programa(tmp_path, []), xlsx)
+    seccion = artifact["practicas"][0]["secciones"][0]
+    assert seccion["numero"] == "1"
+    assert seccion["ejercicios"][0]["respuestas"] == ["una sola"]
+    assert any("criterios de corrección" in w for w in warnings)
+    assert any("1.1.b sin respuesta" in w for w in warnings)
+
+
+def test_cli_fails_clearly_without_sources(tmp_path, caplog):
+    assert ingest_main(["--content", str(tmp_path), "--artifacts", str(tmp_path / "out")]) == 1
+    assert "Copiá los originales" in caplog.text

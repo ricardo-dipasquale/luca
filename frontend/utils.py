@@ -10,33 +10,11 @@ from typing import List, Optional
 # Add parent directory to Python path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from kg.queries import KGQueryInterface
-from kg.connection import KGConnection
+from course.practices import get_practice_repository
 
-def get_subjects_from_kg() -> List[str]:
-    """
-    Get list of subjects from the knowledge graph.
-    
-    Returns:
-        List of subject names
-    """
-    try:
-        # Initialize KG connection and interface
-        kg_connection = KGConnection()
-        kg_interface = KGQueryInterface(kg_connection)
-        
-        # Get subjects using the existing method
-        subjects = kg_interface.get_subjects()
-        
-        # Extract subject names
-        subject_names = [subject['name'] for subject in subjects if 'name' in subject]
-        
-        kg_connection.close()
-        return subject_names
-        
-    except Exception as e:
-        print(f"Error loading subjects from KG: {e}")
-        return ["Bases de Datos Relacionales"]  # Fallback
+
+def get_subjects() -> List[str]:
+    return [subject["name"] for subject in get_practice_repository().get_subjects()]
 
 def format_timestamp(timestamp) -> str:
     """
