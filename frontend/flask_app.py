@@ -11,7 +11,6 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
-from uuid import uuid4
 from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, session
@@ -24,7 +23,8 @@ sys.path.insert(0, str(project_root))
 
 from agent.executor import TutorExecutor
 from course.practices import get_practice_repository
-from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, increment_message_count, add_message_to_conversation, get_conversation_messages, delete_conversation
+from auth import authenticate_user, generate_conversation_title
+from storage import db
 from utils import get_subjects as load_subjects
 
 
@@ -82,7 +82,7 @@ def index():
     # Get subjects for dropdown
     subjects = load_subjects()
     user_email = session.get('user_email', '')
-    conversations = get_user_conversations(user_email)
+    conversations = db.list_conversations(user_email)
     
     print(f"🔍 Loading chat for user: {user_email}")
     print(f"📋 Found {len(conversations)} conversations")
@@ -159,40 +159,22 @@ def auth_status():
 @app.route('/chat', methods=['POST'])
 @require_auth
 def chat():
-    """Handle chat messages with streaming response."""
-    
+    """Handle a chat message. The conversation id is also the tutor's memory thread."""
     data = request.json
     message = data.get('message', '').strip()
     subject = data.get('subject')
-    conversation_id = data.get('conversation_id')
-    use_conversation_memory = data.get('use_conversation_memory', False)
+    conversation_id = data.get('conversation_id') or None
     exercise_id = data.get('exercise_id') or None
-    
+    user_email = session.get('user_email')
+
     if not message:
         return jsonify({'error': 'Message is required'}), 400
-    
-    # Generate session ID with memory continuity strategy
-    if conversation_id and use_conversation_memory:
-        # Use conversation_id as session_id for EXISTING conversations (selected from list)
-        session_id = conversation_id
-        print(f"🔄 Using conversation {conversation_id} for memory continuity")
-    else:
-        # For new conversations, maintain same temp session throughout the conversation
-        # This ensures memory continuity within the same conversation thread
-        if 'temp_session_id' not in session:
-            session['temp_session_id'] = f"temp_session_{uuid4().hex[:8]}"
-        session_id = session['temp_session_id']
-        print(f"🆕 Using temporary session {session_id} (memory will persist within this conversation)")
-    
-    print(f"🎯 Flask processing message: {message}")
-    print(f"🎯 Session: {session_id}")
-    print(f"🎯 Subject: {subject}")
-    
+    # The id selects the tutor's memory: never let a user write to (or read) someone else's thread.
+    if conversation_id and db.conversation_owner(conversation_id) != user_email:
+        return jsonify({'success': False, 'error': 'Access denied to this conversation'}), 403
+
     try:
-        # Process message synchronously
-        result = process_message_sync(message, session_id, subject, conversation_id, session.get('user_email'), exercise_id)
-        return jsonify(result)
-        
+        return jsonify(process_message_sync(message, user_email, subject, conversation_id, exercise_id))
     except Exception as e:
         print(f"❌ Flask chat error: {e}")
         import traceback
@@ -203,107 +185,58 @@ def chat():
             'content': 'Error al procesar el mensaje. Por favor, intenta nuevamente.'
         }), 500
 
-def process_message_sync(message: str, session_id: str, subject: Optional[str] = None, conversation_id: Optional[str] = None, user_email: Optional[str] = None, exercise_id: Optional[str] = None) -> Dict[str, Any]:
-    """Process message synchronously using asyncio.run in new event loop."""
+def process_message_sync(message: str, user_email: str, subject: Optional[str], conversation_id: Optional[str],
+                         exercise_id: Optional[str]) -> Dict[str, Any]:
+    """Run one tutor turn (asyncio.run per request) and persist both messages."""
+    is_new = conversation_id is None
+    if is_new:
+        conversation_id = db.create_conversation(user_email, message[:60], subject)
+
     async def _process():
-        # Initialize conversation_id in local scope
-        local_conversation_id = conversation_id
-        
-        print(f"🔍 Processing session={session_id} exercise={exercise_id}")
-        
         progress_steps = []
         final_response = ""
         structured_response = {}
-        is_first_message = local_conversation_id is None
-        
         # Consume the whole stream: the guardrails' output validation runs after the final answer.
-        async for chunk in tutor.stream(message, session_id, exercise_id=exercise_id, user_id=user_email, subject=subject):
+        async for chunk in tutor.stream(message, conversation_id, exercise_id=exercise_id, user_id=user_email, subject=subject):
             if chunk.get('is_task_complete'):
                 final_response = chunk.get('content', 'No se pudo obtener respuesta')
                 structured_response = chunk.get('structured_response', {})
             elif chunk.get('guardrail_step') == 'response_validation':
                 violations = chunk['response_validation'].get('violations', [])
-                print(f"⚠️ Response validation for {session_id}: {[v.get('message') for v in violations]}")
+                print(f"⚠️ Response validation for {conversation_id}: {[v.get('message') for v in violations]}")
             elif chunk.get('content'):
                 progress_steps.append(chunk['content'])
-        
-        # Handle conversation management
-        if user_email and subject:
-            message_order = 1  # Default for new conversations
-            
-            if is_first_message:
-                # Generate descriptive title for new conversation
-                generated_title = generate_conversation_title(message, subject)
-                new_conversation_id = create_conversation(user_email, generated_title, subject)
-                print(f"📝 Created new conversation '{generated_title}' with ID: {new_conversation_id}")
-                
-                # Update local conversation ID
-                local_conversation_id = new_conversation_id
-                
-                # IMPORTANT: Migrate memory from temp session to conversation session
-                # The orchestrator needs consistent session_id to maintain memory
-                print(f"💾 Migrating memory from session {session_id} to conversation {new_conversation_id}")
-                
-                # TODO: Implement memory migration
-                # For now, we'll use a consistent session strategy to avoid memory loss
-            else:
-                # Get current message count to determine order
-                existing_messages = get_conversation_messages(local_conversation_id, limit=1000)
-                message_order = len(existing_messages) + 1
-            
-            # Save user message and assistant response to conversation
-            if local_conversation_id:
-                # Save user message
-                add_message_to_conversation(local_conversation_id, message, "user", message_order)
-                # Save assistant response
-                add_message_to_conversation(local_conversation_id, final_response, "assistant", message_order + 1)
-                
-                # Increment message count (for both user message and assistant response)
-                increment_message_count(local_conversation_id)
-                increment_message_count(local_conversation_id)
-                print(f"📈 Saved messages and incremented count for conversation: {local_conversation_id}")
-        
-        return {
-            'content': final_response,
-            'progress_steps': progress_steps,
-            'success': True,
-            'conversation_id': local_conversation_id,
-            'session_id_used': session_id,  # Return which session was used
-            'exercise_id': exercise_id,
-            'modo': structured_response.get('modo'),
-            'fuentes': structured_response.get('fuentes', []),
-        }
-    
-    # Always create fresh event loop for each request
-    return asyncio.run(_process())
+        return final_response, structured_response, progress_steps
+
+    final_response, structured_response, progress_steps = asyncio.run(_process())
+    db.add_message(conversation_id, "user", message, exercise_id)
+    db.add_message(conversation_id, "assistant", final_response, exercise_id)
+    if is_new:
+        db.rename_conversation(conversation_id, generate_conversation_title(message, subject or ""))
+
+    return {
+        'content': final_response,
+        'progress_steps': progress_steps,
+        'success': True,
+        'conversation_id': conversation_id,
+        'exercise_id': exercise_id,
+        'modo': structured_response.get('modo'),
+        'fuentes': structured_response.get('fuentes', []),
+    }
 
 @app.route('/conversations')
 @require_auth
 def get_conversations():
     """Get user conversations."""
-    user_email = session.get('user_email', '')
-    conversations = get_user_conversations(user_email)
-    
-    return jsonify(conversations)
+    return jsonify(db.list_conversations(session.get('user_email', '')))
 
 @app.route('/conversations', methods=['POST'])
 @require_auth
 def create_new_conversation():
     """Create a new conversation."""
-    data = request.json
-    title = data.get('title', 'Nueva Conversación')
-    subject = data.get('subject')
-    
-    conv_id = create_conversation(
-        session.get('user_email', ''),
-        title,
-        subject
-    )
-    
-    if conv_id:
-        return jsonify({'success': True, 'conversation_id': conv_id})
-    else:
-        return jsonify({'success': False, 'error': 'No se pudo crear la conversación'})
+    data = request.json or {}
+    conv_id = db.create_conversation(session.get('user_email', ''), data.get('title', 'Nueva Conversación'), data.get('subject'))
+    return jsonify({'success': True, 'conversation_id': conv_id})
 
 @app.route('/subjects')
 @require_auth
@@ -321,43 +254,18 @@ def get_practicas():
 @app.route('/conversations/<conversation_id>/messages')
 @require_auth
 def get_conversation_history(conversation_id):
-    """Get message history for a conversation."""
-    try:
-        # Security: Verify the conversation belongs to the authenticated user
-        user_email = session.get('user_email', '')
-        user_conversations = get_user_conversations(user_email)
-        
-        # Check if the conversation_id exists in user's conversations
-        if not any(conv['id'] == conversation_id for conv in user_conversations):
-            print(f"⚠️ User {user_email} attempted to access conversation {conversation_id} without permission")
-            return jsonify({'success': False, 'error': 'Access denied to this conversation'}), 403
-        
-        messages = get_conversation_messages(conversation_id, limit=20)
-        return jsonify({'success': True, 'messages': messages})
-    except Exception as e:
-        print(f"Error loading conversation history: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    """Message history (with the exercise each message was about) of one of the user's conversations."""
+    if db.conversation_owner(conversation_id) != session.get('user_email'):
+        return jsonify({'success': False, 'error': 'Access denied to this conversation'}), 403
+    return jsonify({'success': True, 'messages': db.list_messages(conversation_id, limit=50)})
 
 @app.route('/conversations/<conversation_id>', methods=['DELETE'])
 @require_auth
 def delete_conversation_endpoint(conversation_id):
-    """Delete a conversation and all its messages."""
-    try:
-        user_email = session.get('user_email', '')
-        
-        # Attempt to delete the conversation
-        success = delete_conversation(conversation_id, user_email)
-        
-        if success:
-            print(f"🗑️ User {user_email} deleted conversation {conversation_id}")
-            return jsonify({'success': True, 'message': 'Conversación eliminada exitosamente'})
-        else:
-            print(f"⚠️ Failed to delete conversation {conversation_id} for user {user_email}")
-            return jsonify({'success': False, 'error': 'No se pudo eliminar la conversación'}), 400
-            
-    except Exception as e:
-        print(f"Error in delete conversation endpoint: {e}")
-        return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
+    """Delete one of the user's conversations and its messages."""
+    if db.delete_conversation(conversation_id, session.get('user_email', '')):
+        return jsonify({'success': True, 'message': 'Conversación eliminada exitosamente'})
+    return jsonify({'success': False, 'error': 'No se pudo eliminar la conversación'}), 400
 
 if __name__ == '__main__':
     print("🚀 Starting LUCA Flask Frontend...")

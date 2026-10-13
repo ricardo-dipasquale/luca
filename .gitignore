@@ -196,5 +196,5 @@ artifacts/
 # Claves privadas (p. ej. luca.pem para AWS)
 *.pem
 
-# Datos de Chroma (docker compose)
-data/chroma/
+# Datos de runtime: Chroma y SQLite (usuarios, conversaciones, memoria del agente)
+data/

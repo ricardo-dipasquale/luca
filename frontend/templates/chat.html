@@ -352,7 +352,6 @@ document.getElementById('chatForm').addEventListener('submit', async function(e)
                 message: message,
                 subject: subject,
                 conversation_id: currentConversationId,
-                use_conversation_memory: usingExistingConversation,  // Only true when selected from list
                 exercise_id: currentExerciseId
             })
         });
@@ -363,7 +362,6 @@ document.getElementById('chatForm').addEventListener('submit', async function(e)
             // Update conversation ID if a new one was created
             if (result.conversation_id && !currentConversationId) {
                 currentConversationId = result.conversation_id;
-                usingExistingConversation = false;  // Reset flag for new conversation
                 console.log(`📝 New conversation created: ${currentConversationId}`);
                 console.log(`💾 Session used: ${result.session_id_used}`);
                 
@@ -519,7 +517,7 @@ function findExercise(id) {
     return null;
 }
 
-function selectExercise(id) {
+function selectExercise(id, silent = false) {
     const found = findExercise(id);
     if (!found || id === currentExerciseId) return;
     currentExerciseId = id;
@@ -532,16 +530,23 @@ function selectExercise(id) {
     document.getElementById('exerciseSchemaText').textContent = (seccion.enunciado || '').replace(/\n\s*\n/g, '\n');
     document.getElementById('exerciseBanner').classList.remove('d-none');
 
-    addMessage(`Ahora trabajamos en la práctica ${practica.numero}, ejercicio ${exerciseLabel(practica, seccion, ejercicio)}`, 'system');
+    renderPractices(document.getElementById('exerciseFilter').value);  // expand its practice
+    if (!silent) addMessage(exerciseNote(id), 'system');
     document.getElementById('messageInput').focus();
 }
 
-function clearExercise() {
+function clearExercise(silent = false) {
     if (currentExerciseId === null) return;
     currentExerciseId = null;
     document.querySelectorAll('.exercise-item.active').forEach(n => n.classList.remove('active'));
     document.getElementById('exerciseBanner').classList.add('d-none');
-    addMessage('Consulta libre: teoría o un ejercicio propio', 'system');
+    if (!silent) addMessage(exerciseNote(null), 'system');
+}
+
+function exerciseNote(id) {
+    const found = id && findExercise(id);
+    if (!found) return 'Consulta libre: teoría o un ejercicio propio';
+    return `Ahora trabajamos en la práctica ${found.practica.numero}, ejercicio ${exerciseLabel(found.practica, found.seccion, found.ejercicio)}`;
 }
 
 function escapeHtml(text) {
@@ -561,12 +566,9 @@ function clearProgress() {
     progressContainer.innerHTML = '';
 }
 
-// Flag to track if we're using an existing conversation from the list
-let usingExistingConversation = false;
 
 function selectConversation(conversationId) {
     currentConversationId = conversationId;
-    usingExistingConversation = true;  // Mark that we're using existing conversation
     
     // Update active conversation in UI
     document.querySelectorAll('.conversation-item').forEach(item => {
@@ -599,10 +601,17 @@ function loadConversationHistory(conversationId) {
             // Clear loading message
             chatContainer.innerHTML = '';
             
-            // Add conversation history
+            // Add conversation history, noting each change of exercise, and restore the last active one
+            let exercise = null;
             result.messages.forEach(msg => {
+                const msgExercise = msg.exercise_id || null;
+                if (msg.role === 'user' && msgExercise !== exercise) {
+                    addMessage(exerciseNote(msgExercise), 'system');
+                    exercise = msgExercise;
+                }
                 addMessage(msg.content, msg.role);
             });
+            if (exercise) selectExercise(exercise, true); else clearExercise(true);
             
             console.log(`📋 Loaded ${result.messages.length} messages for conversation ${conversationId}`);
         } else {
@@ -637,7 +646,6 @@ function createNewConversation() {
     
     // Reset flags for new conversation
     currentConversationId = null;
-    usingExistingConversation = false;
     
     fetch('/conversations', {
         method: 'POST',
@@ -882,7 +890,6 @@ function deleteConversation(conversationId, event) {
             // If this was the active conversation, reset the chat
             if (currentConversationId === conversationId) {
                 currentConversationId = null;
-                usingExistingConversation = false;
                 
                 // Clear the chat container
                 const chatContainer = document.getElementById('chatContainer');

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from langchain_core.messages import AIMessage
+from langgraph.checkpoint.memory import MemorySaver
 
 from agent import prompts
 from agent.executor import TutorExecutor
@@ -71,8 +72,9 @@ class FakeLLM:
         return [k for k, _ in self.calls]
 
 
-def _agent(llm, retriever=None):
-    return TutorAgent(llm=llm, retriever=retriever or FakeRetriever(), practices=FakePractices())
+def _agent(llm, retriever=None, checkpointer="memory"):
+    return TutorAgent(llm=llm, retriever=retriever or FakeRetriever(), practices=FakePractices(),
+                      checkpointer=MemorySaver() if checkpointer == "memory" else checkpointer)
 
 
 def _run(agent, message, exercise_id=None, session="s1"):
@@ -160,6 +162,15 @@ def test_conversation_memory_is_per_session():
     assert historial == ["primer mensaje", "¿Qué operación filtra filas?", "segundo mensaje"]
     _run(agent, "otra sesión", "1.1.a", session="b")
     assert [m.content for m in llm.calls[-1][1] if m.type != "system"] == ["otra sesión"]
+
+
+def test_memory_survives_a_restart_with_the_sqlite_checkpointer(tmp_path, monkeypatch):
+    monkeypatch.setenv("LUCA_DB_PATH", str(tmp_path / "luca.db"))
+    llm = FakeLLM()
+    _run(_agent(llm, checkpointer=None), "primer mensaje", "1.1.a", session="conv-1")
+    _run(_agent(llm, checkpointer=None), "después del reinicio", "1.1.a", session="conv-1")  # new instance, new loop
+    historial = [m.content for m in llm.calls[-1][1] if m.type != "system"]
+    assert historial == ["primer mensaje", "¿Qué operación filtra filas?", "después del reinicio"]
 
 
 def test_unknown_exercise_falls_back_to_free_mode():

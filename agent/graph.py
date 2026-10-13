@@ -8,7 +8,6 @@ import logging
 from typing import Annotated, Any, AsyncIterator, Literal, Optional, TypedDict
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -61,7 +60,8 @@ def _historial(state: TutorState) -> list[AnyMessage]:
     return state["messages"][-HISTORIAL:]
 
 
-def build_graph(llm: Any, retriever: Any, practices: Any, checkpointer: Any = None):
+def build_graph(llm: Any, retriever: Any, practices: Any) -> StateGraph:
+    """Uncompiled graph: it is compiled with the checkpointer that each caller provides."""
     tutor_llm = llm.with_structured_output(TutorTurn)
     clasificador = llm.with_structured_output(Clasificacion)
     deductor = llm.with_structured_output(Solucion)
@@ -145,10 +145,14 @@ def build_graph(llm: Any, retriever: Any, practices: Any, checkpointer: Any = No
     graph.add_conditional_edges("buscar", lambda s: "teoria" if s["modo"] == "teoria" else "tutor")
     graph.add_edge("tutor", END)
     graph.add_edge("teoria", END)
-    return graph.compile(checkpointer=checkpointer or MemorySaver())
+    return graph
 
 
 class TutorAgent:
+    """Conversation memory: with `checkpointer` (e.g. MemorySaver in tests) it is used as is; otherwise each
+    call opens an AsyncSqliteSaver on the app database. Flask runs every request in its own asyncio.run(),
+    and an aiosqlite connection cannot outlive the loop that opened it."""
+
     def __init__(self, llm: Any = None, retriever: Any = None, practices: Any = None, checkpointer: Any = None):
         if llm is None:
             from tools.llm_config import create_default_llm
@@ -159,15 +163,29 @@ class TutorAgent:
         if practices is None:
             from course.practices import get_practice_repository
             practices = get_practice_repository()
-        self.graph = build_graph(llm, retriever, practices, checkpointer)
+        self._builder = build_graph(llm, retriever, practices)
+        self._compiled = self._builder.compile(checkpointer=checkpointer) if checkpointer else None
 
     async def stream(self, message: str, session_id: str, exercise_id: Optional[str] = None) -> AsyncIterator[dict]:
+        if self._compiled is not None:
+            async for chunk in self._stream(self._compiled, message, session_id, exercise_id):
+                yield chunk
+            return
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+        from storage.db import db_path
+
+        db_path().parent.mkdir(parents=True, exist_ok=True)
+        async with AsyncSqliteSaver.from_conn_string(str(db_path())) as saver:
+            async for chunk in self._stream(self._builder.compile(checkpointer=saver), message, session_id, exercise_id):
+                yield chunk
+
+    async def _stream(self, graph: Any, message: str, session_id: str, exercise_id: Optional[str]) -> AsyncIterator[dict]:
         entrada = {
             "messages": [HumanMessage(message)], "exercise_id": exercise_id,
             "fragmentos": [], "analisis": None, "filtracion_corregida": False, "respuesta": "",
         }
         config = {"configurable": {"thread_id": session_id}}
-        async for update in self.graph.astream(entrada, config, stream_mode="updates"):
+        async for update in graph.astream(entrada, config, stream_mode="updates"):
             for nodo, cambios in update.items():
                 if nodo == "preparar":
                     paso = ("Resolviendo el ejercicio para poder orientarte…" if (cambios or {}).get("modo") == "deducir"
@@ -176,7 +194,7 @@ class TutorAgent:
                     paso = SIGUIENTE_PASO.get(nodo)
                 if paso:
                     yield {"is_task_complete": False, "require_user_input": False, "content": paso}
-        estado = (await self.graph.aget_state(config)).values
+        estado = (await graph.aget_state(config)).values
         yield {
             "is_task_complete": True,
             "require_user_input": True,
