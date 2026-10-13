@@ -110,6 +110,22 @@ services:
     restart: unless-stopped
     networks:
       - luca-network
+  chroma:
+    image: chromadb/chroma:1.5.9
+    container_name: chroma
+    ports:
+      - "8001:8000"  # host 8001 for running `python -m ingest` locally
+    volumes:
+      - ./data/chroma:/data
+    healthcheck:
+      # The image ships bash but no curl/wget.
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - luca-network
   luca:
     build:
       context: .
@@ -119,8 +135,12 @@ services:
       - "443:5000"  # Map host 443 to container 5000
       - "5000:5000" # HTTP port (for backwards compatibility)
     depends_on:
-      - neo4j
-      - llm-graph-builder
+      neo4j:
+        condition: service_started
+      llm-graph-builder:
+        condition: service_started
+      chroma:
+        condition: service_healthy
     volumes:
       # Mount SSL certificates directory
       - ./ssl:/app/ssl:ro
@@ -150,6 +170,12 @@ services:
 
       # LLM Graph Builder API
       GRAPHBUILDER_URI: "http://llm-graph-builder:8000/chat_bot"
+
+      # Apuntes (Chroma)
+      CHROMA_HOST: "chroma"
+      CHROMA_PORT: "8000"
+      CHROMA_COLLECTION: "${CHROMA_COLLECTION:-apuntes}"
+      EMBEDDING_MODEL: "${EMBEDDING_MODEL:-text-embedding-3-small}"
 
       # Flask Configuration
       FLASK_ENV: "production"

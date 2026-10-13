@@ -53,6 +53,9 @@ dependencies = [
     "uv>=0.1.0",
     "mcp-neo4j-cypher>=0.1.0",
     "sqlglot>=30.22.0",
+    "chromadb>=1.5",
+    "pypdf>=5",
+    "langchain-text-splitters>=1.0",
 ]
 
 [project.optional-dependencies]

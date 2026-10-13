@@ -38,3 +38,8 @@ export LANGFUSE_SECRET_KEY="CHANGEME"
 
 export SALT="CHANGEME" 
 export ENCRYPTION_KEY="CHANGEME"
+# Apuntes en Chroma (python -m ingest --only apuntes)
+export CHROMA_HOST="localhost"
+export CHROMA_PORT="8001"
+export CHROMA_COLLECTION="apuntes"
+export EMBEDDING_MODEL="text-embedding-3-small"
