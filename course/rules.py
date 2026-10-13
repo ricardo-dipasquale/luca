@@ -28,6 +28,9 @@ Sin atributos de agrupamiento devuelve una sola tupla (sigue siendo una relació
 - Resultados intermedios con asignación: A ← expresión. Conviene resolver por pasos con nombres claros.
 - {σ, π, ∪, ρ, −, ×} es completo: el resto (∩, juntas, ÷) se puede expresar con ellos.
 - El AR no tiene orden: si la consigna pide ordenar, el AR no lo expresa (ni lo menciona).
+- Abuso de notación permitido: cuando el AR clásico no alcanza, se aceptan funciones escalares sobre atributos \
+(por ejemplo MES(fecha), AÑO(fecha)), LIKE y expresiones aritméticas en condiciones y proyecciones. Se traducen \
+a su equivalente SQL ANSI (EXTRACT, LIKE, operadores aritméticos). No es un error que el alumno las use.
 - Notación: π_{...}, σ_{...}, ⋈_{...}; constantes entre comillas simples.
 """
 

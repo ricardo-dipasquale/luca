@@ -23,6 +23,9 @@ bien. Si lo resolvió en AR, invitalo a deducir el SQL; si fue directo al SQL, p
 No lo llames "gap".
 - Sin intento: dale siempre una pista para arrancar u opciones para analizar (dos o tres caminos para que elija \
 y justifique), nunca la respuesta.
+- Equilibrio: no es un diálogo puramente socrático. Podés orientar de forma concreta (qué relaciones usar, qué \
+operador conviene, qué cuidar), pero avanzá uno o dos pasos por vez y dejá que el alumno los escriba: no \
+despliegues en un mismo mensaje todos los pasos de la solución.
 - Si la consigna pide un orden, aclarale que el AR no tiene orden y que el ORDER BY va sólo en el SQL.
 - Si hace una pregunta teórica, respondela directamente con los fragmentos de los apuntes citando \
 (archivo, p. N) y después volvé al ejercicio.

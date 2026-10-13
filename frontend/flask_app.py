@@ -216,17 +216,16 @@ def process_message_sync(message: str, session_id: str, subject: Optional[str] =
         structured_response = {}
         is_first_message = local_conversation_id is None
         
+        # Consume the whole stream: the guardrails' output validation runs after the final answer.
         async for chunk in tutor.stream(message, session_id, exercise_id=exercise_id, user_id=user_email, subject=subject):
-            print(f"📦 Received chunk: {chunk.get('content', 'No content')[:100]}...")
-            
             if chunk.get('is_task_complete'):
                 final_response = chunk.get('content', 'No se pudo obtener respuesta')
                 structured_response = chunk.get('structured_response', {})
-                print(f"✅ Final response received")
-                break
-            else:
-                progress_text = chunk.get('content', 'Procesando...')
-                progress_steps.append(progress_text)
+            elif chunk.get('guardrail_step') == 'response_validation':
+                violations = chunk['response_validation'].get('violations', [])
+                print(f"⚠️ Response validation for {session_id}: {[v.get('message') for v in violations]}")
+            elif chunk.get('content'):
+                progress_steps.append(chunk['content'])
         
         # Handle conversation management
         if user_email and subject:
