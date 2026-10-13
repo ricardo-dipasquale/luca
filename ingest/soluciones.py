@@ -70,15 +70,23 @@ def validate_sql(sql: str, schema: dict[str, dict[str, str]]) -> dict[str, Any]:
     if not sql.strip():
         return {"ok": False, "nivel": "sintaxis", "detalle": "sin SQL (ver observaciones)"}
     try:
-        sentencias = sqlglot.parse(sql)
+        sentencias = [s for s in sqlglot.parse(sql) if s is not None]
         if not schema:
             return {"ok": True, "nivel": "sintaxis", "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"}
+        schema = {t.lower(): cols for t, cols in schema.items()}  # views created below are added to this copy
         for sentencia in sentencias:
-            ctes = {c.alias_or_name for c in sentencia.find_all(exp.CTE)}
-            desconocidas = {t.name for t in sentencia.find_all(exp.Table)} - set(schema) - ctes
+            vista = sentencia if isinstance(sentencia, exp.Create) and sentencia.kind == "VIEW" else None
+            consulta = vista.expression if vista else sentencia
+            ctes = {c.alias_or_name.lower() for c in consulta.find_all(exp.CTE)}
+            desconocidas = {t.name for t in consulta.find_all(exp.Table) if t.name.lower() not in schema and t.name.lower() not in ctes}
             if desconocidas:
                 return {"ok": False, "nivel": "esquema", "detalle": f"tablas inexistentes: {', '.join(sorted(desconocidas))}"}
-            qualify(sentencia, schema=schema, validate_qualify_columns=True)
+            resuelta = qualify(consulta.copy(), schema=schema, validate_qualify_columns=True)
+            if vista:
+                destino = vista.this
+                columnas = [c.name for c in destino.expressions] if isinstance(destino, exp.Schema) else resuelta.named_selects
+                nombre = destino.this.name if isinstance(destino, exp.Schema) else destino.name
+                schema[nombre.lower()] = {c: "TEXT" for c in columnas}
     except sqlglot.errors.ParseError as e:
         return {"ok": False, "nivel": "sintaxis", "detalle": str(e).splitlines()[0]}
     except sqlglot.errors.SqlglotError as e:
@@ -124,8 +132,9 @@ def _prompt(artifact: dict, p: dict, s: dict, e: dict, key: str) -> list[tuple[s
     else:
         user += "Resolvé primero en AR y derivá el SQL ANSI de esa solución, operador por operador."
     user += (
-        "\n\n`sql` lleva sólo la consulta, sin explicaciones. Si la consigna está incompleta o la solución oficial "
-        "tiene un error (por ejemplo, no coincide con el esquema), explicalo en `observaciones` para el docente."
+        "\n\n`sql` lleva sólo SQL, sin explicaciones: primero los CREATE VIEW que hagan falta (sin bloques WITH) y al "
+        "final la consulta. Si la consigna está incompleta o la solución oficial tiene un error (por ejemplo, no "
+        "coincide con el esquema), explicalo en `observaciones` para el docente."
     )
     return [("system", system), ("user", user)]
 
@@ -140,11 +149,19 @@ def _save(path: Path, entradas: dict[str, dict]) -> None:
     tmp.replace(path)
 
 
-async def _generate(artifact: dict, path: Path, llm: Any, modelo: str, force: bool) -> dict[str, int]:
+async def _generate(
+    artifact: dict, path: Path, llm: Any, modelo: str, force: bool, no_conformes: bool = False
+) -> dict[str, int]:
     entradas = _load(path)
     vigentes = set()
     pendientes = []
     stats = {"generadas": 0, "sin_cambios": 0, "aprobadas": 0, "desactualizadas": 0, "fallidas": 0, "eliminadas": 0}
+    schemas: dict[int, dict] = {}
+
+    def no_cumple(s: dict, e: dict, entrada: dict) -> bool:
+        schema = schemas.setdefault(id(s), section_schema(s["enunciado"]))
+        ar = e["respuestas"][0] if e["respuestas"] else (entrada.get("ar") or "")
+        return bool(_problemas(ar, entrada["sql"], schema))
 
     for p, s, e, key in _ejercicios(artifact):
         vigentes.add(key)
@@ -159,7 +176,7 @@ async def _generate(artifact: dict, path: Path, llm: Any, modelo: str, force: bo
         if entrada and entrada["estado"] == DESACTUALIZADA and not force:
             stats["desactualizadas"] += 1
             continue
-        if entrada and entrada["hash_entradas"] == h and not force:
+        if entrada and entrada["hash_entradas"] == h and not force and not (no_conformes and no_cumple(s, e, entrada)):
             stats["sin_cambios"] += 1
             continue
         pendientes.append((p, s, e, key, h))
@@ -170,7 +187,6 @@ async def _generate(artifact: dict, path: Path, llm: Any, modelo: str, force: bo
         stats["eliminadas"] += 1
 
     sem = asyncio.Semaphore(CONCURRENCIA)
-    schemas: dict[int, dict] = {}
 
     async def resolver(p: dict, s: dict, e: dict, key: str, h: str) -> None:
         schema = schemas.setdefault(id(s), section_schema(s["enunciado"]))
@@ -220,8 +236,12 @@ async def _generate(artifact: dict, path: Path, llm: Any, modelo: str, force: bo
     return stats
 
 
-def generate(artifact: dict, path: Path, llm_factory: Callable[[], Any], modelo: str, force: bool = False) -> dict[str, int]:
-    stats = asyncio.run(_generate(artifact, path, llm_factory(), modelo, force))
+def generate(
+    artifact: dict, path: Path, llm_factory: Callable[[], Any], modelo: str,
+    force: bool = False, no_conformes: bool = False,
+) -> dict[str, int]:
+    """force: regenerate every non-approved entry. no_conformes: only pending ones that fail the current checks."""
+    stats = asyncio.run(_generate(artifact, path, llm_factory(), modelo, force, no_conformes))
     entradas = _load(path).values()
     invalidas = sum(1 for e in entradas if not e["validacion"]["ok"])
     no_canonicas = sum(1 for e in entradas if not e["forma_canonica"]["ok"])

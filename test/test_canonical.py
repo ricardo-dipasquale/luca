@@ -30,10 +30,21 @@ WHERE NOT EXISTS (
         WHERE A3.codigo_cliente = A2.codigo_cliente AND A3.codigo_producto = B.codigo_producto))
 """
 
+VIEW_DIVISION = CTE_DIVISION.replace(
+    "WITH CP AS (SELECT DISTINCT codigo_cliente, codigo_producto FROM pedido NATURAL JOIN detalle_pedido),\n     B AS (SELECT DISTINCT codigo_producto FROM producto)",
+    "CREATE VIEW CP AS SELECT DISTINCT codigo_cliente, codigo_producto FROM pedido NATURAL JOIN detalle_pedido;\n"
+    "CREATE VIEW B AS SELECT DISTINCT codigo_producto FROM producto;",
+)
+
+
+def test_with_blocks_are_rejected():
+    result = check_canonical("Todos ← CP ÷ π_{codigo_producto}(producto)", CTE_DIVISION)
+    assert result == {"ok": False, "detalle": "no se usan bloques WITH: los resultados intermedios van como CREATE VIEW"}
+
 
 def test_taller_division_template_is_canonical():
     assert check_canonical("A / B", TALLER_DIVISION)["ok"] is True
-    assert check_canonical("Todos ← CP ÷ π_{codigo_producto}(producto)", CTE_DIVISION)["ok"] is True
+    assert check_canonical("Todos ← CP ÷ π_{codigo_producto}(producto)", VIEW_DIVISION)["ok"] is True
 
 
 def test_division_not_built_from_the_dividend_is_rejected():

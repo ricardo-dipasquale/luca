@@ -73,6 +73,8 @@ def check_canonical(ar: str, sql: str) -> dict[str, Any]:
         return any(t.find(kind) for t in trees if t)
 
     faltantes = []
+    if has(exp.CTE):
+        faltantes.append("no se usan bloques WITH: los resultados intermedios van como CREATE VIEW")
     ops = ar_set_operations(ar)
     if "∪" in ops and not has(exp.Union):
         faltantes.append("∪ se traduce con UNION")

@@ -46,6 +46,7 @@ una forma canónica; la solución usa esa forma:
 - − → EXCEPT.
 - ÷ → doble NOT EXISTS con esta plantilla, donde A es el dividendo (atributos X, Y) y B el divisor (atributo Y), \
 los mismos operandos del cociente en el AR:
+  (si A o B son expresiones, primero CREATE VIEW A AS …; CREATE VIEW B AS …;)
     SELECT DISTINCT A1.X FROM A AS A1
     WHERE NOT EXISTS (
         SELECT 1 FROM A AS A2, B
@@ -55,7 +56,9 @@ los mismos operandos del cociente en el AR:
   Idea: "no hay ningún Y de B que le falte a ese X". No resolver el cociente con GROUP BY/COUNT ni dividiendo \
 otras tablas que no sean los operandos del AR.
 - F → GROUP BY (izquierda de F) con COUNT/SUM/AVG/MAX/MIN (derecha de F); HAVING filtra grupos.
-- Resultado intermedio A ← expresión → WITH A AS (…), con el mismo nombre, para que cada paso del AR se vea en el SQL.
+- No se usan bloques WITH. Si un resultado intermedio A ← expresión necesita nombre en SQL (por ejemplo, el \
+dividendo o el divisor de un cociente), se crea una vista con el mismo nombre: CREATE VIEW A AS …; y la consulta \
+final usa A como tabla. Las vistas se usan sólo cuando hace falta: no encadenar vistas innecesarias.
 - Orden: el AR no expresa orden; si la consigna lo pide, el SQL agrega ORDER BY y se le aclara al alumno que el \
 orden sólo existe en SQL.
 - NOT IN / NOT EXISTS (para −) e IN (para ∩) son alternativas para motores sin EXCEPT / INTERSECT: se pueden \

@@ -20,6 +20,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m ingest", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", choices=STEPS, action="append", help="Correr solo este paso (repetible)")
     parser.add_argument("--force", action="store_true", help="Regenerar soluciones no aprobadas aunque no hayan cambiado")
+    parser.add_argument(
+        "--regenerar-no-conformes", action="store_true",
+        help="Regenerar sólo las soluciones pendientes que no cumplen las reglas vigentes (esquema y forma canónica)",
+    )
     parser.add_argument("--content", type=Path, default=PROJECT_ROOT / "content")
     parser.add_argument("--artifacts", type=Path, default=PROJECT_ROOT / "artifacts")
     args = parser.parse_args(argv)
@@ -41,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
             soluciones.generate(
                 artifact, soluciones_path, soluciones.default_llm_factory,
                 modelo=get_default_llm_config()["model"], force=args.force,
+                no_conformes=args.regenerar_no_conformes,
             )
         soluciones.merge(artifact, soluciones_path)
         practicas.write(artifact, args.artifacts / "practicas.json")

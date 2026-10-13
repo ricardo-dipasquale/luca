@@ -215,3 +215,31 @@ def test_non_canonical_translation_triggers_the_correction_round(path):
     _run(art, path, llm)
     assert len(llm.calls) == 2 and "− se traduce con EXCEPT" in llm.calls[1][-1][1]
     assert _entries(path)["1.1.b"]["forma_canonica"]["ok"] is True
+
+
+def test_views_extend_the_schema_for_later_statements():
+    schema = soluciones.section_schema(DDL)
+    ok = "CREATE VIEW A AS SELECT codigo FROM oficina WHERE ciudad = 'X'; SELECT DISTINCT codigo FROM A"
+    assert soluciones.validate_sql(ok, schema)["ok"] is True
+    bad = "CREATE VIEW A AS SELECT codigo FROM oficina; SELECT ciudad FROM A"
+    v = soluciones.validate_sql(bad, schema)
+    assert v["ok"] is False and "ciudad" in v["detalle"]
+
+
+def test_regenerar_no_conformes_only_touches_failing_pending_entries(path):
+    con_with = "WITH A AS (SELECT ciudad FROM oficina) SELECT DISTINCT ciudad FROM A"
+    _run(_artifact(), path, FakeLLM(sql=con_with))
+    entries = _entries(path)
+    entries["1.1.a"].update(estado=APROBADA)  # also uses WITH, but approved: must stay
+    path.write_text(json.dumps(entries))
+
+    llm = FakeLLM()
+    soluciones.generate(_artifact(), path, lambda: llm, modelo="test-model", no_conformes=True)
+    after = _entries(path)
+    assert [c for c in llm.calls if "EJERCICIO\nCiudades" in c] and not [c for c in llm.calls if "EJERCICIO\nCódigos" in c]
+    assert after["1.1.a"]["sql"] == con_with
+    assert after["1.1.b"]["sql"] == "SELECT DISTINCT ciudad FROM oficina"
+
+    llm = FakeLLM()
+    soluciones.generate(_artifact(), path, lambda: llm, modelo="test-model", no_conformes=True)
+    assert llm.calls == []
