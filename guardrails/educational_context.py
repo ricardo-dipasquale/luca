@@ -3,9 +3,8 @@ Educational Context Guardrail - Validates academic relevance and curriculum alig
 """
 
 import os
-import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 from openai import OpenAI
 
 from tools.llm_config import DEFAULT_MODEL, chat_completion_params

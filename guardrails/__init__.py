@@ -10,7 +10,6 @@ from .schemas import GuardrailResult, GuardrailViolation, GuardrailConfig, Educa
 from .content_safety import ContentSafetyGuardrail
 from .educational_context import EducationalContextGuardrail
 from .rate_limiting import RateLimitingGuardrail
-from .orchestrator_guardrails import OrchestratorGuardrails
 from .agent_response_validation import AgentResponseValidator
 
 __all__ = [
@@ -22,6 +21,5 @@ __all__ = [
     'ContentSafetyGuardrail',
     'EducationalContextGuardrail', 
     'RateLimitingGuardrail',
-    'OrchestratorGuardrails',
     'AgentResponseValidator'
 ]

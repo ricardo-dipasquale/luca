@@ -88,7 +88,7 @@ def main():
         debug_mode = not args.no_debug and not is_docker
 
         print("🚀 Starting LUCA Flask Frontend...")
-        print("📡 Orchestrator initialized")
+        print("📡 Tutor initialized")
 
         if args.https and ssl_context:
             print(f"🔐 Access the application at: {protocol}://{args.host}:{args.port}")

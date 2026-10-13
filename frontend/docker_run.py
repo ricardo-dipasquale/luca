@@ -84,7 +84,7 @@ def main():
                 print("💡 SSL certificates should be mounted at /app/ssl/")
 
         print("🚀 Starting LUCA Flask Frontend (Docker)")
-        print("📡 Orchestrator initialized")
+        print("📡 Tutor initialized")
 
         if enable_https and ssl_context:
             print(f"🔐 Running on {protocol}://localhost:443 (external)")

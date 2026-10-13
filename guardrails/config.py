@@ -4,7 +4,6 @@ Guardrails Configuration Management.
 
 import os
 import logging
-from typing import Dict, Any, Optional
 from .schemas import GuardrailConfig
 
 logger = logging.getLogger(__name__)
@@ -66,7 +65,6 @@ def load_guardrail_config_from_env() -> GuardrailConfig:
         validate_educational_value=env_bool('GUARDRAILS_VALIDATE_EDUCATIONAL_VALUE', True),
         
         # Logging and Observability
-        enable_langfuse_logging=env_bool('GUARDRAILS_ENABLE_LANGFUSE_LOGGING', True),
         log_all_interactions=env_bool('GUARDRAILS_LOG_ALL_INTERACTIONS', True),
         log_blocked_attempts=env_bool('GUARDRAILS_LOG_BLOCKED_ATTEMPTS', True)
     )
@@ -102,7 +100,6 @@ def get_development_config() -> GuardrailConfig:
         enable_response_validation=True,
         validate_educational_value=False,  # Disabled for dev to avoid blocking
         
-        enable_langfuse_logging=True,
         log_all_interactions=True,
         log_blocked_attempts=True
     )
@@ -135,7 +132,6 @@ def get_production_config() -> GuardrailConfig:
         enable_response_validation=True,
         validate_educational_value=True,
         
-        enable_langfuse_logging=True,
         log_all_interactions=True,
         log_blocked_attempts=True
     )
@@ -168,7 +164,6 @@ def get_testing_config() -> GuardrailConfig:
         enable_response_validation=False,  # Disabled to speed up tests
         validate_educational_value=False,
         
-        enable_langfuse_logging=False,  # Disabled to avoid test noise
         log_all_interactions=False,
         log_blocked_attempts=True  # Keep this for debugging test failures
     )
@@ -228,7 +223,6 @@ GUARDRAIL_ENV_VARS = {
     'GUARDRAILS_VALIDATE_EDUCATIONAL_VALUE': 'Validate educational value (true/false)',
     
     # Logging
-    'GUARDRAILS_ENABLE_LANGFUSE_LOGGING': 'Enable Langfuse logging (true/false)',
     'GUARDRAILS_LOG_ALL_INTERACTIONS': 'Log all interactions (true/false)',
     'GUARDRAILS_LOG_BLOCKED_ATTEMPTS': 'Log blocked attempts (true/false)'
 }

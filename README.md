@@ -1,100 +1,94 @@
-# luca
+# LUCA: tutor de Bases de Datos
 
-Our GenAI Learning Project is an intelligent, interactive tutor designed to revolutionize how students engage with their courses. Powered by advanced generative AI, it provides personalized guidance, answers complex questions, and adapts to each student's unique learning style. 
+LUCA acompaña a los alumnos de Bases de Datos (UCA) en las prácticas de álgebra relacional y SQL. El alumno elige un ejercicio en el panel de prácticas y conversa con el tutor: el tutor analiza su planteo, señala qué le falta y lo orienta paso a paso, **sin darle la solución**. En consulta libre responde preguntas teóricas con citas de los apuntes de la materia, o acompaña un ejercicio que trae el propio alumno.
 
-## Pre requisites
+Premisas pedagógicas que el tutor respeta siempre:
 
-Install Conda
+- Todo problema se piensa primero en **álgebra relacional** y el SQL se deduce del AR operador por operador, con una **forma canónica** por operador (∪ → `UNION`, ∩ → `INTERSECT`, − → `EXCEPT`, ÷ → doble `NOT EXISTS` según el Taller #8).
+- SQL **ANSI**, sin bloques `WITH`: los resultados intermedios van como vistas.
+- El AR no expresa orden: el `ORDER BY` va sólo en SQL. `MES()`, `AÑO()`, `LIKE` y la aritmética en AR se aceptan como abuso de notación.
+- Guía concreta pero de a uno o dos pasos; sin intento del alumno, una pista u opciones para analizar.
 
-    - create luca environment
-    - conda activate luca
+## Cómo funciona
 
-For Neo4J:
+```
+content/  ──python -m ingest──►  artifacts/practicas.json        (prácticas: enunciados, tips, criterios, soluciones)
+(planillas,                      content/soluciones_generadas.json (AR + SQL generados y validados, revisables)
+ apuntes)                        Chroma                            (apuntes fragmentados y embebidos)
 
-    - cd db
-    - Create directories 
-        - data
-        - plugins
-        - logs
-        - import
-        - langfuse_clickhouse_data
-        - langfuse_clickhouse_logs
-        - langfuse_minio_data
-        - postgres
-    - Don't do thin in prod
-        sudo chmod -R a+rw ./data
-        sudo chmod -R a+rw ./plugins
-        sudo chmod -R a+rw ./logs
-        sudo chmod -R a+rw ./import
-        sudo chmod -R a+rw ./langfuse_clickhouse_data
-        sudo chmod -R a+rw ./langfuse_clickhouse_logs
-    - Copy jar files (neo4j plugins) to plugins
-        - neo4j-graph-data-science-2.13.2.jar
-        - apoc-5.26.1-core.jar
-    - Unzip Neo4J Database backup (data and log folders)
+navegador ──► Flask ──► guardrails ──► agente tutor (LangGraph) ──► LLM (OpenAI)
+                │                          │
+                └── SQLite ◄───────────────┘  usuarios, conversaciones, memoria del tutor
+```
 
+- **Ingesta batch** (`ingest/`): lee las planillas y los apuntes, genera las soluciones que faltan (AR y SQL) y las valida. La aplicación nunca lee las fuentes directamente. Detalle en [ingest/README.md](ingest/README.md).
+- **Agente tutor** (`agent/`): un único grafo LangGraph. Con un ejercicio seleccionado trabaja contra su solución de referencia (confidencial) y un control determinista impide que la respuesta la revele. En consulta libre distingue teoría (respuesta directa con citas) de ejercicio propio (deduce en privado una solución de referencia).
+- **Conocimiento del curso** (`course/`): reglas de AR → SQL, control de forma canónica, repositorio de prácticas y búsqueda en los apuntes (Chroma).
+- **Guardrails** (`guardrails/`): seguridad del contenido, relevancia académica, límite de uso y validación de las respuestas.
+- **Persistencia** (`storage/`): SQLite en un único archivo (`data/luca.db`).
 
-To host the whole llm-graph-builder solution (to build KG) (only for KG editors):
+## Puesta en marcha (desarrollo)
 
-    - Update npm, nodejs in your linux system
-    - Install yarn:
-        npm install --global yarn
-    - git clone the llm-graph-builder project
-    - Inside it:
-        - Backend:
-            - Create the backend/.env file by copy/pasting the backend/example.env. To streamline the initial setup and testing of the application, you can preconfigure user credentials directly within the backend .env file. This bypasses the login dialog and allows you to immediately connect with a predefined user.
-            - NEO4J_URI: 
-            - NEO4J_USERNAME:
-            - NEO4J_PASSWORD:
-            - If using local LLM change in .env: LLM_MODEL_CONFIG_ollama_llama3="deepseek,http://localhost:11434"
-            - Run:
-                cd backend
-                pip install -r requirements.txt
-                uvicorn score:app --reload
-        - Frontend:
-            - Create the frontend/.env file by copy/pasting the frontend/example.env.
-            - Change values as needed
-            - Run
-                - cd frontend
-                - (sudo) yarn
-                - (sudo) yarn run dev
-        - Browse: http://localhost:5173/
+Requisitos: Python 3.12, [uv](https://docs.astral.sh/uv/), Docker.
 
-To run some code:
+```bash
+uv sync                                  # dependencias (incluye pytest y ruff)
+cp .envrc.example .envrc                 # completar OPENAI_API_KEY y FLASK_SECRET_KEY; direnv allow
+docker compose up -d chroma              # base vectorial de los apuntes (puerto 8001)
+uv run python -m ingest                  # prácticas, soluciones y apuntes
+uv run python scripts/import_usuarios.py --file usuarios-luca.xlsx   # o crear un usuario a mano:
+uv run python -c "from storage import db; db.upsert_user('alguien@uca.edu.ar', 'clave', 'Nombre')"
+uv run python frontend/run.py            # http://localhost:5000
+```
 
-    - Create a .envrc
-        export NEO4J_URI="xxx"
-        export NEO4J_USERNAME="xxx"
-        export NEO4J_PASSWORD="xxx"
-        export OPENAI_API_KEY="xxx"
-        export GRAPHBUILDER_URI="http://127.0.0.1:8000/chat_bot"
-        export POSTGRES_USER="postgres"
-        export POSTGRES_PASSWORD="xxxx"
-        export POSTGRES_DB="postgres"
-        export REDIS_AUTH="xxx"
-        export CLICKHOUSE_PASSWORD="xxx"
-        export NEXTAUTH_SECRET="xxx"
-        export LANGFUSE_INIT_ORG_ID="1"
-        export LANGFUSE_INIT_ORG_NAME="UCA"
-        export LANGFUSE_INIT_PROJECT_ID="1"
-        export LANGFUSE_INIT_PROJECT_NAME="LUCA"
-        export LANGFUSE_INIT_PROJECT_PUBLIC_KEY="xxx"
-        export LANGFUSE_INIT_PROJECT_SECRET_KEY="xxx"
-        export LANGFUSE_INIT_USER_EMAIL="xxx@uca.edu.ar"
-        export LANGFUSE_INIT_USER_NAME="admin"
-        export LANGFUSE_INIT_USER_PASSWORD="xxx"
-        export SALT="xxx" 
-        export ENCRYPTION_KEY="0000000000000000000000000000000000000000000000000000000000000000" #Generate with openssl
-    - Install Docker (linux or WSL on Windows)
-    - Install docker-compose (linux or WSL on Windows)
-    - In the root luca directory
-    - Install Python (linux or WSL)
-    - Install vscode (linux or WSL)
-    - Install direnv (linux or WSL)
-    - Configure direnv extension in vscode.
-    - direnv allow in luca folder
-    - docker compose up
-    - Run unit tests (pytest ./test)
-    
-To Enable Neo4J MCP Cypher Service:
-    - 
+Con Docker, después de la ingesta: `docker compose up -d` levanta Chroma y la aplicación.
+
+## Contenido de la materia
+
+Todo el material vive en `content/` y se versiona:
+
+| Archivo | Qué es |
+|---|---|
+| `Programa.xlsx` | Materia, objetivos, unidades y temas (con sus apuntes) |
+| `Prácticas Bases de Datos.xlsx` | Prácticas: cabecera (criterios de corrección, teoría relacionada), tips y enunciados con respuestas en AR |
+| `apuntes/*.pdf`, `*.md` | Apuntes que el tutor cita |
+| `soluciones_generadas.json` | AR y SQL generados por la ingesta, para revisar y aprobar |
+
+Al cambiar cualquiera de ellos, correr `python -m ingest` (ver [ingest/README.md](ingest/README.md) para qué se regenera y cómo aprobar soluciones).
+
+## Administración
+
+```bash
+uv run python scripts/import_usuarios.py --file usuarios-luca.xlsx [--dry-run]   # alta/actualización de usuarios
+uv run python scripts/export_conversaciones.py [--output conversaciones.xlsx] [--user EMAIL]
+uv run python scripts/generate_ssl_certs.py      # certificado autofirmado para HTTPS local
+```
+
+La planilla de usuarios lleva el nombre en la 1.ª columna, el email (`@uca.edu.ar`) en la 3.ª y la contraseña en la 4.ª. Las contraseñas se guardan con hash.
+
+## Tests
+
+```bash
+uv run pytest
+```
+
+Los tests usan un LLM simulado y Chroma en memoria: no llaman a OpenAI ni necesitan servicios levantados.
+
+## Estructura
+
+```
+agent/       tutor (grafo, prompts, control de filtración, ejecutor con guardrails)
+course/      reglas AR → SQL, forma canónica, prácticas, búsqueda en apuntes
+ingest/      ingesta batch (prácticas, soluciones, apuntes)
+storage/     SQLite
+guardrails/  seguridad y validación
+frontend/    Flask y plantillas
+tools/       configuración del LLM
+content/     material de la materia
+scripts/     administración
+test/        tests
+```
+
+## Seguridad
+
+Los secretos (`OPENAI_API_KEY`, `FLASK_SECRET_KEY`, certificados, claves SSH) nunca van al repositorio ni a la imagen de Docker: `.gitignore` y `.dockerignore` los excluyen. La configuración de publicación con hardening está pendiente.

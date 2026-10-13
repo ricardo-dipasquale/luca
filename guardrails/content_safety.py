@@ -5,7 +5,7 @@ Content Safety Guardrail - OpenAI Moderation API and profanity filtering.
 import os
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 from openai import OpenAI
 
 from .schemas import (

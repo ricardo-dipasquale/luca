@@ -143,7 +143,6 @@ class GuardrailConfig:
     validate_educational_value: bool = True
     
     # Logging and Observability
-    enable_langfuse_logging: bool = True
     log_all_interactions: bool = True
     log_blocked_attempts: bool = True
     
@@ -162,7 +161,6 @@ class GuardrailConfig:
             "max_requests_per_day": self.max_requests_per_day,
             "enable_response_validation": self.enable_response_validation,
             "validate_educational_value": self.validate_educational_value,
-            "enable_langfuse_logging": self.enable_langfuse_logging,
             "log_all_interactions": self.log_all_interactions,
             "log_blocked_attempts": self.log_blocked_attempts
         }

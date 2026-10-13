@@ -2,9 +2,8 @@
 Rate Limiting Guardrail - Prevents abuse and excessive usage.
 """
 
-import time
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime, timedelta
 from collections import defaultdict, deque
 

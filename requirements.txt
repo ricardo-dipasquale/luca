@@ -1,50 +1,23 @@
-# Core framework
-# a2a-sdk 1.x has breaking API changes (A2AStarletteApplication removed, proto types restructured)
-a2a-sdk>=0.2.8,<1.0
-click>=8.1.8
-httpx>=0.28.1
-pydantic>=2.10.6
-python-dotenv>=1.1.0
-uvicorn>=0.34.2
-
-# AI and LLM
-langchain>=1.4.3
+# Generado a mano a partir de pyproject.toml (lo instala el Dockerfile). Mantener sincronizado.
+# Tutor (LLM + grafo)
 langgraph>=1.2.12
+langgraph-checkpoint-sqlite>=3
+langchain-core>=1.6
 langchain-openai>=1.6.7
 openai>=2.45.0
+httpx>=0.28.1
+pydantic>=2.10.6
 
-# Database
-neo4j>=5.0.0
+# Apuntes (RAG)
+chromadb>=1.5
+pypdf>=5
+langchain-text-splitters>=1.0
+
+# Ingesta de prácticas y validación de SQL
 pandas>=3.0.0
 openpyxl>=3.0.0
-
-# Observability
-langfuse>=4.0.0
-
-# Guardrails System
-# Note: OpenAI API for content moderation (already included above)
-# Note: All other guardrails dependencies are satisfied by existing packages
+sqlglot>=30.22.0
 
 # Frontend
 flask>=2.3.0
 flask-cors>=4.0.0
-aiohttp>=3.8.0
-
-# Testing
-pytest>=7.0.0
-pytest-cov>=4.0.0
-pytest-mock>=3.0.0
-
-# Tools and utilities
-uv>=0.1.0
-mcp-neo4j-cypher>=0.1.0
-sqlglot>=30.22.0
-chromadb>=1.5
-pypdf>=5
-langchain-text-splitters>=1.0
-langgraph-checkpoint-sqlite>=3
-
-# Development dependencies (optional)
-black>=23.0.0
-ruff>=0.1.0
-mypy>=1.0.0

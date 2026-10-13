@@ -1,243 +1,72 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Orchestrator Interactive Mode",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "orchestrator.local_runner",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": ["interactive"],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Orchestrator Single Message",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "orchestrator.local_runner",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                "single",
-                "--subject", "Bases de Datos Relacionales",
-                "En la práctica 2, ej 1.d, no sé cómo hacer bien un left join que traiga de clientes todos los registros y que del lado de ventas traiga los que tienen nulo, así me quedo con los clientes que no compraron cosas, no?"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Orchestrator Intent Test",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "orchestrator.local_runner",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": ["intent-test"],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "GapAnalyzer Local Runner",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "gapanalyzer.local_runner",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                "2",
-                "1.d",
-                "No sé cómo hacer bien un left join que traiga de clientes todos los registros y que del lado de ventas traiga los que tienen nulo, así me quedo con los clientes que no compraron cosas, no?"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Orchestrator Server",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "orchestrator",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                "--host", "localhost",
-                "--port", "10001",
-                "--debug"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "GapAnalyzer Server",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "gapanalyzer",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                "--host", "localhost",
-                "--port", "10000",
-                "--debug"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "LUCA Frontend (Flask)",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/frontend/flask_app.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/frontend",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}",
-                "FLASK_ENV": "development",
-                "FLASK_DEBUG": "1"
-            }
-        },
-        {
-            "name": "Frontend Test Suite",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/frontend/test_frontend.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/frontend",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Database Cleanup - Interactive",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/scripts/cleanup_database.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Database Cleanup - Auto Confirm",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/scripts/cleanup_database.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": ["--confirm"],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Database Summary Only",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/scripts/cleanup_database.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": ["--summary-only"],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Create Knowledge Graph",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/db/create_kg.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/db",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Langfuse Dataset Upload",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "agent-test.cli",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                "dataset",
-                "upload",
-                "${input:suiteName}",
-                "--name=${input:suiteName}_dataset"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Langfuse: Run All Suites",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "agent-test.cli",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                "run-all"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Langfuse: Run 1 Suite",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "agent-test.cli",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "args": [
-                "run",
-                "${input:suiteName}",
-                "--iterations=1",
-                "--run-name=${input:runName}"
-            ],
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Python: Current File",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        }
-    ],
-    "inputs": [
-        {
-            "id": "suiteName",
-            "description": "Enter the test suite name to upload",
-            "default": "mi_suite",
-            "type": "promptString"
-        },
-        {
-            "id": "datasetName",
-            "description": "Enter the dataset name for Langfuse",
-            "default": "Suite Básica BD",
-            "type": "promptString"
-        },
-        {
-            "id": "runName",
-            "description": "Enter the RUN name for Langfuse",
-            "default": "run_001",
-            "type": "promptString"
-        }        
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "LUCA Frontend (Flask)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/frontend/flask_app.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/frontend",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "FLASK_ENV": "development",
+        "FLASK_DEBUG": "1"
+      }
+    },
+    {
+      "name": "Ingesta completa",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingest",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Ingesta: sólo prácticas (sin LLM)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingest",
+      "args": ["--only", "practicas"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Ingesta: soluciones que no cumplen las reglas",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingest",
+      "args": ["--only", "soluciones", "--regenerar-no-conformes"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Ingesta: apuntes",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ingest",
+      "args": ["--only", "apuntes"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Python: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    }
+  ]
 }

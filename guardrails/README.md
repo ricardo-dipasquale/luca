@@ -187,7 +187,6 @@ export GUARDRAILS_ENABLE_RESPONSE_VALIDATION=true
 export GUARDRAILS_VALIDATE_EDUCATIONAL_VALUE=true
 
 # Observability
-export GUARDRAILS_ENABLE_LANGFUSE_LOGGING=true
 export GUARDRAILS_LOG_ALL_INTERACTIONS=true
 export GUARDRAILS_LOG_BLOCKED_ATTEMPTS=true
 ```
@@ -251,43 +250,6 @@ async for chunk in guardrail_orch.create_guardrail_streaming_wrapper(
     print(chunk)
 ```
 
-## 📊 **Observabilidad con Langfuse**
-
-### **Traces Automáticos**
-
-Todas las validaciones se loggean automáticamente en Langfuse:
-
-```json
-{
-  "trace_name": "guardrail_validation",
-  "session_id": "session_123",
-  "user_id": "student_456",
-  "input": {
-    "user_input": "¿Qué es un LEFT JOIN?",
-    "context": {...}
-  },
-  "output": {
-    "validation_passed": true,
-    "violations": [],
-    "execution_time_ms": 45.2
-  },
-  "spans": [
-    {"name": "content_safety_check", "passed": true},
-    {"name": "educational_context_check", "passed": true},
-    {"name": "rate_limiting_check", "passed": true}
-  ]
-}
-```
-
-### **Métricas Disponibles**
-
-En Langfuse podrás monitorear:
-
-- **Violaciones por tipo**: `content_safety`, `educational_context`, `rate_limiting`
-- **Tasas de bloqueo**: Porcentaje de requests bloqueados
-- **Patrones de uso**: Horarios, frecuencia por estudiante
-- **Calidad educativa**: Scores de relevancia académica
-- **Performance**: Tiempo de ejecución de validaciones
 
 ## 🧪 **Testing**
 
@@ -354,7 +316,6 @@ except Exception as e:
 ### **Fallbacks por Componente**
 
 - **OpenAI API error**: Continúa con filtros locales
-- **Langfuse error**: Logging deshabilitado, validación continúa
 - **Rate limiting error**: Sin límites temporalmente
 - **Educational assessment error**: Validación por keywords únicamente
 
@@ -391,7 +352,6 @@ if user_violations > 10:  # >10 violaciones por usuario
   - Validación de contenido con OpenAI Moderation API
   - Filtros de profanidad contextuales para Argentina
   - Rate limiting inteligente con escalado
-  - Integración completa con Langfuse
   - Wrapper transparente para Orchestrator
 
 ### **Roadmap**

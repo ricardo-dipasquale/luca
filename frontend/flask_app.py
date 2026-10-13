@@ -15,7 +15,6 @@ from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, session
 from flask_cors import CORS
-from flask.json.provider import DefaultJSONProvider
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -28,20 +27,8 @@ from storage import db
 from utils import get_subjects as load_subjects
 
 
-class Neo4jJSONProvider(DefaultJSONProvider):
-    """Custom JSON provider that handles Neo4j DateTime objects."""
-    
-    def default(self, obj):
-        """Convert Neo4j DateTime objects to strings."""
-        if hasattr(obj, 'to_native'):
-            # Neo4j DateTime object
-            return obj.to_native().strftime('%Y-%m-%d %H:%M:%S')
-        return super().default(obj)
-
-
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
-app.json = Neo4jJSONProvider(app)  # Use custom JSON provider
 CORS(app)
 
 # Fail at startup rather than on the first page load if `python -m ingest` hasn't run.
@@ -269,7 +256,7 @@ def delete_conversation_endpoint(conversation_id):
 
 if __name__ == '__main__':
     print("🚀 Starting LUCA Flask Frontend...")
-    print("📡 Orchestrator initialized")
+    print("📡 Tutor initialized")
     print("🌐 Access the application at: http://localhost:8080")
     
     app.run(

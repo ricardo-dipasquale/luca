@@ -4,7 +4,7 @@ Agent Response Validation - Post-processing validation of agent responses.
 
 import re
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from .schemas import (
     GuardrailResult, 

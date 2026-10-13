@@ -1,158 +1,69 @@
 [project]
 name = "luca-agent"
 version = "0.2.0"
-description = "LUCA - Educational AI Assistant with Multi-Agent Architecture"
+description = "LUCA - Tutor de Bases de Datos: álgebra relacional y SQL, con RAG sobre los apuntes de la materia"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "LUCA Development Team", email = "dev@uca.edu.ar"}
 ]
-maintainers = [
-    {name = "LUCA Development Team", email = "dev@uca.edu.ar"}
-]
-keywords = ["ai", "education", "agent", "neo4j", "langchain", "knowledge-graph", "guardrails", "content-safety"]
+keywords = ["ai", "education", "tutor", "relational-algebra", "sql", "rag", "langgraph", "guardrails"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Education",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Topic :: Education",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 requires-python = ">=3.12"
 dependencies = [
-    # Core framework
-    # a2a-sdk 1.x has breaking API changes (A2AStarletteApplication removed, proto types restructured)
-    "a2a-sdk>=0.2.8,<1.0",
-    "click>=8.1.8",
-    "httpx>=0.28.1",
-    "pydantic>=2.10.6",
-    "python-dotenv>=1.1.0",
-    "uvicorn>=0.34.2",
-    # AI and LLM
-    "langchain>=1.4.3",
+    # Tutor (LLM + grafo)
     "langgraph>=1.2.12",
+    "langgraph-checkpoint-sqlite>=3",
+    "langchain-core>=1.6",
     "langchain-openai>=1.6.7",
     "openai>=2.45.0",
-    # Database
-    "neo4j>=5.0.0",
-    "pandas>=3.0.0",
-    "openpyxl>=3.0.0",
-    # Observability
-    "langfuse>=4.0.0",
-    # Frontend
-    "flask>=2.3.0",
-    "flask-cors>=4.0.0",
-    "aiohttp>=3.8.0",
-    # Testing
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-mock>=3.0.0",
-    # Tools and utilities
-    "uv>=0.1.0",
-    "mcp-neo4j-cypher>=0.1.0",
-    "sqlglot>=30.22.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.10.6",
+    # Apuntes (RAG)
     "chromadb>=1.5",
     "pypdf>=5",
     "langchain-text-splitters>=1.0",
-    "langgraph-checkpoint-sqlite>=3",
+    # Ingesta de prácticas y validación de SQL
+    "pandas>=3.0.0",
+    "openpyxl>=3.0.0",
+    "sqlglot>=30.22.0",
+    # Frontend
+    "flask>=2.3.0",
+    "flask-cors>=4.0.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
-]
-testing = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "pytest-mock>=3.0.0",
-    "pytest-asyncio>=0.21.0",
-]
-docs = [
-    "sphinx>=7.0.0",
-    "sphinx-rtd-theme>=1.3.0",
-    "myst-parser>=2.0.0",
+    "ruff>=0.1.0",
 ]
 
 [project.scripts]
 luca-frontend = "frontend.run:main"
-luca-orchestrator = "orchestrator.__main__:main"
-luca-gapanalyzer = "gapanalyzer.__main__:main"
+luca-ingest = "ingest.__main__:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["frontend", "orchestrator", "gapanalyzer", "kg", "tools", "guardrails"]
+packages = ["agent", "course", "ingest", "storage", "frontend", "tools", "guardrails"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-testpaths = ["test", "frontend"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "-v --tb=short"
+testpaths = ["test"]
+addopts = "--tb=short"
+filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py312"
 
-[tool.black]
-line-length = 88
-target-version = ["py312"]
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
-
-[tool.mypy]
-python_version = "3.12"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-
 [tool.coverage.run]
-source = ["frontend", "orchestrator", "gapanalyzer", "kg", "tools", "guardrails"]
-omit = [
-    "*/tests/*",
-    "*/test_*",
-    "*/__pycache__/*",
-    "*/venv/*",
-    "*/.venv/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-]
+source = ["agent", "course", "ingest", "storage", "frontend", "tools", "guardrails"]
