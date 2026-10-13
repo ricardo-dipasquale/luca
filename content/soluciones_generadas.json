@@ -1235,22 +1235,22 @@
     "practica": 4,
     "seccion": "1",
     "ejercicio": "35",
-    "enunciado": "35. ¿Calcula cuántos clientes tiene cada una de las ciudades que empiezan por",
-    "ar": "",
+    "enunciado": "¿Calcula cuántos clientes tiene cada una de las ciudades que empiezan por M?",
+    "ar": "A ← σ_{ciudad LIKE 'M%'}(cliente)\n_{ciudad} F_{CUENTA(codigo_cliente)}(A)",
     "origen_ar": "generada",
-    "sql": "",
-    "observaciones": "La consigna está incompleta: termina en «ciudades que empiezan por» y no especifica el prefijo o patrón requerido. Hace falta esa información para expresar el filtro y derivar las consultas.",
+    "sql": "WITH A AS (\n    SELECT *\n    FROM cliente\n    WHERE ciudad LIKE 'M%'\n)\nSELECT ciudad, COUNT(codigo_cliente) AS cantidad_clientes\nFROM A\nGROUP BY ciudad;",
+    "observaciones": "La selección por prefijo requiere una condición de patrón (LIKE), que no está incluida entre los predicados de AR definidos en la consigna. Se usa LIKE 'M%' como extensión de la notación.",
     "estado": "pendiente",
-    "hash_entradas": "9dbb11ae0fb541dc",
+    "hash_entradas": "902318a520d45225",
     "modelo": "gpt-6-luna",
     "validacion": {
-      "ok": false,
-      "nivel": "sintaxis",
-      "detalle": "sin SQL (ver observaciones)"
+      "ok": true,
+      "nivel": "esquema",
+      "detalle": "tablas y columnas verificadas contra el esquema de la sección"
     },
     "forma_canonica": {
-      "ok": false,
-      "detalle": "sin SQL"
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.36": {
