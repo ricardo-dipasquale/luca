@@ -33,6 +33,31 @@ class PracticeRepository:
             return None
         return next((e for e in seccion["ejercicios"] if e["numero"] == str(exercise_number)), None)
 
+    def get_exercise(self, exercise_id: str) -> Optional[Dict[str, Any]]:
+        """Everything the tutor needs about one exercise, by id "práctica.sección.ejercicio" (e.g. "4.1.12")."""
+        try:
+            practica_id, seccion_id, ejercicio_id = exercise_id.split(".", 2)
+        except ValueError:
+            return None
+        practica = self._practicas.get(int(practica_id) if practica_id.isdigit() else practica_id)
+        if practica is None:
+            return None
+        seccion = next((s for s in practica["secciones"] if s["numero"] == seccion_id), None)
+        ejercicio = seccion and next((e for e in seccion["ejercicios"] if e["numero"] == ejercicio_id), None)
+        if not ejercicio:
+            return None
+        solucion = ejercicio.get("solucion") or {}
+        return {
+            "id": exercise_id,
+            "practica": {k: practica.get(k) for k in ("numero", "titulo", "descripcion", "objetivos", "criterios_correccion")},
+            "seccion_enunciado": seccion["enunciado"],
+            "enunciado": ejercicio["enunciado"],
+            "tips": {"practica": practica["tips"], "seccion": seccion["tips"], "ejercicio": ejercicio["tips"]},
+            "solucion_ar": solucion.get("ar") or ejercicio["respuestas"],
+            "solucion_sql": solucion.get("sql"),
+            "apuntes": practica.get("apuntes_relacionados", []),
+        }
+
     def get_subjects(self) -> List[Dict[str, Any]]:
         return [{"name": self._materia["nombre"], "nombre": self._materia["nombre"]}]
 

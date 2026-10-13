@@ -22,7 +22,7 @@ from flask.json.provider import DefaultJSONProvider
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from orchestrator.agent_executor import OrchestratorAgentExecutor
+from agent.executor import TutorExecutor
 from course.practices import get_practice_repository
 from auth import authenticate_user, get_user_conversations, create_conversation, generate_conversation_title, increment_message_count, add_message_to_conversation, get_conversation_messages, delete_conversation
 from utils import get_subjects as load_subjects
@@ -47,8 +47,8 @@ CORS(app)
 # Fail at startup rather than on the first page load if `python -m ingest` hasn't run.
 get_practice_repository()
 
-# Global orchestrator instance (shared across requests for session persistence)
-orchestrator = OrchestratorAgentExecutor()
+# Global tutor (shared across requests: conversation memory lives in its checkpointer)
+tutor = TutorExecutor()
 
 def require_auth(f):
     """Decorator to require authentication for protected endpoints."""
@@ -166,6 +166,7 @@ def chat():
     subject = data.get('subject')
     conversation_id = data.get('conversation_id')
     use_conversation_memory = data.get('use_conversation_memory', False)
+    exercise_id = data.get('exercise_id') or None
     
     if not message:
         return jsonify({'error': 'Message is required'}), 400
@@ -189,7 +190,7 @@ def chat():
     
     try:
         # Process message synchronously
-        result = process_message_sync(message, session_id, subject, conversation_id, session.get('user_email'))
+        result = process_message_sync(message, session_id, subject, conversation_id, session.get('user_email'), exercise_id)
         return jsonify(result)
         
     except Exception as e:
@@ -202,34 +203,25 @@ def chat():
             'content': 'Error al procesar el mensaje. Por favor, intenta nuevamente.'
         }), 500
 
-def process_message_sync(message: str, session_id: str, subject: Optional[str] = None, conversation_id: Optional[str] = None, user_email: Optional[str] = None) -> Dict[str, Any]:
+def process_message_sync(message: str, session_id: str, subject: Optional[str] = None, conversation_id: Optional[str] = None, user_email: Optional[str] = None, exercise_id: Optional[str] = None) -> Dict[str, Any]:
     """Process message synchronously using asyncio.run in new event loop."""
     async def _process():
         # Initialize conversation_id in local scope
         local_conversation_id = conversation_id
         
-        context = {
-            'session_id': session_id,
-            'user_id': 'flask_user'
-        }
-        
-        if subject:
-            context['educational_subject'] = subject
-        
-        print(f"🔍 Processing with context: {context}")
+        print(f"🔍 Processing session={session_id} exercise={exercise_id}")
         
         progress_steps = []
         final_response = ""
+        structured_response = {}
         is_first_message = local_conversation_id is None
         
-        async for chunk in orchestrator.stream(
-            request={'message': message},
-            context=context
-        ):
+        async for chunk in tutor.stream(message, session_id, exercise_id=exercise_id, user_id=user_email, subject=subject):
             print(f"📦 Received chunk: {chunk.get('content', 'No content')[:100]}...")
             
             if chunk.get('is_task_complete'):
                 final_response = chunk.get('content', 'No se pudo obtener respuesta')
+                structured_response = chunk.get('structured_response', {})
                 print(f"✅ Final response received")
                 break
             else:
@@ -277,7 +269,10 @@ def process_message_sync(message: str, session_id: str, subject: Optional[str] =
             'progress_steps': progress_steps,
             'success': True,
             'conversation_id': local_conversation_id,
-            'session_id_used': session_id  # Return which session was used
+            'session_id_used': session_id,  # Return which session was used
+            'exercise_id': exercise_id,
+            'modo': structured_response.get('modo'),
+            'fuentes': structured_response.get('fuentes', []),
         }
     
     # Always create fresh event loop for each request
