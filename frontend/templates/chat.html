@@ -30,10 +30,37 @@
                 <img src="{{ url_for('static', filename='images/Logo FICA uso excepcional color.png') }}" alt="FICA Logo" style="height: 100px;">
             </div>
             
-            <div class="card">
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#practicesTab" type="button" role="tab">
+                        <i class="fas fa-list-check"></i> Prácticas
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#conversationsTab" type="button" role="tab">
+                        <i class="fas fa-comments"></i> Conversaciones
+                    </button>
+                </li>
+            </ul>
+            <div class="tab-content">
+            <div class="tab-pane fade show active" id="practicesTab" role="tabpanel">
+                <div class="card border-top-0">
+                    <div class="card-body">
+                        <input type="search" class="form-control form-control-sm mb-2" id="exerciseFilter"
+                               placeholder="Buscar ejercicio (número o texto)…">
+                        <button class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="clearExercise()">
+                            <i class="fas fa-book-open"></i> Consulta libre (teoría o ejercicio propio)
+                        </button>
+                        <div class="accordion practices-panel" id="practicesAccordion">
+                            <div class="text-muted small">Cargando prácticas…</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="conversationsTab" role="tabpanel">
+            <div class="card border-top-0">
                 <div class="card-header">
-                    <h5><i class="fas fa-comments"></i> Conversaciones</h5>
-                    <button class="btn btn-primary btn-sm w-100 mt-2" onclick="createNewConversation()">
+                    <button class="btn btn-primary btn-sm w-100" onclick="createNewConversation()">
                         <i class="fas fa-plus"></i> Nueva Conversación
                     </button>
                 </div>
@@ -53,8 +80,10 @@
                     {% endfor %}
                 </div>
             </div>
+            </div>
+            </div>
         </div>
-        
+
         <!-- Main Chat Area -->
         <div class="col-md-6">
             <div class="card">
@@ -77,6 +106,21 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <!-- Selected exercise (hidden in free mode) -->
+                    <div class="exercise-banner d-none" id="exerciseBanner">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold" id="exerciseTitle"></div>
+                                <div id="exerciseStatement" class="small"></div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="clearExercise()" title="Pasar a consulta libre">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <a class="small" data-bs-toggle="collapse" href="#exerciseSchema" role="button">Ver esquema y consigna de la sección</a>
+                        <div class="collapse" id="exerciseSchema"><div class="schema" id="exerciseSchemaText"></div></div>
+                    </div>
+
                     <!-- Chat Messages Container -->
                     <div class="chat-container" id="chatContainer">
                         <div class="text-center text-muted">
@@ -230,9 +274,14 @@
 <script>
 let currentConversationId = null;
 let isProcessing = false;
+let currentExerciseId = null;
+let practicesData = [];
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
+    loadPractices();
+    document.getElementById('exerciseFilter').addEventListener('input', e => renderPractices(e.target.value));
+
     // Auto-select first subject if available
     const subjectSelect = document.getElementById('subjectSelect');
     if (subjectSelect.options.length > 1) {
@@ -303,7 +352,8 @@ document.getElementById('chatForm').addEventListener('submit', async function(e)
                 message: message,
                 subject: subject,
                 conversation_id: currentConversationId,
-                use_conversation_memory: usingExistingConversation  // Only true when selected from list
+                use_conversation_memory: usingExistingConversation,  // Only true when selected from list
+                exercise_id: currentExerciseId
             })
         });
         
@@ -352,34 +402,158 @@ document.getElementById('chatForm').addEventListener('submit', async function(e)
 function addMessage(content, role, type = 'normal') {
     const chatContainer = document.getElementById('chatContainer');
     const messageDiv = document.createElement('div');
-    
+
     if (role === 'user') {
         messageDiv.className = 'message-user';
+        messageDiv.textContent = content;  // student text is never interpreted as HTML
+    } else if (role === 'system') {
+        messageDiv.className = 'message-system';
+        messageDiv.textContent = content;
     } else {
         messageDiv.className = 'message-assistant';
         if (type === 'error') {
             messageDiv.style.backgroundColor = '#f8d7da';
             messageDiv.style.borderLeftColor = '#dc3545';
+            messageDiv.textContent = content;
+        } else {
+            // The tutor answers in Markdown; sanitize before inserting.
+            messageDiv.innerHTML = DOMPurify.sanitize(marked.parse(content));
         }
     }
-    
-    // Replace literal \n\n and \n sequences with HTML line breaks
-    const formattedContent = content
-        .replace(/\\n\\n/g, '<br><br>')  // Replace literal \n\n with double line breaks
-        .replace(/\\n/g, '<br>')         // Replace literal \n with single line breaks
-        .replace(/\n\n/g, '<br><br>')    // Replace actual \n\n with double line breaks
-        .replace(/\n/g, '<br>');         // Replace actual \n with single line breaks
-    
-    messageDiv.innerHTML = formattedContent;
+
     chatContainer.appendChild(messageDiv);
     
     // Scroll to bottom
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+// ---------- Practices panel ----------
+
+function loadPractices() {
+    fetch('/practicas')
+        .then(r => r.json())
+        .then(data => { practicesData = data; renderPractices(''); })
+        .catch(() => {
+            document.getElementById('practicesAccordion').textContent = 'No se pudieron cargar las prácticas.';
+        });
+}
+
+function normalize(text) {
+    return (text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+}
+
+function renderPractices(filter) {
+    const accordion = document.getElementById('practicesAccordion');
+    accordion.innerHTML = '';
+    const query = normalize(filter.trim());
+
+    practicesData.forEach((practica, i) => {
+        const secciones = practica.secciones.map(s => ({
+            ...s,
+            ejercicios: s.ejercicios.filter(e => !query || normalize(e.id).includes(query) || normalize(e.enunciado).includes(query)),
+        })).filter(s => s.ejercicios.length);
+        if (!secciones.length) return;
+        const total = secciones.reduce((n, s) => n + s.ejercicios.length, 0);
+        const expanded = Boolean(query) || secciones.some(s => s.ejercicios.some(e => e.id === currentExerciseId));
+
+        const item = el('div', 'accordion-item');
+        const header = el('h2', 'accordion-header');
+        const button = el('button', 'accordion-button py-2' + (expanded ? '' : ' collapsed'),
+                          `Práctica ${practica.numero}: ${practica.titulo || ''} (${total})`);
+        button.type = 'button';
+        button.dataset.bsToggle = 'collapse';
+        button.dataset.bsTarget = `#practica-${i}`;
+        header.appendChild(button);
+        item.appendChild(header);
+
+        const collapse = el('div', 'accordion-collapse collapse' + (expanded ? ' show' : ''));
+        collapse.id = `practica-${i}`;
+        const body = el('div', 'accordion-body p-2');
+        secciones.forEach(s => {
+            if (practica.secciones.length > 1) body.appendChild(el('div', 'small text-muted mt-1', `Sección ${s.numero}`));
+            s.ejercicios.forEach(e => {
+                const row = el('div', 'exercise-item' + (e.id === currentExerciseId ? ' active' : ''));
+                row.dataset.id = e.id;
+                row.appendChild(el('span', 'exercise-id', exerciseLabel(practica, s, e)));
+                const texto = withoutNumberPrefix(e);
+                const resumen = texto.length > 90 ? texto.slice(0, 90) + '…' : texto;
+                row.appendChild(document.createTextNode(resumen));
+                row.title = e.enunciado;
+                row.addEventListener('click', () => selectExercise(e.id));
+                body.appendChild(row);
+            });
+        });
+        collapse.appendChild(body);
+        item.appendChild(collapse);
+        accordion.appendChild(item);
+    });
+
+    if (!accordion.children.length) accordion.textContent = 'Ningún ejercicio coincide con la búsqueda.';
+}
+
+// With a single section the section number is noise: "75" instead of "1.75".
+function exerciseLabel(practica, seccion, ejercicio) {
+    return practica.secciones.length > 1 ? `${seccion.numero}.${ejercicio.numero}` : ejercicio.numero;
+}
+
+// Some statements already start with their number ("75. Clientes…").
+function withoutNumberPrefix(ejercicio) {
+    const prefix = `${ejercicio.numero}.`;
+    return ejercicio.enunciado.startsWith(prefix) ? ejercicio.enunciado.slice(prefix.length).trim() : ejercicio.enunciado;
+}
+
+function findExercise(id) {
+    for (const practica of practicesData) {
+        for (const seccion of practica.secciones) {
+            const ejercicio = seccion.ejercicios.find(e => e.id === id);
+            if (ejercicio) return { practica, seccion, ejercicio };
+        }
+    }
+    return null;
+}
+
+function selectExercise(id) {
+    const found = findExercise(id);
+    if (!found || id === currentExerciseId) return;
+    currentExerciseId = id;
+    document.querySelectorAll('.exercise-item').forEach(n => n.classList.toggle('active', n.dataset.id === id));
+
+    const { practica, seccion, ejercicio } = found;
+    document.getElementById('exerciseTitle').textContent =
+        `Práctica ${practica.numero} · Ejercicio ${exerciseLabel(practica, seccion, ejercicio)}`;
+    document.getElementById('exerciseStatement').textContent = withoutNumberPrefix(ejercicio);
+    document.getElementById('exerciseSchemaText').textContent = (seccion.enunciado || '').replace(/\n\s*\n/g, '\n');
+    document.getElementById('exerciseBanner').classList.remove('d-none');
+
+    addMessage(`Ahora trabajamos en la práctica ${practica.numero}, ejercicio ${exerciseLabel(practica, seccion, ejercicio)}`, 'system');
+    document.getElementById('messageInput').focus();
+}
+
+function clearExercise() {
+    if (currentExerciseId === null) return;
+    currentExerciseId = null;
+    document.querySelectorAll('.exercise-item.active').forEach(n => n.classList.remove('active'));
+    document.getElementById('exerciseBanner').classList.add('d-none');
+    addMessage('Consulta libre: teoría o un ejercicio propio', 'system');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function showProgress(text) {
     const progressContainer = document.getElementById('progressContainer');
-    progressContainer.innerHTML = `<div class="thinking-indicator">${text}</div>`;
+    progressContainer.innerHTML = '';
+    progressContainer.appendChild(el('div', 'thinking-indicator', text));
 }
 
 function clearProgress() {
@@ -516,8 +690,9 @@ function refreshConversationsList() {
             convDiv.className = 'conversation-item';
             convDiv.setAttribute('data-id', conv.id);
             
-            const title = conv.title.length > 60 ? conv.title.substring(0, 60) + '...' : conv.title;
-            const subject = conv.subject || 'Sin materia';
+            // The title is LLM-generated from the student's message: escape before building HTML.
+            const title = escapeHtml(conv.title.length > 60 ? conv.title.substring(0, 60) + '...' : conv.title);
+            const subject = escapeHtml(conv.subject || 'Sin materia');
             const messageCount = conv.message_count || 0;
             
             convDiv.innerHTML = `

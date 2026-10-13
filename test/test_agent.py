@@ -204,3 +204,15 @@ def test_practice_repository_exercise_context(tmp_path: Path):
     assert ej["solucion_ar"] == ["π_{x}(R)"] and ej["solucion_sql"] == "SELECT DISTINCT x FROM R"
     assert ej["apuntes"] == ["a.pdf"] and ej["tips"]["practica"] == ["tp"]
     assert repo.get_exercise("Extra.1.zz") is None and repo.get_exercise("mal") is None
+
+
+@pytest.mark.skipif(not Path("artifacts/practicas.json").exists(), reason="requiere python -m ingest")
+def test_practices_tree_never_exposes_solutions():
+    repo = PracticeRepository()  # real artifacts/practicas.json, built by `python -m ingest`
+    tree = repo.tree()
+    texto = json.dumps(tree, ensure_ascii=False)
+    for clave in ("respuestas", "solucion", "tips", "criterios", "sql"):
+        assert f'"{clave}' not in texto
+    ejercicios = [e for p in tree for s in p["secciones"] for e in s["ejercicios"]]
+    assert all(repo.get_exercise(e["id"]) for e in ejercicios)
+    assert [p["numero"] for p in tree][-1] == "Extra"

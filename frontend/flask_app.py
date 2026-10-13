@@ -312,6 +312,12 @@ def get_subjects():
     subjects = load_subjects()
     return jsonify(subjects)
 
+@app.route('/practicas')
+@require_auth
+def get_practicas():
+    """Practices tree for the side panel (statements only, no solutions)."""
+    return jsonify(get_practice_repository().tree())
+
 @app.route('/conversations/<conversation_id>/messages')
 @require_auth
 def get_conversation_history(conversation_id):

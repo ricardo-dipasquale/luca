@@ -33,6 +33,30 @@ class PracticeRepository:
             return None
         return next((e for e in seccion["ejercicios"] if e["numero"] == str(exercise_number)), None)
 
+    def tree(self) -> List[Dict[str, Any]]:
+        """Practices → sections → exercises with statements only, for the student's side panel.
+
+        Never includes answers, tips or reference solutions: this goes to the browser.
+        """
+        return [
+            {
+                "numero": p["numero"],
+                "titulo": p["titulo"],
+                "secciones": [
+                    {
+                        "numero": s["numero"],
+                        "enunciado": s["enunciado"],
+                        "ejercicios": [
+                            {"id": f"{p['numero']}.{s['numero']}.{e['numero']}", "numero": e["numero"], "enunciado": e["enunciado"]}
+                            for e in s["ejercicios"]
+                        ],
+                    }
+                    for s in p["secciones"]
+                ],
+            }
+            for p in self._practicas.values()
+        ]
+
     def get_exercise(self, exercise_id: str) -> Optional[Dict[str, Any]]:
         """Everything the tutor needs about one exercise, by id "práctica.sección.ejercicio" (e.g. "4.1.12")."""
         try:

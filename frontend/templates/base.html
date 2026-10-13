@@ -63,6 +63,56 @@
             border-left: 3px solid var(--uca-blue);
         }
         
+        .message-user { white-space: pre-wrap; }
+        .message-assistant p:last-child { margin-bottom: 0; }
+        .message-assistant pre {
+            background: #272c34;
+            color: #e6e6e6;
+            padding: 0.6rem 0.8rem;
+            border-radius: 0.4rem;
+            overflow-x: auto;
+            font-size: 0.85rem;
+        }
+        .message-assistant code { color: #8a1c4a; }
+        .message-assistant pre code { color: inherit; }
+
+        .message-system {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.8rem;
+            margin: 0.75rem 0;
+        }
+
+        .exercise-banner {
+            border: 1px solid var(--uca-light-blue);
+            border-left: 4px solid var(--uca-blue);
+            background: #f6faff;
+            border-radius: 0.5rem;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.75rem;
+        }
+        .exercise-banner .schema {
+            white-space: pre-wrap;
+            font-size: 0.8rem;
+            max-height: 30vh;
+            overflow-y: auto;
+            background: white;
+            border-radius: 0.4rem;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .practices-panel { max-height: 70vh; overflow-y: auto; }
+        .exercise-item {
+            padding: 0.35rem 0.5rem;
+            border-radius: 0.35rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .exercise-item:hover { background-color: #f1f3f4; }
+        .exercise-item.active { background-color: var(--uca-blue); color: white; }
+        .exercise-item .exercise-id { font-weight: 600; margin-right: 0.35rem; }
+
         .thinking-indicator {
             background-color: #fff3cd;
             color: #856404;
@@ -280,6 +330,8 @@
     
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
