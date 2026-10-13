@@ -33,7 +33,7 @@ services:
       chroma:
         condition: service_healthy
     volumes:
-      - ./data/luca:/app/data          # SQLite: usuarios, conversaciones, memoria del tutor
+      - luca_data:/app/data            # SQLite: usuarios, conversaciones, memoria del tutor
       - ./artifacts:/app/artifacts:ro  # practicas.json generado por `python -m ingest`
     environment:
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
@@ -51,6 +51,9 @@ services:
     restart: unless-stopped
     networks:
       - luca-network
+
+volumes:
+  luca_data:
 
 networks:
   luca-network:
