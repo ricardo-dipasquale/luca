@@ -6,6 +6,15 @@
 .env*
 .envrc
 
+# Secrets: never bake keys or certificates into the image (ssl/ is mounted at runtime)
+*.pem
+*.key
+ssl/
+
+# Local virtualenv and runtime data
+.venv/
+data/
+
 # Python cache
 __pycache__/
 *.py[cod]
