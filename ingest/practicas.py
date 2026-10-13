@@ -241,19 +241,30 @@ def build_practicas(
     return artifact, report.warnings
 
 
-def run(programa_path: Path, practicas_path: Path, output_path: Path, apuntes_dir: Path | None = None) -> None:
+def build_and_log(
+    programa_path: Path, practicas_path: Path, apuntes_dir: Path | None = None
+) -> dict:
     artifact, warnings = build_practicas(programa_path, practicas_path, apuntes_dir)
     for w in warnings:
         logger.warning(w)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = output_path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(output_path)
     ejercicios = [e for p in artifact["practicas"] for s in p["secciones"] for e in s["ejercicios"]]
     con_respuesta = sum(1 for e in ejercicios if e["respuestas"])
     a_deducir = sum(1 for e in ejercicios if e["deducir_respuesta"])
     logger.info(
         f"practicas: {len(artifact['practicas'])} prácticas, {len(ejercicios)} ejercicios "
         f"({con_respuesta} con respuesta, {len(ejercicios) - con_respuesta - a_deducir} solo con tips, "
-        f"{a_deducir} a deducir), {len(warnings)} advertencias → {output_path}"
+        f"{a_deducir} a deducir), {len(warnings)} advertencias"
     )
+    return artifact
+
+
+def write(artifact: dict, output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = output_path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(output_path)
+    logger.info(f"→ {output_path}")
+
+
+def run(programa_path: Path, practicas_path: Path, output_path: Path, apuntes_dir: Path | None = None) -> None:
+    write(build_and_log(programa_path, practicas_path, apuntes_dir), output_path)

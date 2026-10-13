@@ -1,34 +1,49 @@
-"""Rutina batch de ingesta: python -m ingest [--only practicas] [--content DIR] [--artifacts DIR]"""
+"""Rutina batch de ingesta: python -m ingest [--only practicas|soluciones] [--force]
+
+practicas: Excel → artifacts/practicas.json (siempre se reconstruye; incluye las soluciones ya generadas).
+soluciones: genera con el LLM el AR faltante y el SQL de cada ejercicio → content/soluciones_generadas.json.
+"""
 
 import argparse
 import logging
 import sys
 from pathlib import Path
 
-from ingest import practicas
+from ingest import practicas, soluciones
 from ingest.practicas import IngestValidationError
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-STEPS = ["practicas"]
+STEPS = ["practicas", "soluciones"]
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m ingest", description=__doc__)
+    parser = argparse.ArgumentParser(prog="python -m ingest", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", choices=STEPS, action="append", help="Correr solo este paso (repetible)")
+    parser.add_argument("--force", action="store_true", help="Regenerar soluciones no aprobadas aunque no hayan cambiado")
     parser.add_argument("--content", type=Path, default=PROJECT_ROOT / "content")
     parser.add_argument("--artifacts", type=Path, default=PROJECT_ROOT / "artifacts")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    for noisy in ("httpx", "openai", "langchain", "langchain_openai"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     steps = args.only or STEPS
+    soluciones_path = args.content / "soluciones_generadas.json"
     try:
-        if "practicas" in steps:
-            practicas.run(
-                programa_path=args.content / "Programa.xlsx",
-                practicas_path=args.content / "Prácticas Bases de Datos.xlsx",
-                output_path=args.artifacts / "practicas.json",
-                apuntes_dir=args.content / "apuntes",
+        artifact = practicas.build_and_log(
+            programa_path=args.content / "Programa.xlsx",
+            practicas_path=args.content / "Prácticas Bases de Datos.xlsx",
+            apuntes_dir=args.content / "apuntes",
+        )
+        if "soluciones" in steps:
+            from tools.llm_config import get_default_llm_config
+
+            soluciones.generate(
+                artifact, soluciones_path, soluciones.default_llm_factory,
+                modelo=get_default_llm_config()["model"], force=args.force,
             )
+        soluciones.merge(artifact, soluciones_path)
+        practicas.write(artifact, args.artifacts / "practicas.json")
     except IngestValidationError as e:
         logging.error(str(e))
         return 1

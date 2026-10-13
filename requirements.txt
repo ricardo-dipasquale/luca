@@ -38,6 +38,7 @@ pytest-mock>=3.0.0
 # Tools and utilities
 uv>=0.1.0
 mcp-neo4j-cypher>=0.1.0
+sqlglot>=30.22.0
 
 # Development dependencies (optional)
 black>=23.0.0
