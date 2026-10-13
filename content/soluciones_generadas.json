@@ -15,6 +15,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "1.1.b": {
@@ -25,7 +29,7 @@
     "ar": null,
     "origen_ar": "planilla",
     "sql": "SELECT DISTINCT \"Cod Producto\", \"Descripción\"\nFROM PRODUCTO\nWHERE \"Cod Producto\" = \"Descripción\";",
-    "observaciones": "La solución oficial usa el atributo «Descripcion», pero el esquema declara «Descripción» (con tilde). En SQL usé el nombre tal como aparece en el esquema.",
+    "observaciones": "La solución oficial escribe `Descripcion`, pero el esquema define el atributo como `Descripción`. En SQL usé el nombre tal como figura en el esquema.",
     "estado": "pendiente",
     "hash_entradas": "3a82d575467456f9",
     "modelo": "gpt-6-luna",
@@ -33,6 +37,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "1.1.c": {
@@ -42,7 +50,7 @@
     "enunciado": "Obtener el nombre de los clientes junto con el identificador de venta y la cantidad vendida, de aquellos productos de los que se vendieron más de 500 unidades en una sola transacción",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT c.Nombre, v.\"Id Venta\", v.Cantidad\nFROM VENTA AS v\nINNER JOIN CLIENTES AS c\n  ON v.\"Nº Cliente\" = c.\"Nº Cliente\"\nWHERE v.Cantidad > 500;",
+    "sql": "SELECT DISTINCT C.Nombre, V.\"Id Venta\", V.Cantidad\nFROM VENTA AS V\nINNER JOIN CLIENTES AS C\n    ON V.\"Nº Cliente\" = C.\"Nº Cliente\"\nWHERE V.Cantidad > 500;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "58f2a58dac6eb079",
@@ -51,6 +59,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "1.1.d": {
@@ -60,7 +72,7 @@
     "enunciado": "Nombre de los clientes que no han comprado nada",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT \"Nombre\"\nFROM (\n    SELECT DISTINCT \"Nº Cliente\", \"Nombre\"\n    FROM CLIENTES\n    EXCEPT\n    SELECT DISTINCT C.\"Nº Cliente\", C.\"Nombre\"\n    FROM CLIENTES AS C\n    INNER JOIN VENTA AS V\n        ON C.\"Nº Cliente\" = V.\"Nº Cliente\"\n) AS ClientesSinCompras;",
+    "sql": "WITH A AS (\n    SELECT DISTINCT \"Nº Cliente\", Nombre\n    FROM CLIENTES\n),\nB AS (\n    SELECT DISTINCT CLIENTES.\"Nº Cliente\", CLIENTES.Nombre\n    FROM CLIENTES\n    INNER JOIN VENTA\n        ON CLIENTES.\"Nº Cliente\" = VENTA.\"Nº Cliente\"\n),\nC AS (\n    SELECT \"Nº Cliente\", Nombre FROM A\n    EXCEPT\n    SELECT \"Nº Cliente\", Nombre FROM B\n)\nSELECT DISTINCT Nombre\nFROM C;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "abafdfc31fbef14f",
@@ -69,6 +81,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "1.1.e": {
@@ -78,8 +94,8 @@
     "enunciado": "Nombre de los clientes que han comprado todos los productos de la empresa",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT V.\"Nº Cliente\"\nFROM VENTA AS V\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM PRODUCTO AS P\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM VENTA AS V2\n        WHERE V2.\"Nº Cliente\" = V.\"Nº Cliente\"\n          AND V2.\"Cod Producto\" = P.\"Cod Producto\"\n    )\n);",
-    "observaciones": "La solución oficial devuelve Nº Cliente, no Nombre. Por lo tanto, la consulta SQL derivada de ella devuelve identificadores de clientes y no satisface literalmente la consigna. Para obtener los nombres habría que juntar el resultado de la división con CLIENTES por Nº Cliente y proyectar Nombre.",
+    "sql": "WITH A AS (SELECT DISTINCT \"Nº Cliente\", \"Cod Producto\" FROM VENTA), B AS (SELECT DISTINCT \"Cod Producto\" FROM PRODUCTO)\nSELECT DISTINCT A1.\"Nº Cliente\"\nFROM A AS A1\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM A AS A2, B\n    WHERE A1.\"Nº Cliente\" = A2.\"Nº Cliente\"\n      AND NOT EXISTS (\n          SELECT 1\n          FROM A AS A3\n          WHERE A3.\"Nº Cliente\" = A2.\"Nº Cliente\"\n            AND A3.\"Cod Producto\" = B.\"Cod Producto\"\n      )\n)",
+    "observaciones": "La solución oficial devuelve los números de cliente, no sus nombres, por lo que no coincide con el enunciado. Para obtener los nombres habría que juntar el resultado de la división con CLIENTES y proyectar Nombre.",
     "estado": "pendiente",
     "hash_entradas": "bd2531a4f98ebe18",
     "modelo": "gpt-6-luna",
@@ -87,6 +103,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "1.1.f": {
@@ -96,8 +116,8 @@
     "enunciado": "Identificador de las ventas cuya cantidad supera a la cantidad vendida en la\nventa número 18",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT A.\"Id Venta\"\nFROM VENTA AS A\nINNER JOIN (\n    SELECT *\n    FROM VENTA\n    WHERE \"Id Venta\" = 18\n) AS B\n    ON A.Cantidad > B.Cantidad;",
-    "observaciones": "La solución oficial usa A y B sin definirlos. Se interpretan como dos copias de VENTA, con esos alias, como corresponde a una autojunta.",
+    "sql": "SELECT DISTINCT A.\"Id Venta\"\nFROM VENTA AS A\nINNER JOIN (\n    SELECT *\n    FROM VENTA\n    WHERE \"Id Venta\" = 18\n) AS B\nON A.Cantidad > B.Cantidad;",
+    "observaciones": "La solución oficial usa A y B sin definirlos explícitamente. Se interpretan como dos alias de VENTA; B es la venta cuyo identificador es 18.",
     "estado": "pendiente",
     "hash_entradas": "207bf16a9122d4d0",
     "modelo": "gpt-6-luna",
@@ -105,6 +125,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "1.1.g": {
@@ -114,8 +138,8 @@
     "enunciado": "Productos que no se han comprado nunca en Buenos Aires",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT p.\"Cod Producto\", p.\"Descripción\", p.\"Precio\"\nFROM PRODUCTO AS p\nEXCEPT\nSELECT DISTINCT p.\"Cod Producto\", p.\"Descripción\", p.\"Precio\"\nFROM CLIENTES AS c\nINNER JOIN VENTA AS v\n  ON c.\"Nº Cliente\" = v.\"Nº Cliente\"\nINNER JOIN PRODUCTO AS p\n  ON v.\"Cod Producto\" = p.\"Cod Producto\"\nWHERE c.\"Ciudad\" = 'Buenos Aires';",
-    "observaciones": "La solución oficial usa el atributo «Descripcion», pero el esquema declara «Descripción». En el SQL usé el nombre tal como aparece en el esquema.",
+    "sql": "SELECT DISTINCT P.\"Cod Producto\", P.\"Descripción\", P.Precio\nFROM PRODUCTO AS P\nEXCEPT\nSELECT DISTINCT P.\"Cod Producto\", P.\"Descripción\", P.Precio\nFROM CLIENTES AS C\nINNER JOIN VENTA AS V\n    ON C.\"Nº Cliente\" = V.\"Nº Cliente\"\nINNER JOIN PRODUCTO AS P\n    ON V.\"Cod Producto\" = P.\"Cod Producto\"\nWHERE C.Ciudad = 'Buenos Aires';",
+    "observaciones": "La solución oficial usa «Descripcion», mientras que el esquema indica «Descripción»; en SQL se usó el nombre del esquema. También falta un paréntesis de cierre en la expresión oficial de la selección; se interpretó como σ_{Ciudad='Buenos Aires'}(CLIENTES).",
     "estado": "pendiente",
     "hash_entradas": "47020a1f24255416",
     "modelo": "gpt-6-luna",
@@ -123,6 +147,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "1.1.h": {
@@ -132,7 +160,7 @@
     "enunciado": "Productos que se han vendido tanto en Buenos Aires como en Rosario",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH PBA AS (\n    SELECT DISTINCT V.\"Cod Producto\"\n    FROM CLIENTES C\n    INNER JOIN VENTA V\n        ON C.\"Nº Cliente\" = V.\"Nº Cliente\"\n    WHERE C.Ciudad = 'Buenos Aires'\n), PRos AS (\n    SELECT DISTINCT V.\"Cod Producto\"\n    FROM CLIENTES C\n    INNER JOIN VENTA V\n        ON C.\"Nº Cliente\" = V.\"Nº Cliente\"\n    WHERE C.Ciudad = 'Rosario'\n)\nSELECT \"Cod Producto\" FROM PBA\nINTERSECT\nSELECT \"Cod Producto\" FROM PRos;",
+    "sql": "WITH PBA AS (\n    SELECT DISTINCT VENTA.\"Cod Producto\"\n    FROM CLIENTES\n    INNER JOIN VENTA\n        ON CLIENTES.\"Nº Cliente\" = VENTA.\"Nº Cliente\"\n    WHERE CLIENTES.Ciudad = 'Buenos Aires'\n),\nPRos AS (\n    SELECT DISTINCT VENTA.\"Cod Producto\"\n    FROM CLIENTES\n    INNER JOIN VENTA\n        ON CLIENTES.\"Nº Cliente\" = VENTA.\"Nº Cliente\"\n    WHERE CLIENTES.Ciudad = 'Rosario'\n),\nP AS (\n    SELECT \"Cod Producto\" FROM PBA\n    INTERSECT\n    SELECT \"Cod Producto\" FROM PRos\n)\nSELECT \"Cod Producto\"\nFROM P",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "d69e792343dd8e9b",
@@ -141,6 +169,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "1.1.i": {
@@ -150,7 +182,7 @@
     "enunciado": "Ciudades a las que hemos vendido todos nuestros productos",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT c.\"Ciudad\"\nFROM CLIENTES AS c\nJOIN VENTA AS v ON c.\"Nº Cliente\" = v.\"Nº Cliente\"\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM PRODUCTO AS p\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM CLIENTES AS c2\n        JOIN VENTA AS v2 ON c2.\"Nº Cliente\" = v2.\"Nº Cliente\"\n        WHERE c2.\"Ciudad\" = c.\"Ciudad\"\n          AND v2.\"Cod Producto\" = p.\"Cod Producto\"\n    )\n);",
+    "sql": "WITH A AS (\n    SELECT DISTINCT C.Ciudad, V.\"Cod Producto\"\n    FROM CLIENTES AS C\n    INNER JOIN VENTA AS V\n        ON C.\"Nº Cliente\" = V.\"Nº Cliente\"\n),\nB AS (\n    SELECT DISTINCT P.\"Cod Producto\"\n    FROM PRODUCTO AS P\n)\nSELECT DISTINCT A1.Ciudad\nFROM A AS A1\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM A AS A2, B\n    WHERE A1.Ciudad = A2.Ciudad\n      AND NOT EXISTS (\n          SELECT 1\n          FROM A AS A3\n          WHERE A3.Ciudad = A2.Ciudad\n            AND A3.\"Cod Producto\" = B.\"Cod Producto\"\n      )\n);",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "08f93b5e78f0a63e",
@@ -159,6 +191,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "2.1.a": {
@@ -168,8 +204,8 @@
     "enunciado": "Obtener el nombre de los clientes que tienen alguna factura sin pagar",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT c.Nombre\nFROM CLIENTES AS c\nINNER JOIN (\n    SELECT *\n    FROM FACTURA\n    WHERE Pagada = 0\n) AS f\n    ON c.\"Nº Cliente\" = f.\"Nº Cliente\";",
-    "observaciones": "",
+    "sql": "SELECT DISTINCT CLIENTES.Nombre\nFROM CLIENTES\nINNER JOIN FACTURA\n  ON CLIENTES.\"N.º Cliente\" = FACTURA.\"N.º Cliente\"\nWHERE FACTURA.Pagada = 0;",
+    "observaciones": "El esquema escribe la clave como «N.º Cliente», mientras que la solución oficial la escribe «Nº Cliente». Se asume que ambas denominaciones refieren al mismo atributo.",
     "estado": "pendiente",
     "hash_entradas": "714afa26bdfe550b",
     "modelo": "gpt-6-luna",
@@ -177,6 +213,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "2.1.b": {
@@ -187,7 +227,7 @@
     "ar": null,
     "origen_ar": "planilla",
     "sql": "WITH A AS (\n    SELECT DISTINCT \"N.º Cliente\"\n    FROM FACTURA\n),\nB AS (\n    SELECT DISTINCT \"N.º Cliente\"\n    FROM FACTURA\n    WHERE Pagada = 0\n),\nC AS (\n    SELECT \"N.º Cliente\" FROM A\n    EXCEPT\n    SELECT \"N.º Cliente\" FROM B\n)\nSELECT \"N.º Cliente\"\nFROM C;",
-    "observaciones": "La solución oficial devuelve únicamente los números de cliente, no otros datos que permitan identificar a los clientes, como sus nombres. Además, excluye a quienes no tienen facturas; por lo tanto, interpreta que un cliente debe tener al menos una factura para cumplir la condición.",
+    "observaciones": "La solución oficial devuelve números de cliente, no nombres. Además, considera sólo clientes que tienen al menos una factura; no incluye clientes sin facturas. Hay una inconsistencia de escritura entre «Nº Cliente» en la solución oficial y «N.º Cliente» en el esquema; el SQL usa el nombre del esquema.",
     "estado": "pendiente",
     "hash_entradas": "f5653423abfcea6d",
     "modelo": "gpt-6-luna",
@@ -195,6 +235,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "3.1.a": {
@@ -213,6 +257,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.b": {
@@ -231,6 +279,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.c": {
@@ -240,7 +292,7 @@
     "enunciado": "nombres de los proveedores que fabrican alguna pieza roja o que están en Buenos Aires",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT nombre\nFROM Proveedores\nWHERE ciudad = 'Buenos Aires'\nUNION\nSELECT Proveedores.nombre\nFROM Proveedores\nINNER JOIN Catalogo ON Proveedores.pr_id = Catalogo.pr_id\nINNER JOIN Partes ON Catalogo.pa_id = Partes.pa_id\nWHERE Partes.color = 'rojo';",
+    "sql": "SELECT DISTINCT nombre\nFROM Proveedores\nWHERE ciudad = 'Buenos Aires'\nUNION\nSELECT DISTINCT Proveedores.nombre\nFROM Proveedores\nINNER JOIN Catalogo\n  ON Proveedores.pr_id = Catalogo.pr_id\nINNER JOIN Partes\n  ON Catalogo.pa_id = Partes.pa_id\nWHERE Partes.color = 'rojo';",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "b5fecf6e6c555981",
@@ -249,6 +301,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.d": {
@@ -258,7 +314,7 @@
     "enunciado": "nombres de los proveedores que fabrican alguna piezas rojas y verdes",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH Rrojo AS (\n    SELECT DISTINCT C.pr_id\n    FROM Catalogo AS C\n    INNER JOIN Partes AS P ON C.pa_id = P.pa_id\n    WHERE P.color = 'rojo'\n),\nRverde AS (\n    SELECT DISTINCT C.pr_id\n    FROM Catalogo AS C\n    INNER JOIN Partes AS P ON C.pa_id = P.pa_id\n    WHERE P.color = 'verde'\n),\nRambos AS (\n    SELECT pr_id FROM Rrojo\n    INTERSECT\n    SELECT pr_id FROM Rverde\n)\nSELECT DISTINCT P.nombre\nFROM Proveedores AS P\nINNER JOIN Rambos AS R ON P.pr_id = R.pr_id;",
+    "sql": "WITH Rrojo AS (\n    SELECT DISTINCT Catalogo.pr_id\n    FROM Catalogo\n    INNER JOIN Partes ON Catalogo.pa_id = Partes.pa_id\n    WHERE Partes.color = 'rojo'\n),\nRverde AS (\n    SELECT DISTINCT Catalogo.pr_id\n    FROM Catalogo\n    INNER JOIN Partes ON Catalogo.pa_id = Partes.pa_id\n    WHERE Partes.color = 'verde'\n),\nRambos AS (\n    SELECT pr_id FROM Rrojo\n    INTERSECT\n    SELECT pr_id FROM Rverde\n)\nSELECT DISTINCT Proveedores.nombre\nFROM Proveedores\nINNER JOIN Rambos ON Proveedores.pr_id = Rambos.pr_id;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "f4e3f4850ed94cba",
@@ -267,6 +323,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "3.1.e": {
@@ -276,8 +336,8 @@
     "enunciado": "nombres de los proveedores que fabrican todas las piezas existentes",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT p.nombre\nFROM Proveedores AS p\nJOIN (SELECT DISTINCT c.pr_id FROM Catalogo AS c) AS q\n  ON p.pr_id = q.pr_id\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM Partes AS pa\n  WHERE NOT EXISTS (\n    SELECT 1\n    FROM Catalogo AS c\n    WHERE c.pr_id = p.pr_id\n      AND c.pa_id = pa.pa_id\n  )\n);",
-    "observaciones": "La solución oficial usa Q en la condición de junta, pero no lo declara explícitamente. Se interpreta como el resultado de la división: Q ← π_{pr_id, pa_id}(Catalogo) / π_{pa_id}(Partes).",
+    "sql": "WITH A AS (\n    SELECT DISTINCT pr_id, pa_id\n    FROM Catalogo\n),\nB AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n),\nQ AS (\n    SELECT DISTINCT A1.pr_id\n    FROM A AS A1\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM A AS A2 CROSS JOIN B\n        WHERE A1.pr_id = A2.pr_id\n          AND NOT EXISTS (\n              SELECT 1\n              FROM A AS A3\n              WHERE A3.pr_id = A2.pr_id\n                AND A3.pa_id = B.pa_id\n          )\n    )\n)\nSELECT DISTINCT Proveedores.nombre\nFROM Proveedores\nINNER JOIN Q\n    ON Proveedores.pr_id = Q.pr_id;",
+    "observaciones": "La solución oficial usa Q.pr_id, pero no define Q explícitamente. Se interpreta Q como el nombre del resultado del cociente.",
     "estado": "pendiente",
     "hash_entradas": "b52c9305bc4f1e51",
     "modelo": "gpt-6-luna",
@@ -285,6 +345,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "3.1.f": {
@@ -294,7 +358,7 @@
     "enunciado": "nombres de los proveedores que fabrican todas las piezas rojas existentes",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH Rrojo AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'rojo'\n),\nQ AS (\n    SELECT DISTINCT c.pr_id\n    FROM Catalogo AS c\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM Rrojo AS r\n        WHERE NOT EXISTS (\n            SELECT 1\n            FROM Catalogo AS c2\n            WHERE c2.pr_id = c.pr_id\n              AND c2.pa_id = r.pa_id\n        )\n    )\n)\nSELECT DISTINCT p.nombre\nFROM Proveedores AS p\nINNER JOIN Q\n    ON p.pr_id = Q.pr_id;",
+    "sql": "WITH Rrojo AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'rojo'\n),\nA AS (\n    SELECT DISTINCT pr_id, pa_id\n    FROM Catalogo\n),\nQ AS (\n    SELECT DISTINCT A1.pr_id\n    FROM A AS A1\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM A AS A2 CROSS JOIN Rrojo\n        WHERE A1.pr_id = A2.pr_id\n          AND NOT EXISTS (\n              SELECT 1\n              FROM A AS A3\n              WHERE A3.pr_id = A2.pr_id\n                AND A3.pa_id = Rrojo.pa_id\n          )\n    )\n)\nSELECT DISTINCT Proveedores.nombre\nFROM Proveedores\nINNER JOIN Q\n    ON Proveedores.pr_id = Q.pr_id;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "404b36388379fe8f",
@@ -303,6 +367,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "3.1.g": {
@@ -312,8 +380,8 @@
     "enunciado": "nombres de los proveedores que fabrican todas las piezas rojas o verdes existentes",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH Rrojo AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'rojo'\n),\nRverde AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'verde'\n),\nSrojo AS (\n    SELECT DISTINCT c.pr_id\n    FROM Catalogo c\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM Rrojo r\n        WHERE NOT EXISTS (\n            SELECT 1\n            FROM Catalogo c2\n            WHERE c2.pr_id = c.pr_id\n              AND c2.pa_id = r.pa_id\n        )\n    )\n),\nSverde AS (\n    SELECT DISTINCT c.pr_id\n    FROM Catalogo c\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM Rverde v\n        WHERE NOT EXISTS (\n            SELECT 1\n            FROM Catalogo c2\n            WHERE c2.pr_id = c.pr_id\n              AND c2.pa_id = v.pa_id\n        )\n    )\n),\nS AS (\n    SELECT pr_id FROM Srojo\n    UNION\n    SELECT pr_id FROM Sverde\n)\nSELECT DISTINCT p.nombre\nFROM Proveedores p\nINNER JOIN S ON p.pr_id = S.pr_id;",
-    "observaciones": "La expresión oficial de Rverde tiene un error tipográfico de paréntesis; se interpretó como π_{pa_id}(σ_{color='verde'}(Partes)). Además, la consigna es ambigua: la solución oficial interpreta “todas las piezas rojas o verdes” como fabricar todas las rojas o, alternativamente, todas las verdes. Si se pretendía fabricar todas las piezas cuyo color sea rojo o verde, habría que dividir por la unión de ambos conjuntos de piezas.",
+    "sql": "WITH Rrojo AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'rojo'\n),\nRverde AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'verde'\n),\nA AS (\n    SELECT DISTINCT pr_id, pa_id\n    FROM Catalogo\n),\nSrojo AS (\n    SELECT DISTINCT A1.pr_id\n    FROM A AS A1\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM A AS A2 CROSS JOIN Rrojo\n        WHERE A1.pr_id = A2.pr_id\n          AND NOT EXISTS (\n              SELECT 1\n              FROM A AS A3\n              WHERE A3.pr_id = A2.pr_id\n                AND A3.pa_id = Rrojo.pa_id\n          )\n    )\n),\nS_verde AS (\n    SELECT DISTINCT A1.pr_id\n    FROM A AS A1\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM A AS A2 CROSS JOIN Rverde\n        WHERE A1.pr_id = A2.pr_id\n          AND NOT EXISTS (\n              SELECT 1\n              FROM A AS A3\n              WHERE A3.pr_id = A2.pr_id\n                AND A3.pa_id = Rverde.pa_id\n          )\n    )\n),\nS AS (\n    SELECT pr_id FROM Srojo\n    UNION\n    SELECT pr_id FROM S_verde\n)\nSELECT DISTINCT Proveedores.nombre\nFROM Proveedores\nINNER JOIN S ON Proveedores.pr_id = S.pr_id",
+    "observaciones": "La definición oficial de Rverde tiene un error de notación: falta cerrar la proyección y la selección. Se interpretó como π_{pa_id} (σ_{color='verde'} (Partes)).",
     "estado": "pendiente",
     "hash_entradas": "eeedb04f67e91487",
     "modelo": "gpt-6-luna",
@@ -321,6 +389,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "3.1.h": {
@@ -330,7 +402,7 @@
     "enunciado": "nombres de los proveedores que fabrican todas las piezas rojas y verdes existentes",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH Prg AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'rojo' OR color = 'verde'\n),\nS AS (\n    SELECT DISTINCT c.pr_id\n    FROM Catalogo AS c\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM Prg AS p\n        WHERE NOT EXISTS (\n            SELECT 1\n            FROM Catalogo AS c2\n            WHERE c2.pr_id = c.pr_id\n              AND c2.pa_id = p.pa_id\n        )\n    )\n)\nSELECT DISTINCT p.nombre\nFROM Proveedores AS p\nINNER JOIN S ON p.pr_id = S.pr_id;",
+    "sql": "WITH Prg AS (\n    SELECT DISTINCT pa_id\n    FROM Partes\n    WHERE color = 'rojo' OR color = 'verde'\n),\nA AS (\n    SELECT DISTINCT pr_id, pa_id\n    FROM Catalogo\n),\nS AS (\n    SELECT DISTINCT A1.pr_id\n    FROM A AS A1\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM A AS A2 CROSS JOIN Prg AS B\n        WHERE A1.pr_id = A2.pr_id\n          AND NOT EXISTS (\n              SELECT 1\n              FROM A AS A3\n              WHERE A3.pr_id = A2.pr_id\n                AND A3.pa_id = B.pa_id\n          )\n    )\n)\nSELECT DISTINCT P.nombre\nFROM Proveedores AS P\nINNER JOIN S ON P.pr_id = S.pr_id;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "2f05e06c6c84c842",
@@ -339,6 +411,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "3.1.i": {
@@ -357,6 +433,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.j": {
@@ -366,8 +446,8 @@
     "enunciado": "nombres de las piezas que son fabricados por al menos 2 proveedores",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH T AS (\n    SELECT pa_id, COUNT(pr_id) AS cantidad\n    FROM Catalogo\n    GROUP BY pa_id\n), T_prime AS (\n    SELECT pa_id\n    FROM T\n    WHERE cantidad >= 2\n)\nSELECT DISTINCT Partes.nombre\nFROM Partes\nINNER JOIN T_prime\n    ON Partes.pa_id = T_prime.pa_id;",
-    "observaciones": "La solución oficial tiene un error tipográfico en la condición de junta: aparece un corchete de cierre después de T′.pa_id; se interpretó como un paréntesis de cierre.",
+    "sql": "WITH T AS (\n    SELECT pa_id, COUNT(pr_id) AS \"count\"\n    FROM Catalogo\n    GROUP BY pa_id\n),\n\"T′\" AS (\n    SELECT pa_id, \"count\"\n    FROM T\n    WHERE \"count\" >= 2\n)\nSELECT DISTINCT Partes.nombre\nFROM Partes\nINNER JOIN \"T′\" ON Partes.pa_id = \"T′\".pa_id;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "5148420a72a17f87",
     "modelo": "gpt-6-luna",
@@ -375,6 +455,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.k": {
@@ -384,8 +468,8 @@
     "enunciado": "nombres de las piezas del proveedor “Sony” que són más caras que las de otros proveedores. No incluir las que “Sony“ es el único proveedor.",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT P.nombre\nFROM Partes AS P\nINNER JOIN (\n    SELECT DISTINCT C1.pa_id\n    FROM Catalogo AS C1\n    INNER JOIN Catalogo AS C2\n        ON C1.pa_id = C2.pa_id\n    WHERE C1.pr_id = 'Sony'\n      AND C1.costo > C2.costo\n) AS S\n    ON P.pa_id = S.pa_id;",
-    "observaciones": "La solución oficial no coincide con el esquema: Catalogo.pr_id es integer, mientras que 'Sony' es un nombre de proveedor. Por eso, la condición C1.pr_id='Sony' no es válida según los tipos declarados. Para expresar la consigna habría que vincular C1 con Proveedores y filtrar por Proveedores.nombre='Sony'; el SQL presentado refleja la solución oficial y conserva ese problema.",
+    "sql": "WITH S AS (\n    SELECT DISTINCT C1.pa_id\n    FROM Catalogo AS C1\n    INNER JOIN Catalogo AS C2 ON C1.pa_id = C2.pa_id\n    WHERE C1.pr_id = 'Sony'\n      AND C1.costo > C2.costo\n)\nSELECT DISTINCT Partes.nombre\nFROM Partes\nINNER JOIN S ON Partes.pa_id = S.pa_id;",
+    "observaciones": "La solución oficial no coincide con el esquema: pr_id es integer, por lo que no puede compararse con 'Sony'. Además, el nombre del proveedor está en Proveedores.nombre; para identificar a Sony habría que relacionar Catalogo con Proveedores y filtrar por ese atributo. La consulta SQL solicitada reproduce literalmente la solución oficial, pero la condición C1.pr_id = 'Sony' es incompatible con el tipo declarado.",
     "estado": "pendiente",
     "hash_entradas": "923404164e54f83f",
     "modelo": "gpt-6-luna",
@@ -393,6 +477,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.l": {
@@ -402,7 +490,7 @@
     "enunciado": "nombres de las partes que sean provistas por todos los proveedores y que cuesten al menos $200.",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH S AS (\n    SELECT pr_id, pa_id, costo\n    FROM Catalogo\n    WHERE costo >= 200\n),\nT AS (\n    SELECT DISTINCT pr_id\n    FROM Proveedores\n),\nQ AS (\n    SELECT DISTINCT s.pa_id\n    FROM S AS s\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM T AS t\n        WHERE NOT EXISTS (\n            SELECT 1\n            FROM S AS s2\n            WHERE s2.pa_id = s.pa_id\n              AND s2.pr_id = t.pr_id\n        )\n    )\n)\nSELECT DISTINCT p.nombre\nFROM Partes AS p\nINNER JOIN Q AS q\n    ON p.pa_id = q.pa_id;",
+    "sql": "WITH S AS (\n    SELECT pr_id, pa_id, costo\n    FROM Catalogo\n    WHERE costo >= 200\n),\nT AS (\n    SELECT DISTINCT pr_id\n    FROM Proveedores\n),\nA AS (\n    SELECT DISTINCT pa_id, pr_id\n    FROM S\n),\nQ AS (\n    SELECT DISTINCT A1.pa_id\n    FROM A AS A1\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM A AS A2, T\n        WHERE A1.pa_id = A2.pa_id\n          AND NOT EXISTS (\n              SELECT 1\n              FROM A AS A3\n              WHERE A3.pa_id = A2.pa_id\n                AND A3.pr_id = T.pr_id\n          )\n    )\n)\nSELECT DISTINCT Partes.nombre\nFROM Partes\nINNER JOIN Q ON Partes.pa_id = Q.pa_id;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "4684f5c03eeb552d",
@@ -411,6 +499,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "3.1.m": {
@@ -420,7 +512,7 @@
     "enunciado": "nombres de proveedores que vendan piezas más caras en Rosario que los proveedores de Buenos Aires.",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT P1.nombre\nFROM (Catalogo AS C1 INNER JOIN Proveedores AS P1\n      ON C1.pr_id = P1.pr_id)\nINNER JOIN (Catalogo AS C2 INNER JOIN Proveedores AS P2\n            ON C2.pr_id = P2.pr_id)\n        ON C1.pa_id = C2.pa_id\nWHERE C1.costo > C2.costo\n  AND P1.ciudad = 'Rosario'\n  AND P2.ciudad = 'Buenos Aires';",
+    "sql": "SELECT DISTINCT P1.nombre\nFROM Catalogo AS C1\nINNER JOIN Proveedores AS P1 ON C1.pr_id = P1.pr_id\nINNER JOIN Catalogo AS C2 ON C1.pa_id = C2.pa_id\nINNER JOIN Proveedores AS P2 ON C2.pr_id = P2.pr_id\nWHERE C1.costo > C2.costo\n  AND P1.ciudad = 'Rosario'\n  AND P2.ciudad = 'Buenos Aires';",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "6d9a9ee0e69a91a1",
@@ -429,6 +521,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.n": {
@@ -438,7 +534,7 @@
     "enunciado": "cantidad de piezas rojas del proveedor “Sony”",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT COUNT(DISTINCT Catalogo.pa_id) AS count\nFROM Proveedores\nINNER JOIN Catalogo ON Proveedores.pr_id = Catalogo.pr_id\nINNER JOIN Partes ON Catalogo.pa_id = Partes.pa_id\nWHERE Proveedores.nombre = 'Sony'\n  AND Partes.color = 'rojo';",
+    "sql": "SELECT COUNT(Q.pa_id) AS count\nFROM (\n    SELECT DISTINCT Catalogo.pa_id\n    FROM (\n        SELECT *\n        FROM Proveedores\n        WHERE nombre = 'Sony'\n    ) AS P\n    INNER JOIN Catalogo\n        ON P.pr_id = Catalogo.pr_id\n    INNER JOIN (\n        SELECT *\n        FROM Partes\n        WHERE color = 'rojo'\n    ) AS R\n        ON Catalogo.pa_id = R.pa_id\n) AS Q;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "1a14ef0547d66a67",
@@ -447,6 +543,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.o": {
@@ -456,8 +556,8 @@
     "enunciado": "pares formados por el nombre del proveedor y la cantidad de piezas que fabrica",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "WITH T AS (\n    SELECT pr_id, COUNT(pa_id) AS \"count\"\n    FROM Catalogo\n    GROUP BY pr_id\n)\nSELECT DISTINCT Proveedores.nombre, T.\"count\"\nFROM Proveedores\nINNER JOIN T\n    ON Proveedores.pr_id = T.pr_id;",
-    "observaciones": "",
+    "sql": "WITH T AS (\n    SELECT pr_id, COUNT(pa_id) AS \"count\"\n    FROM Catalogo\n    GROUP BY pr_id\n)\nSELECT DISTINCT Proveedores.nombre, T.\"count\"\nFROM Proveedores\nINNER JOIN T ON Proveedores.pr_id = T.pr_id;",
+    "observaciones": "La solución oficial es compatible con el esquema. La junta interna excluye proveedores que no tengan filas en Catalogo; si se espera incluirlos con cantidad cero, la consigna debería aclararlo y se necesitaría una junta izquierda.",
     "estado": "pendiente",
     "hash_entradas": "47f4246f08e42755",
     "modelo": "gpt-6-luna",
@@ -465,6 +565,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.p": {
@@ -474,8 +578,8 @@
     "enunciado": "pares formados por el nombre del proveedor y la cantidad de piezas verdes que fabrica en Rosario.",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT Proveedores.nombre, COUNT(Catalogo.pa_id)\nFROM Proveedores\nINNER JOIN Catalogo ON Proveedores.pr_id = Catalogo.pr_id\nINNER JOIN Partes ON Catalogo.pa_id = Partes.pa_id\nWHERE Proveedores.ciudad = 'Rosario'\n  AND Partes.color = 'verde'\nGROUP BY Proveedores.nombre;",
-    "observaciones": "La agrupación oficial sólo usa nombre: si distintos proveedores tienen el mismo nombre, sus cantidades se combinan. Además, al usar juntas internas, no aparecen proveedores de Rosario que no fabriquen piezas verdes; si se espera incluirlos con cantidad cero, la solución no los contempla.",
+    "sql": "WITH R AS (\n    SELECT\n        P.pr_id AS proveedor_id,\n        P.nombre AS nombre,\n        P.ciudad AS ciudad,\n        C.pr_id AS catalogo_pr_id,\n        C.pa_id AS pa_id,\n        C.costo AS costo,\n        T.pa_id AS partes_pa_id,\n        T.nombre AS parte_nombre,\n        T.color AS color\n    FROM Proveedores AS P\n    INNER JOIN Catalogo AS C\n        ON P.pr_id = C.pr_id\n    INNER JOIN Partes AS T\n        ON C.pa_id = T.pa_id\n    WHERE P.ciudad = 'Rosario'\n      AND T.color = 'verde'\n)\nSELECT nombre, COUNT(pa_id) AS cantidad\nFROM R\nGROUP BY nombre;",
+    "observaciones": "La solución oficial agrupa sólo por nombre, pero Proveedores.nombre no es clave: proveedores distintos con el mismo nombre quedan agrupados y sus cantidades se suman. Si se busca una cantidad por proveedor, habría que agrupar también por pr_id. Además, al usar juntas internas, no aparecen proveedores de Rosario que fabriquen cero piezas verdes.",
     "estado": "pendiente",
     "hash_entradas": "27fd8d740f42aa39",
     "modelo": "gpt-6-luna",
@@ -483,6 +587,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "3.1.q": {
@@ -493,7 +601,7 @@
     "ar": null,
     "origen_ar": "planilla",
     "sql": "SELECT Partes.nombre, AVG(Catalogo.costo) AS avg_cost\nFROM Proveedores\nINNER JOIN Catalogo ON Proveedores.pr_id = Catalogo.pr_id\nINNER JOIN Partes ON Catalogo.pa_id = Partes.pa_id\nWHERE Proveedores.ciudad = 'Buenos Aires'\nGROUP BY Partes.nombre;",
-    "observaciones": "La solución oficial es compatible con el esquema. Como agrupa únicamente por Partes.nombre, si hay piezas distintas con el mismo nombre, sus costos se promedian juntos. Si se pretende calcular el promedio por pieza identificada, habría que agrupar también por Partes.pa_id.",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "faa5f162e38f8197",
     "modelo": "gpt-6-luna",
@@ -501,6 +609,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.1": {
@@ -519,6 +631,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.10": {
@@ -526,7 +642,7 @@
     "seccion": "1",
     "ejercicio": "10",
     "enunciado": "10. Devuelva un listado con el código de pedido, código de cliente, fecha esperada y fecha de entrega de los pedidos cuya fecha de entrega ha sido al menos dos días antes de la fecha esperada.",
-    "ar": "π_{codigo_pedido, codigo_cliente, fecha_esperada, fecha_entrega} (σ_{fecha_entrega ≤ fecha_esperada − 2 días} (pedido))",
+    "ar": "π_{codigo_pedido,codigo_cliente,fecha_esperada,fecha_entrega} (σ_{fecha_entrega ≤ fecha_esperada − 2 días} (pedido))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT codigo_pedido, codigo_cliente, fecha_esperada, fecha_entrega\nFROM pedido\nWHERE fecha_entrega <= fecha_esperada - INTERVAL '2' DAY;",
     "observaciones": "",
@@ -537,6 +653,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.11": {
@@ -546,8 +666,8 @@
     "enunciado": "11. Devuelva un listado de todos los pedidos que han sido entregados en el mes de enero de cualquier año.",
     "ar": "σ_{MES(fecha_entrega)=1}(PEDIDO)",
     "origen_ar": "generada",
-    "sql": "SELECT *\nFROM pedido\nWHERE EXTRACT(MONTH FROM fecha_entrega) = 1;",
-    "observaciones": "La selección usa MES(fecha_entrega), una extensión para expresar la condición de mes, ya que no puede formularse con las comparaciones básicas del AR indicadas. Las fechas NULL no cumplen la condición y quedan excluidas.",
+    "sql": "SELECT DISTINCT codigo_pedido, fecha_pedido, fecha_esperada, fecha_entrega, estado, comentarios, codigo_cliente\nFROM pedido\nWHERE EXTRACT(MONTH FROM fecha_entrega) = 1;",
+    "observaciones": "La selección requiere evaluar el mes de una fecha, una condición temporal que no está incluida entre los operadores básicos de selección definidos. Se expresa como MES(fecha_entrega)=1 en AR y con EXTRACT en SQL ANSI. Se interpreta «listado de pedidos» como la devolución de todas las columnas de PEDIDO.",
     "estado": "pendiente",
     "hash_entradas": "365dccc788c60bed",
     "modelo": "gpt-6-luna",
@@ -555,6 +675,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.12": {
@@ -562,10 +686,10 @@
     "seccion": "1",
     "ejercicio": "12",
     "enunciado": "12. Devuelva un listado con todos los pagos que se realizaron en el año 2008 mediante Paypal. Ordene el resultado de mayor a menor.",
-    "ar": "σ_{forma_pago='PayPal' ∧ fecha_pago≥'2008-01-01' ∧ fecha_pago<'2009-01-01'}(PAGO)",
+    "ar": "σ_{forma_pago='Paypal' ∧ fecha_pago≥'2008-01-01' ∧ fecha_pago<'2009-01-01'}(PAGO)",
     "origen_ar": "generada",
-    "sql": "SELECT *\nFROM pago\nWHERE forma_pago = 'PayPal'\n  AND fecha_pago >= DATE '2008-01-01'\n  AND fecha_pago < DATE '2009-01-01'\nORDER BY total DESC;",
-    "observaciones": "Se interpreta «de mayor a menor» como ordenar por el importe del pago (total). El álgebra relacional clásica no expresa ordenamientos; por eso el orden aparece únicamente en SQL.",
+    "sql": "SELECT *\nFROM pago\nWHERE forma_pago = 'Paypal'\n  AND fecha_pago >= DATE '2008-01-01'\n  AND fecha_pago < DATE '2009-01-01'\nORDER BY total DESC;",
+    "observaciones": "La consigna no especifica por qué atributo ordenar «de mayor a menor». Se asumió ordenar por total descendente; si se refería a otro atributo, debe indicarse.",
     "estado": "pendiente",
     "hash_entradas": "2f5823e5f58e0615",
     "modelo": "gpt-6-luna",
@@ -573,6 +697,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.13": {
@@ -580,7 +708,7 @@
     "seccion": "1",
     "ejercicio": "13",
     "enunciado": "13. Devuelva un listado con todas las formas de pago que aparecen en la tabla pago. Tenga en cuenta que no deben aparecer formas de pago repetidas.",
-    "ar": "π_{forma_pago}(pago)",
+    "ar": "π_{forma_pago} (pago)",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT forma_pago\nFROM pago;",
     "observaciones": "",
@@ -591,6 +719,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.14": {
@@ -598,10 +730,10 @@
     "seccion": "1",
     "ejercicio": "14",
     "enunciado": "14. Devuelva un listado con todos los productos que pertenecen a la gama Ornamentales y que tienen más de 100 unidades en stock. El listado deberá estar ordenado por su precio de venta, mostrando en primer lugar los de mayor precio.",
-    "ar": "σ_{gama='Ornamentales' ∧ cantidad_en_stock>100} (PRODUCTO)",
+    "ar": "σ_{gama='Ornamentales' ∧ cantidad_en_stock>100}(PRODUCTO)",
     "origen_ar": "generada",
     "sql": "SELECT *\nFROM producto\nWHERE gama = 'Ornamentales'\n  AND cantidad_en_stock > 100\nORDER BY precio_venta DESC;",
-    "observaciones": "El álgebra relacional clásica devuelve relaciones sin orden, por lo que no puede expresar el ordenamiento solicitado. Se implementa en SQL con ORDER BY precio_venta DESC.",
+    "observaciones": "El álgebra relacional no expresa orden; el orden descendente por precio de venta se especifica únicamente en SQL.",
     "estado": "pendiente",
     "hash_entradas": "a74d65eec992d60c",
     "modelo": "gpt-6-luna",
@@ -609,6 +741,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.15": {
@@ -616,9 +752,9 @@
     "seccion": "1",
     "ejercicio": "15",
     "enunciado": "15. Devuelva un listado con todos los clientes que sean de la ciudad de Madrid y cuyo representante de ventas tenga el código de empleado 11 o 30.",
-    "ar": "σ_{ciudad='Madrid' ∧ (codigo_empleado_rep_ventas=11 ∨ codigo_empleado_rep_ventas=30)} (cliente)",
+    "ar": "σ_{ciudad='Madrid' ∧ (codigo_empleado_rep_ventas=11 ∨ codigo_empleado_rep_ventas=30)}(cliente)",
     "origen_ar": "generada",
-    "sql": "SELECT *\nFROM cliente\nWHERE ciudad = 'Madrid'\n  AND (codigo_empleado_rep_ventas = 11 OR codigo_empleado_rep_ventas = 30);",
+    "sql": "SELECT DISTINCT *\nFROM cliente\nWHERE ciudad = 'Madrid'\n  AND (codigo_empleado_rep_ventas = 11 OR codigo_empleado_rep_ventas = 30);",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "30132fd1d93afa5a",
@@ -627,6 +763,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.16": {
@@ -634,10 +774,10 @@
     "seccion": "1",
     "ejercicio": "16",
     "enunciado": "16. Devuelva un listado que muestre solamente los clientes que no han realizado ningún pago.",
-    "ar": "A ← π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(CLIENTE)\nB ← π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(CLIENTE ⋈_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO)\nResultado ← A − B",
+    "ar": "π_{codigo_cliente,nombre_cliente}(CLIENTE) − π_{codigo_cliente,nombre_cliente}(CLIENTE ⋈_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito\nFROM cliente\nEXCEPT\nSELECT DISTINCT c.codigo_cliente, c.nombre_cliente, c.nombre_contacto, c.apellido_contacto, c.telefono, c.fax, c.linea_direccion1, c.linea_direccion2, c.ciudad, c.region, c.pais, c.codigo_postal, c.codigo_empleado_rep_ventas, c.limite_credito\nFROM cliente AS c\nINNER JOIN pago AS p ON c.codigo_cliente = p.codigo_cliente;",
-    "observaciones": "La consigna no especifica qué columnas debe mostrar el listado. Se asumió que debe devolver todos los atributos de los clientes que no tienen pagos.",
+    "sql": "SELECT DISTINCT codigo_cliente, nombre_cliente\nFROM cliente\nEXCEPT\nSELECT DISTINCT cliente.codigo_cliente, cliente.nombre_cliente\nFROM cliente INNER JOIN pago\n  ON cliente.codigo_cliente = pago.codigo_cliente;",
+    "observaciones": "La consigna no especifica qué datos incluir en el listado. Se muestran el código y el nombre del cliente para identificarlo de manera inequívoca.",
     "estado": "pendiente",
     "hash_entradas": "7d6fb3fdac332e07",
     "modelo": "gpt-6-luna",
@@ -645,6 +785,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.17": {
@@ -652,10 +796,10 @@
     "seccion": "1",
     "ejercicio": "17",
     "enunciado": "17. Devuelva un listado que muestre solamente los clientes que no han realizado ningún pedido.",
-    "ar": "C_Pedido ← π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito} (CLIENTE ⋈ PEDIDO)\nResultado: CLIENTE − C_Pedido",
+    "ar": "π_{codigo_cliente,nombre_cliente,nombre_contacto,apellido_contacto,telefono,fax,linea_direccion1,linea_direccion2,ciudad,region,pais,codigo_postal,codigo_empleado_rep_ventas,limite_credito}(cliente) − π_{codigo_cliente,nombre_cliente,nombre_contacto,apellido_contacto,telefono,fax,linea_direccion1,linea_direccion2,ciudad,region,pais,codigo_postal,codigo_empleado_rep_ventas,limite_credito}(cliente ⋈_{cliente.codigo_cliente=pedido.codigo_cliente} pedido)",
     "origen_ar": "generada",
-    "sql": "SELECT c.*\nFROM cliente AS c\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM pedido AS p\n    WHERE p.codigo_cliente = c.codigo_cliente\n);",
-    "observaciones": "La consigna no especifica qué columnas debe mostrar el listado. Se interpreta que debe devolver todas las columnas de los clientes que no tienen pedidos.",
+    "sql": "SELECT DISTINCT codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito\nFROM cliente\nEXCEPT\nSELECT DISTINCT cliente.codigo_cliente, cliente.nombre_cliente, cliente.nombre_contacto, cliente.apellido_contacto, cliente.telefono, cliente.fax, cliente.linea_direccion1, cliente.linea_direccion2, cliente.ciudad, cliente.region, cliente.pais, cliente.codigo_postal, cliente.codigo_empleado_rep_ventas, cliente.limite_credito\nFROM cliente INNER JOIN pedido ON cliente.codigo_cliente = pedido.codigo_cliente;",
+    "observaciones": "Se interpreta “listado de clientes” como el conjunto de todos los atributos de cliente; la consigna no especifica qué columnas mostrar.",
     "estado": "pendiente",
     "hash_entradas": "2a2500403c72618a",
     "modelo": "gpt-6-luna",
@@ -663,6 +807,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.18": {
@@ -670,10 +818,10 @@
     "seccion": "1",
     "ejercicio": "18",
     "enunciado": "18. Devuelva un listado que muestre los clientes que no han realizado ningún pago y los que no han realizado ningún pedido.",
-    "ar": "C ← π_{codigo_cliente,nombre_cliente}(cliente)\nCP ← π_{cliente.codigo_cliente,cliente.nombre_cliente}(cliente ⋈_{cliente.codigo_cliente=pago.codigo_cliente} pago)\nSP ← C − CP\nCPed ← π_{cliente.codigo_cliente,cliente.nombre_cliente}(cliente ⋈_{cliente.codigo_cliente=pedido.codigo_cliente} pedido)\nSPed ← C − CPed\nResultado ← SP ∪ SPed",
+    "ar": "SIN_PAGO ← π_{codigo_cliente}(CLIENTE) − π_{codigo_cliente}(PAGO)\nSIN_PEDIDO ← π_{codigo_cliente}(CLIENTE) − π_{codigo_cliente}(PEDIDO)\nSIN_PAGO_O_PEDIDO ← SIN_PAGO ∪ SIN_PEDIDO\nπ_{codigo_cliente,nombre_cliente}(CLIENTE ⋈_{CLIENTE.codigo_cliente=SIN_PAGO_O_PEDIDO.codigo_cliente} SIN_PAGO_O_PEDIDO)",
     "origen_ar": "generada",
-    "sql": "SELECT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM pago AS p\n    WHERE p.codigo_cliente = c.codigo_cliente\n)\nUNION\nSELECT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM pedido AS pe\n    WHERE pe.codigo_cliente = c.codigo_cliente\n);",
-    "observaciones": "Interpreto la consigna como la unión de dos grupos: clientes sin pagos o clientes sin pedidos. Si se busca únicamente a quienes no realizaron ni pagos ni pedidos, corresponde la intersección de esos grupos (AND en SQL).",
+    "sql": "WITH sin_pago AS (\n    SELECT codigo_cliente FROM cliente\n    EXCEPT\n    SELECT codigo_cliente FROM pago\n),\nsin_pedido AS (\n    SELECT codigo_cliente FROM cliente\n    EXCEPT\n    SELECT codigo_cliente FROM pedido\n),\nsin_pago_o_pedido AS (\n    SELECT codigo_cliente FROM sin_pago\n    UNION\n    SELECT codigo_cliente FROM sin_pedido\n)\nSELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c\nINNER JOIN sin_pago_o_pedido AS s\n    ON c.codigo_cliente = s.codigo_cliente",
+    "observaciones": "Interpreto que se pide el listado de clientes que cumplen al menos una de las dos condiciones (unión). Como no se especifican las columnas, muestro el código y el nombre del cliente.",
     "estado": "pendiente",
     "hash_entradas": "e87e64e005cc340d",
     "modelo": "gpt-6-luna",
@@ -681,6 +829,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.19": {
@@ -688,10 +840,10 @@
     "seccion": "1",
     "ejercicio": "19",
     "enunciado": "19. Devuelva un listado que muestre solamente los empleados que no tienen una oficina asociada.",
-    "ar": "empleado − π_{codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto}(empleado ⋈_{empleado.codigo_oficina=oficina.codigo_oficina} oficina)",
+    "ar": "A ← EMPLEADO − π_{codigo_empleado,nombre,apellido1,apellido2,extension,email,codigo_oficina,codigo_jefe,puesto} (EMPLEADO ⋈_{EMPLEADO.codigo_oficina=OFICINA.codigo_oficina} OFICINA)",
     "origen_ar": "generada",
-    "sql": "SELECT e.*\nFROM empleado AS e\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM oficina AS o\n  WHERE o.codigo_oficina = e.codigo_oficina\n);",
-    "observaciones": "La consigna es incompatible con las restricciones del esquema: empleado.codigo_oficina es NOT NULL y tiene una clave foránea a oficina.codigo_oficina. Por lo tanto, en una base que respete las restricciones, todos los empleados tienen una oficina asociada y la consulta devuelve un resultado vacío.",
+    "sql": "WITH A AS (\n  SELECT codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto\n  FROM empleado\n  EXCEPT\n  SELECT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2, e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\n  FROM empleado AS e\n  INNER JOIN oficina AS o ON e.codigo_oficina = o.codigo_oficina\n)\nSELECT codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto\nFROM A;",
+    "observaciones": "La consulta devuelve una relación vacía si se cumplen las restricciones del esquema: codigo_oficina de empleado es NOT NULL y tiene una clave foránea a oficina, por lo que todo empleado debe tener una oficina asociada.",
     "estado": "pendiente",
     "hash_entradas": "ab87fef7e95a3bf3",
     "modelo": "gpt-6-luna",
@@ -699,6 +851,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.2": {
@@ -706,7 +862,7 @@
     "seccion": "1",
     "ejercicio": "2",
     "enunciado": "2. Devuelva un listado con la ciudad y el teléfono de las oficinas de España.",
-    "ar": "π_{ciudad, teléfono} (σ_{pais='España'} (oficina))",
+    "ar": "π_{ciudad, teléfono} (σ_{pais='España'} (OFICINA))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT ciudad, telefono\nFROM oficina\nWHERE pais = 'España';",
     "observaciones": "",
@@ -717,6 +873,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.20": {
@@ -724,10 +884,10 @@
     "seccion": "1",
     "ejercicio": "20",
     "enunciado": "20. Devuelva un listado que muestre solamente los empleados que no tienen un cliente asociado.",
-    "ar": "E ← π_{codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto}(empleado)\nC ← π_{codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto}(empleado ⋈_{empleado.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nResultado ← E − C",
+    "ar": "π_{codigo_empleado,nombre,apellido1,apellido2,extension,email,codigo_oficina,codigo_jefe,puesto}(EMPLEADO) − π_{codigo_empleado,nombre,apellido1,apellido2,extension,email,codigo_oficina,codigo_jefe,puesto}(EMPLEADO ⋈_{EMPLEADO.codigo_empleado=CLIENTE.codigo_empleado_rep_ventas} CLIENTE)",
     "origen_ar": "generada",
-    "sql": "SELECT codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto\nFROM empleado\nEXCEPT\nSELECT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2, e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\nFROM empleado AS e\nINNER JOIN cliente AS c\n  ON e.codigo_empleado = c.codigo_empleado_rep_ventas;",
-    "observaciones": "La consigna no especifica qué atributos debe mostrar el listado; se asume que debe devolver todos los atributos de empleado.",
+    "sql": "SELECT DISTINCT codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto\nFROM empleado\nEXCEPT\nSELECT DISTINCT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2, e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\nFROM empleado AS e\nINNER JOIN cliente AS c\n  ON e.codigo_empleado = c.codigo_empleado_rep_ventas;",
+    "observaciones": "La consigna no especifica qué columnas debe mostrar el listado; se asume que devuelve todos los atributos de los empleados.",
     "estado": "pendiente",
     "hash_entradas": "3fa9d3a5f59ce25f",
     "modelo": "gpt-6-luna",
@@ -735,6 +895,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.21": {
@@ -742,9 +906,9 @@
     "seccion": "1",
     "ejercicio": "21",
     "enunciado": "21. Devuelva un listado que muestre solamente los empleados que no tienen un cliente asociado junto con los datos de la oficina donde trabajan.",
-    "ar": "E_con_cliente ← π_{EMPLEADO.codigo_empleado}(EMPLEADO ⋈_{EMPLEADO.codigo_empleado=CLIENTE.codigo_empleado_rep_ventas} CLIENTE)\nE_sin_cliente ← π_{codigo_empleado}(EMPLEADO) − E_con_cliente\nπ_{EMPLEADO.codigo_empleado, EMPLEADO.nombre, EMPLEADO.apellido1, EMPLEADO.apellido2, EMPLEADO.extension, EMPLEADO.email, EMPLEADO.codigo_oficina, EMPLEADO.codigo_jefe, EMPLEADO.puesto, OFICINA.codigo_oficina, OFICINA.ciudad, OFICINA.pais, OFICINA.region, OFICINA.codigo_postal, OFICINA.telefono, OFICINA.linea_direccion1, OFICINA.linea_direccion2} ((EMPLEADO ⋈_{EMPLEADO.codigo_empleado=E_sin_cliente.codigo_empleado} E_sin_cliente) ⋈_{EMPLEADO.codigo_oficina=OFICINA.codigo_oficina} OFICINA)",
+    "ar": "A ← π_{codigo_empleado}(empleado)\nB ← π_{empleado.codigo_empleado}(cliente ⋈_{cliente.codigo_empleado_rep_ventas=empleado.codigo_empleado} empleado)\nN ← A − B\nπ_{empleado.codigo_empleado, empleado.nombre, empleado.apellido1, empleado.apellido2, empleado.extension, empleado.email, empleado.codigo_oficina, empleado.codigo_jefe, empleado.puesto, oficina.ciudad, oficina.pais, oficina.region, oficina.codigo_postal, oficina.telefono, oficina.linea_direccion1, oficina.linea_direccion2} ((N ⋈_{N.codigo_empleado=empleado.codigo_empleado} empleado) ⋈_{empleado.codigo_oficina=oficina.codigo_oficina} oficina)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2, e.extension, e.email, e.codigo_oficina AS codigo_oficina_empleado, e.codigo_jefe, e.puesto, o.codigo_oficina AS codigo_oficina_oficina, o.ciudad, o.pais, o.region, o.codigo_postal, o.telefono, o.linea_direccion1, o.linea_direccion2\nFROM empleado AS e\nINNER JOIN oficina AS o ON e.codigo_oficina = o.codigo_oficina\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM cliente AS c\n    WHERE c.codigo_empleado_rep_ventas = e.codigo_empleado\n);",
+    "sql": "WITH A AS (\n    SELECT DISTINCT codigo_empleado\n    FROM empleado\n),\nB AS (\n    SELECT DISTINCT empleado.codigo_empleado\n    FROM cliente\n    INNER JOIN empleado\n        ON cliente.codigo_empleado_rep_ventas = empleado.codigo_empleado\n),\nN AS (\n    SELECT codigo_empleado FROM A\n    EXCEPT\n    SELECT codigo_empleado FROM B\n)\nSELECT DISTINCT\n    empleado.codigo_empleado,\n    empleado.nombre,\n    empleado.apellido1,\n    empleado.apellido2,\n    empleado.extension,\n    empleado.email,\n    empleado.codigo_oficina,\n    empleado.codigo_jefe,\n    empleado.puesto,\n    oficina.ciudad,\n    oficina.pais,\n    oficina.region,\n    oficina.codigo_postal,\n    oficina.telefono,\n    oficina.linea_direccion1,\n    oficina.linea_direccion2\nFROM N\nINNER JOIN empleado\n    ON N.codigo_empleado = empleado.codigo_empleado\nINNER JOIN oficina\n    ON empleado.codigo_oficina = oficina.codigo_oficina;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "713c5f0b00e48b0d",
@@ -753,6 +917,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.22": {
@@ -760,10 +928,10 @@
     "seccion": "1",
     "ejercicio": "22",
     "enunciado": "22. Devuelva un listado que muestre los empleados que no tienen una oficina asociada y los que no tienen un cliente asociado.",
-    "ar": "E_sin_oficina ← EMPLEADO − π_{codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto}(EMPLEADO ⋈_{EMPLEADO.codigo_oficina=OFICINA.codigo_oficina} OFICINA)\nE_con_cliente ← π_{codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto}(EMPLEADO ⋈_{EMPLEADO.codigo_empleado=CLIENTE.codigo_empleado_rep_ventas} CLIENTE)\nE_sin_cliente ← EMPLEADO − E_con_cliente\nResultado ← E_sin_oficina ∪ E_sin_cliente",
+    "ar": "EO ← π_{codigo_empleado,nombre,apellido1,apellido2,extension,email,codigo_oficina,codigo_jefe,puesto}(empleado ⋈_{empleado.codigo_oficina=oficina.codigo_oficina} oficina)\nS ← empleado − EO\nEC ← π_{codigo_empleado,nombre,apellido1,apellido2,extension,email,codigo_oficina,codigo_jefe,puesto}(empleado ⋈_{empleado.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nT ← empleado − EC\nS ∪ T",
     "origen_ar": "generada",
-    "sql": "SELECT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2, e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\nFROM empleado AS e\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM oficina AS o\n    WHERE o.codigo_oficina = e.codigo_oficina\n)\nUNION\nSELECT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2, e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\nFROM empleado AS e\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM cliente AS c\n    WHERE c.codigo_empleado_rep_ventas = e.codigo_empleado\n)",
-    "observaciones": "Se interpreta “y” como la unión de los dos grupos: empleados sin oficina asociada o sin clientes asociados. Según el esquema, codigo_oficina es NOT NULL y tiene una clave foránea a oficina; por lo tanto, con las restricciones respetadas, no puede haber empleados sin oficina asociada. La primera parte del resultado siempre será vacía. La consulta incluye esa condición para reflejar literalmente la consigna.",
+    "sql": "WITH empleados_con_oficina AS (\n    SELECT DISTINCT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2,\n           e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\n    FROM empleado AS e\n    INNER JOIN oficina AS o\n        ON e.codigo_oficina = o.codigo_oficina\n),\nempleados_sin_oficina AS (\n    SELECT codigo_empleado, nombre, apellido1, apellido2, extension,\n           email, codigo_oficina, codigo_jefe, puesto\n    FROM empleado\n    EXCEPT\n    SELECT codigo_empleado, nombre, apellido1, apellido2, extension,\n           email, codigo_oficina, codigo_jefe, puesto\n    FROM empleados_con_oficina\n),\nempleados_con_cliente AS (\n    SELECT DISTINCT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2,\n           e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\n    FROM empleado AS e\n    INNER JOIN cliente AS c\n        ON e.codigo_empleado = c.codigo_empleado_rep_ventas\n),\nempleados_sin_cliente AS (\n    SELECT codigo_empleado, nombre, apellido1, apellido2, extension,\n           email, codigo_oficina, codigo_jefe, puesto\n    FROM empleado\n    EXCEPT\n    SELECT codigo_empleado, nombre, apellido1, apellido2, extension,\n           email, codigo_oficina, codigo_jefe, puesto\n    FROM empleados_con_cliente\n)\nSELECT codigo_empleado, nombre, apellido1, apellido2, extension,\n       email, codigo_oficina, codigo_jefe, puesto\nFROM empleados_sin_oficina\nUNION\nSELECT codigo_empleado, nombre, apellido1, apellido2, extension,\n       email, codigo_oficina, codigo_jefe, puesto\nFROM empleados_sin_cliente;",
+    "observaciones": "Se interpreta que se deben listar ambos grupos, es decir, la unión de empleados sin oficina y empleados sin clientes asociados. Según el esquema, codigo_oficina es NOT NULL y tiene una clave foránea a oficina, por lo que todo empleado debe tener una oficina asociada; el primer grupo será siempre vacío en una base que respete las restricciones.",
     "estado": "pendiente",
     "hash_entradas": "5ca123760c28e965",
     "modelo": "gpt-6-luna",
@@ -771,6 +939,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.23": {
@@ -778,9 +950,9 @@
     "seccion": "1",
     "ejercicio": "23",
     "enunciado": "23. Devuelva un listado de los productos que nunca han aparecido en un pedido.",
-    "ar": "P_CON_PEDIDO ← π_{codigo_producto, nombre, gama, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor}(PRODUCTO ⋈_{PRODUCTO.codigo_producto=DETALLE_PEDIDO.codigo_producto} DETALLE_PEDIDO)\nPRODUCTOS_SIN_PEDIDO ← PRODUCTO − P_CON_PEDIDO",
+    "ar": "NUNCA_PEDIDOS ← π_{codigo_producto}(producto) − π_{codigo_producto}(detalle_pedido)\nproducto ⋈ NUNCA_PEDIDOS",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones, p.proveedor, p.descripcion, p.cantidad_en_stock, p.precio_venta, p.precio_proveedor\nFROM producto AS p\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM detalle_pedido AS d\n    WHERE d.codigo_producto = p.codigo_producto\n);",
+    "sql": "WITH NUNCA_PEDIDOS AS (\n    SELECT codigo_producto\n    FROM producto\n    EXCEPT\n    SELECT codigo_producto\n    FROM detalle_pedido\n)\nSELECT DISTINCT p.*\nFROM producto AS p\nNATURAL JOIN NUNCA_PEDIDOS AS n;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "9340844b4ddbe897",
@@ -789,6 +961,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.24": {
@@ -796,10 +972,10 @@
     "seccion": "1",
     "ejercicio": "24",
     "enunciado": "24. Devuelva un listado de los productos que nunca han aparecido en un pedido. El resultado debe mostrar el nombre, la descripción y la imagen del producto.",
-    "ar": "Vistos ← π_{codigo_producto}(detalle_pedido)\nNoPedido ← π_{codigo_producto}(producto) − Vistos\nProdNoPedido ← producto ⋈_{producto.codigo_producto=NoPedido.codigo_producto} NoPedido\nConGama ← ProdNoPedido ⋈_{ProdNoPedido.gama=gama_producto.gama} gama_producto\nResultado ← π_{ProdNoPedido.nombre, ProdNoPedido.descripcion, gama_producto.imagen}(ConGama)",
+    "ar": "P ← π_{codigo_producto,nombre,descripcion,imagen}(producto ⋈_{producto.gama=gama_producto.gama} gama_producto)\nV ← π_{codigo_producto,nombre,descripcion,imagen}(producto ⋈_{producto.gama=gama_producto.gama} gama_producto ⋈_{producto.codigo_producto=detalle_pedido.codigo_producto} detalle_pedido)\nN ← P − V\nπ_{nombre,descripcion,imagen}(N)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT p.nombre, p.descripcion, g.imagen\nFROM producto AS p\nINNER JOIN gama_producto AS g ON p.gama = g.gama\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM detalle_pedido AS d\n    WHERE d.codigo_producto = p.codigo_producto\n);",
-    "observaciones": "La tabla producto contiene la descripción, pero no la imagen: imagen está en gama_producto. Se interpreta que la consigna pide la descripción de producto.descripcion y la imagen asociada a la gama del producto, por lo que se realiza la junta con gama_producto.",
+    "sql": "WITH P AS (\n    SELECT DISTINCT producto.codigo_producto, producto.nombre, producto.descripcion, gama_producto.imagen\n    FROM producto\n    INNER JOIN gama_producto\n        ON producto.gama = gama_producto.gama\n),\nV AS (\n    SELECT DISTINCT producto.codigo_producto, producto.nombre, producto.descripcion, gama_producto.imagen\n    FROM producto\n    INNER JOIN gama_producto\n        ON producto.gama = gama_producto.gama\n    INNER JOIN detalle_pedido\n        ON producto.codigo_producto = detalle_pedido.codigo_producto\n),\nN AS (\n    SELECT codigo_producto, nombre, descripcion, imagen\n    FROM P\n    EXCEPT\n    SELECT codigo_producto, nombre, descripcion, imagen\n    FROM V\n)\nSELECT DISTINCT nombre, descripcion, imagen\nFROM N;",
+    "observaciones": "La columna imagen pertenece a gama_producto, no a producto. Se incorpora mediante la junta por gama.",
     "estado": "pendiente",
     "hash_entradas": "1c81c81e5f29b936",
     "modelo": "gpt-6-luna",
@@ -807,6 +983,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.25": {
@@ -814,9 +994,9 @@
     "seccion": "1",
     "ejercicio": "25",
     "enunciado": "25. Devuelva las oficinas donde no trabajan ninguno de los empleados que hayan sido los representantes de ventas de algún cliente que haya realizado la compra de algún producto de la gama Frutales.",
-    "ar": "Frutales ← σ_{gama='Frutales'}(producto)\nComprasFrutales ← cliente ⋈ pedido ⋈ detalle_pedido ⋈ Frutales\nRepresentantes ← ρ_{Representantes(codigo_empleado)}(π_{codigo_empleado_rep_ventas}(ComprasFrutales))\nOficinasConRepresentantes ← π_{codigo_oficina, ciudad, pais, region, codigo_postal, telefono, linea_direccion1, linea_direccion2}(oficina ⋈_{oficina.codigo_oficina=empleado.codigo_oficina} (empleado ⋈_{empleado.codigo_empleado=Representantes.codigo_empleado} Representantes))\nResultado ← oficina − OficinasConRepresentantes",
+    "ar": "PF ← σ_{gama='Frutales'}(PRODUCTO)\nDPF ← π_{codigo_pedido}(DETALLE_PEDIDO ⋈_{DETALLE_PEDIDO.codigo_producto=PF.codigo_producto} PF)\nCP ← π_{codigo_cliente}(PEDIDO ⋈_{PEDIDO.codigo_pedido=DPF.codigo_pedido} DPF)\nRep ← ρ_{Rep(codigo_empleado)}(π_{CLIENTE.codigo_empleado_rep_ventas}(CLIENTE ⋈_{CLIENTE.codigo_cliente=CP.codigo_cliente} CP))\nCO ← ρ_{CO(codigo_oficina)}(π_{EMPLEADO.codigo_oficina}(EMPLEADO ⋈_{EMPLEADO.codigo_empleado=Rep.codigo_empleado} Rep))\nOFEX ← π_{codigo_oficina,ciudad,pais,region,codigo_postal,telefono,linea_direccion1,linea_direccion2}(OFICINA ⋈_{OFICINA.codigo_oficina=CO.codigo_oficina} CO)\nOFICINA − OFEX",
     "origen_ar": "generada",
-    "sql": "WITH oficinas_con_representantes AS (\n    SELECT DISTINCT\n        o.codigo_oficina,\n        o.ciudad,\n        o.pais,\n        o.region,\n        o.codigo_postal,\n        o.telefono,\n        o.linea_direccion1,\n        o.linea_direccion2\n    FROM oficina AS o\n    INNER JOIN empleado AS e\n        ON e.codigo_oficina = o.codigo_oficina\n    INNER JOIN cliente AS c\n        ON c.codigo_empleado_rep_ventas = e.codigo_empleado\n    INNER JOIN pedido AS p\n        ON p.codigo_cliente = c.codigo_cliente\n    INNER JOIN detalle_pedido AS dp\n        ON dp.codigo_pedido = p.codigo_pedido\n    INNER JOIN producto AS pr\n        ON pr.codigo_producto = dp.codigo_producto\n    WHERE pr.gama = 'Frutales'\n)\nSELECT\n    codigo_oficina,\n    ciudad,\n    pais,\n    region,\n    codigo_postal,\n    telefono,\n    linea_direccion1,\n    linea_direccion2\nFROM oficina\nEXCEPT\nSELECT\n    codigo_oficina,\n    ciudad,\n    pais,\n    region,\n    codigo_postal,\n    telefono,\n    linea_direccion1,\n    linea_direccion2\nFROM oficinas_con_representantes;",
+    "sql": "WITH PF AS (\n    SELECT *\n    FROM producto\n    WHERE gama = 'Frutales'\n),\nDPF AS (\n    SELECT DISTINCT dp.codigo_pedido\n    FROM detalle_pedido AS dp\n    INNER JOIN PF\n        ON dp.codigo_producto = PF.codigo_producto\n),\nCP AS (\n    SELECT DISTINCT p.codigo_cliente\n    FROM pedido AS p\n    INNER JOIN DPF\n        ON p.codigo_pedido = DPF.codigo_pedido\n),\nRep AS (\n    SELECT DISTINCT c.codigo_empleado_rep_ventas AS codigo_empleado\n    FROM cliente AS c\n    INNER JOIN CP\n        ON c.codigo_cliente = CP.codigo_cliente\n),\nCO AS (\n    SELECT DISTINCT e.codigo_oficina\n    FROM empleado AS e\n    INNER JOIN Rep\n        ON e.codigo_empleado = Rep.codigo_empleado\n),\nOFEX AS (\n    SELECT DISTINCT o.codigo_oficina, o.ciudad, o.pais, o.region,\n                    o.codigo_postal, o.telefono, o.linea_direccion1,\n                    o.linea_direccion2\n    FROM oficina AS o\n    INNER JOIN CO\n        ON o.codigo_oficina = CO.codigo_oficina\n)\nSELECT codigo_oficina, ciudad, pais, region, codigo_postal, telefono,\n       linea_direccion1, linea_direccion2\nFROM oficina\nEXCEPT\nSELECT codigo_oficina, ciudad, pais, region, codigo_postal, telefono,\n       linea_direccion1, linea_direccion2\nFROM OFEX;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "ee9e1472094cb0d8",
@@ -825,6 +1005,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.26": {
@@ -834,7 +1018,7 @@
     "enunciado": "26. Devuelva un listado con los clientes que han realizado algún pedido pero no han realizado ningún pago.",
     "ar": "π_{codigo_cliente,nombre_cliente}(cliente ⋈_{cliente.codigo_cliente=pedido.codigo_cliente} pedido) − π_{codigo_cliente,nombre_cliente}(cliente ⋈_{cliente.codigo_cliente=pago.codigo_cliente} pago)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente c\nINNER JOIN pedido p ON c.codigo_cliente = p.codigo_cliente\nEXCEPT\nSELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente c\nINNER JOIN pago pa ON c.codigo_cliente = pa.codigo_cliente;",
+    "sql": "SELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c\nINNER JOIN pedido AS p ON c.codigo_cliente = p.codigo_cliente\nEXCEPT\nSELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c\nINNER JOIN pago AS pa ON c.codigo_cliente = pa.codigo_cliente;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "9f7000f46c231ed7",
@@ -843,6 +1027,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.27": {
@@ -850,10 +1038,10 @@
     "seccion": "1",
     "ejercicio": "27",
     "enunciado": "27. Devuelva un listado con los datos de los empleados que no tienen clientes asociados y el nombre de su jefe asociado.",
-    "ar": "E ← ρ_{E(codigo_empleado,nombre,apellido1,apellido2,extension,email,codigo_oficina,codigo_jefe,puesto)}(empleado)\nEC ← π_{E.codigo_empleado,E.nombre,E.apellido1,E.apellido2,E.extension,E.email,E.codigo_oficina,E.codigo_jefe,E.puesto}(E ⋈_{E.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nE0 ← E − EC\nJ ← ρ_{J(codigo_jefe_ref,nombre_jefe)}(π_{codigo_empleado,nombre}(empleado))\nR ← π_{E0.codigo_empleado,E0.nombre,E0.apellido1,E0.apellido2,E0.extension,E0.email,E0.codigo_oficina,E0.codigo_jefe,E0.puesto,J.nombre_jefe}(E0 ⟕_{E0.codigo_jefe=J.codigo_jefe_ref} J)",
+    "ar": "C ← π_{codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto}(empleado ⋈_{empleado.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nE ← empleado − C\nJ ← ρ_{J(codigo_empleado_jefe, nombre_jefe)}(π_{codigo_empleado, nombre}(empleado))\nπ_{E.codigo_empleado, E.nombre, E.apellido1, E.apellido2, E.extension, E.email, E.codigo_oficina, E.codigo_jefe, E.puesto, J.nombre_jefe}(E ⟕_{E.codigo_jefe=J.codigo_empleado_jefe} J)",
     "origen_ar": "generada",
-    "sql": "SELECT e.codigo_empleado, e.nombre, e.apellido1, e.apellido2, e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto, jefe.nombre AS nombre_jefe\nFROM empleado AS e\nLEFT JOIN empleado AS jefe\n  ON e.codigo_jefe = jefe.codigo_empleado\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM cliente AS c\n  WHERE c.codigo_empleado_rep_ventas = e.codigo_empleado\n);",
-    "observaciones": "Se incluyen también los empleados que no tienen jefe; en esos casos, nombre_jefe será NULL.",
+    "sql": "WITH C AS (\n    SELECT DISTINCT\n        e.codigo_empleado, e.nombre, e.apellido1, e.apellido2,\n        e.extension, e.email, e.codigo_oficina, e.codigo_jefe, e.puesto\n    FROM empleado AS e\n    INNER JOIN cliente AS c\n        ON e.codigo_empleado = c.codigo_empleado_rep_ventas\n),\nE AS (\n    SELECT codigo_empleado, nombre, apellido1, apellido2,\n           extension, email, codigo_oficina, codigo_jefe, puesto\n    FROM empleado\n    EXCEPT\n    SELECT codigo_empleado, nombre, apellido1, apellido2,\n           extension, email, codigo_oficina, codigo_jefe, puesto\n    FROM C\n),\nJ AS (\n    SELECT codigo_empleado AS codigo_empleado_jefe,\n           nombre AS nombre_jefe\n    FROM empleado\n)\nSELECT DISTINCT\n    E.codigo_empleado, E.nombre, E.apellido1, E.apellido2,\n    E.extension, E.email, E.codigo_oficina, E.codigo_jefe, E.puesto,\n    J.nombre_jefe\nFROM E\nLEFT JOIN J\n    ON E.codigo_jefe = J.codigo_empleado_jefe",
+    "observaciones": "Se usa junta izquierda para incluir también a empleados sin clientes asociados que no tengan jefe; en ese caso, nombre_jefe será NULL.",
     "estado": "pendiente",
     "hash_entradas": "3d9abe8a7ec0a6b6",
     "modelo": "gpt-6-luna",
@@ -861,6 +1049,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.28": {
@@ -868,9 +1060,9 @@
     "seccion": "1",
     "ejercicio": "28",
     "enunciado": "28. ¿Cuántos empleados hay en la compañía",
-    "ar": "_{}\\ \\mathrm{CUENTA}_{codigo_empleado}(EMPLEADO)",
+    "ar": "_{} CUENTA_{codigo_empleado}(empleado)",
     "origen_ar": "generada",
-    "sql": "SELECT COUNT(*)\nFROM empleado;",
+    "sql": "SELECT COUNT(codigo_empleado)\nFROM empleado;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "f11766b353b528d6",
@@ -879,6 +1071,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.29": {
@@ -886,10 +1082,10 @@
     "seccion": "1",
     "ejercicio": "29",
     "enunciado": "29. ¿Cuántos clientes tiene cada país",
-    "ar": "_{pais} F_{CUENTA(codigo_cliente)→cantidad_clientes}(CLIENTE)",
+    "ar": "_{pais} F_{CUENTA(codigo_cliente)}(cliente)",
     "origen_ar": "generada",
     "sql": "SELECT pais, COUNT(codigo_cliente) AS cantidad_clientes\nFROM cliente\nGROUP BY pais;",
-    "observaciones": "El atributo pais admite NULL; la consulta agrupa esos clientes en un grupo separado con pais NULL.",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "c48237125bfb2f85",
     "modelo": "gpt-6-luna",
@@ -897,6 +1093,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.3": {
@@ -904,7 +1104,7 @@
     "seccion": "1",
     "ejercicio": "3",
     "enunciado": "3. Devuelva un listado con el nombre, apellidos y email de los empleados cuyo jefe tiene un código de jefe igual a 7.",
-    "ar": "E ← ρ_E(empleado)\nJ ← ρ_J(empleado)\nπ_{E.nombre, E.apellido1, E.apellido2, E.email}(σ_{E.codigo_jefe=J.codigo_empleado ∧ J.codigo_jefe=7}(E × J))",
+    "ar": "π_{E.nombre,E.apellido1,E.apellido2,E.email} (σ_{J.codigo_jefe=7} (ρ_{E}(empleado) ⋈_{E.codigo_jefe=J.codigo_empleado} ρ_{J}(empleado)))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT E.nombre, E.apellido1, E.apellido2, E.email\nFROM empleado AS E\nINNER JOIN empleado AS J ON E.codigo_jefe = J.codigo_empleado\nWHERE J.codigo_jefe = 7;",
     "observaciones": "",
@@ -915,6 +1115,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.30": {
@@ -922,7 +1126,7 @@
     "seccion": "1",
     "ejercicio": "30",
     "enunciado": "30. ¿Cuál fue el pago medio en 2009?",
-    "ar": "_{∅} PROMEDIO_{total} (σ_{fecha_pago ≥ DATE '2009-01-01' ∧ fecha_pago < DATE '2010-01-01'} (pago))",
+    "ar": "_{ } F_{PROMEDIO(total)}(σ_{fecha_pago ≥ '2009-01-01' ∧ fecha_pago < '2010-01-01'}(PAGO))",
     "origen_ar": "generada",
     "sql": "SELECT AVG(total)\nFROM pago\nWHERE fecha_pago >= DATE '2009-01-01'\n  AND fecha_pago < DATE '2010-01-01';",
     "observaciones": "",
@@ -933,6 +1137,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.31": {
@@ -940,10 +1148,10 @@
     "seccion": "1",
     "ejercicio": "31",
     "enunciado": "31. ¿Cuántos pedidos hay en cada estado? Ordena el resultado de forma descendente por el número de pedidos.",
-    "ar": "_{estado} CUENTA_{codigo_pedido}(PEDIDO). El resultado contiene cada estado y la cantidad de pedidos correspondiente.",
+    "ar": "_{estado} F_{CUENTA(codigo_pedido)→cantidad_pedidos}(pedido)",
     "origen_ar": "generada",
     "sql": "SELECT estado, COUNT(codigo_pedido) AS cantidad_pedidos\nFROM pedido\nGROUP BY estado\nORDER BY cantidad_pedidos DESC;",
-    "observaciones": "El álgebra relacional clásica no expresa el orden de presentación; por eso, el AR representa el agrupamiento y el conteo, y el SQL aplica el orden descendente con ORDER BY.",
+    "observaciones": "El álgebra relacional no expresa orden; el orden descendente se aplica únicamente en SQL.",
     "estado": "pendiente",
     "hash_entradas": "ea57c75669c49d95",
     "modelo": "gpt-6-luna",
@@ -951,6 +1159,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.32": {
@@ -958,9 +1170,9 @@
     "seccion": "1",
     "ejercicio": "32",
     "enunciado": "32. Calcula el precio de venta del producto más caro y más barato en una misma consulta.",
-    "ar": "_{} F_{MÁXIMO(precio_venta), MÍNIMO(precio_venta)}(producto)",
+    "ar": "_{} F_{MAX(precio_venta), MIN(precio_venta)}(producto)",
     "origen_ar": "generada",
-    "sql": "SELECT MAX(precio_venta) AS precio_mas_caro, MIN(precio_venta) AS precio_mas_barato\nFROM producto;",
+    "sql": "SELECT MAX(precio_venta), MIN(precio_venta)\nFROM producto;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "8d00d16a44f4b82f",
@@ -969,6 +1181,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.33": {
@@ -976,10 +1192,10 @@
     "seccion": "1",
     "ejercicio": "33",
     "enunciado": "33. Calcula el número de clientes que tiene la empres",
-    "ar": "_{ } F_{CUENTA(codigo_cliente)}(cliente)",
+    "ar": "_{} F_{CUENTA(codigo_cliente)→numero_clientes}(cliente)",
     "origen_ar": "generada",
-    "sql": "SELECT COUNT(*) AS numero_clientes\nFROM cliente;",
-    "observaciones": "La consigna parece truncada en «empres»; se interpreta como «empresa».",
+    "sql": "SELECT COUNT(codigo_cliente) AS numero_clientes\nFROM cliente;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "96147a46c2eb35ae",
     "modelo": "gpt-6-luna",
@@ -987,6 +1203,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.34": {
@@ -994,10 +1214,10 @@
     "seccion": "1",
     "ejercicio": "34",
     "enunciado": "34. ¿Cuántos clientes existen con domicilio en la ciudad de Madri",
-    "ar": "_{} CUENTA_{codigo_cliente} (σ_{ciudad='Madrid'} (CLIENTE))",
+    "ar": "_{\\ } F_{\\mathrm{CUENTA}(codigo_cliente)}(\\sigma_{ciudad='Madrid'}(cliente))",
     "origen_ar": "generada",
-    "sql": "SELECT COUNT(*)\nFROM cliente\nWHERE ciudad = 'Madrid';",
-    "observaciones": "",
+    "sql": "SELECT COUNT(codigo_cliente)\nFROM cliente\nWHERE ciudad = 'Madrid';",
+    "observaciones": "La consigna termina en «Madri»; se interpretó que refiere a la ciudad «Madrid».",
     "estado": "pendiente",
     "hash_entradas": "1b0258bbbf90fab8",
     "modelo": "gpt-6-luna",
@@ -1005,6 +1225,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.35": {
@@ -1012,10 +1236,10 @@
     "seccion": "1",
     "ejercicio": "35",
     "enunciado": "35. ¿Calcula cuántos clientes tiene cada una de las ciudades que empiezan por",
-    "ar": "La consigna está incompleta: falta el prefijo de ciudad. En forma parametrizada, la solución sería:\n_{ciudad} CUENTA(codigo_cliente) (σ_{ciudad comienza con prefijo}(cliente))",
+    "ar": "",
     "origen_ar": "generada",
     "sql": "",
-    "observaciones": "El enunciado termina en «ciudades que empiezan por» y no indica el prefijo. No se puede determinar qué ciudades incluir; hace falta completar la consigna.",
+    "observaciones": "La consigna está incompleta: termina en «ciudades que empiezan por» y no especifica el prefijo o patrón requerido. Hace falta esa información para expresar el filtro y derivar las consultas.",
     "estado": "pendiente",
     "hash_entradas": "9dbb11ae0fb541dc",
     "modelo": "gpt-6-luna",
@@ -1023,6 +1247,10 @@
       "ok": false,
       "nivel": "sintaxis",
       "detalle": "sin SQL (ver observaciones)"
+    },
+    "forma_canonica": {
+      "ok": false,
+      "detalle": "sin SQL"
     }
   },
   "4.1.36": {
@@ -1030,10 +1258,10 @@
     "seccion": "1",
     "ejercicio": "36",
     "enunciado": "36. Devuelva el nombre de los representantes de ventas y el número de clientes al que atiende cada uno.",
-    "ar": "REPRESENTANTES ← σ_{puesto='Representante Ventas'}(EMPLEADO)\nASIGNACION ← REPRESENTANTES ⟕_{REPRESENTANTES.codigo_empleado=CLIENTE.codigo_empleado_rep_ventas} CLIENTE\nRESULTADO ← _{codigo_empleado, nombre, apellido1, apellido2} F_{CUENTA(CLIENTE.codigo_cliente)→numero_clientes}(ASIGNACION)",
+    "ar": "C ← ρ_{C(codigo_empleado_rep_ventas, numero_clientes)}(_{codigo_empleado_rep_ventas} CUENTA_{codigo_cliente}(cliente))\nπ_{nombre, numero_clientes}(empleado ⋈_{empleado.codigo_empleado=C.codigo_empleado_rep_ventas} C)",
     "origen_ar": "generada",
-    "sql": "SELECT e.nombre, e.apellido1, e.apellido2, COUNT(c.codigo_cliente) AS numero_clientes\nFROM empleado AS e\nLEFT JOIN cliente AS c\n  ON e.codigo_empleado = c.codigo_empleado_rep_ventas\nWHERE e.puesto = 'Representante Ventas'\nGROUP BY e.codigo_empleado, e.nombre, e.apellido1, e.apellido2;",
-    "observaciones": "Se asume que los representantes se identifican por puesto = 'Representante Ventas', valor habitual en este esquema, aunque el esquema no restringe los valores posibles de puesto. La junta izquierda incluye también a representantes sin clientes y devuelve cero para ellos; se interpreta que se pide el número de clientes de cada representante.",
+    "sql": "WITH C AS (\n    SELECT codigo_empleado_rep_ventas, COUNT(codigo_cliente) AS numero_clientes\n    FROM cliente\n    GROUP BY codigo_empleado_rep_ventas\n)\nSELECT DISTINCT e.nombre, C.numero_clientes\nFROM empleado AS e\nINNER JOIN C\n    ON e.codigo_empleado = C.codigo_empleado_rep_ventas;",
+    "observaciones": "La consigna no aclara si deben incluirse representantes sin clientes asignados. Esta solución cuenta únicamente representantes asociados a uno o más clientes; para incluir los que tienen cero clientes hace falta identificar a los representantes y usar una junta izquierda.",
     "estado": "pendiente",
     "hash_entradas": "d7d4e06c6b756bfa",
     "modelo": "gpt-6-luna",
@@ -1041,6 +1269,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.37": {
@@ -1048,10 +1280,10 @@
     "seccion": "1",
     "ejercicio": "37",
     "enunciado": "37. Calcula el número de clientes que no tiene asignado representante de venta",
-    "ar": "C ← σ_{codigo_empleado_rep_ventas IS NULL}(CLIENTE)\n_{} CUENTA_{codigo_cliente}(C)",
+    "ar": "_{ } F_{CUENTA(codigo_cliente)} (σ_{codigo_empleado_rep_ventas IS NULL} (CLIENTE))",
     "origen_ar": "generada",
-    "sql": "SELECT COUNT(*)\nFROM cliente\nWHERE codigo_empleado_rep_ventas IS NULL;",
-    "observaciones": "La consigna se puede resolver con el esquema dado. Como el campo admite NULL, se usa el predicado IS NULL.",
+    "sql": "SELECT COUNT(codigo_cliente)\nFROM cliente\nWHERE codigo_empleado_rep_ventas IS NULL;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "b86f3dd5b85b09ac",
     "modelo": "gpt-6-luna",
@@ -1059,6 +1291,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.38": {
@@ -1066,10 +1302,10 @@
     "seccion": "1",
     "ejercicio": "38",
     "enunciado": "38. Calcula la fecha del primer y último pago realizado por cada uno de los clientes. El listado deberá mostrar el nombre y los apellidos de cada cliente.",
-    "ar": "C ← CLIENTE ⋈_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO\nA ← _{codigo_cliente,nombre_contacto,apellido_contacto} F_{MIN(fecha_pago)→primer_pago, MAX(fecha_pago)→ultimo_pago}(C)\nResultado ← π_{nombre_contacto,apellido_contacto,primer_pago,ultimo_pago}(A)",
+    "ar": "A ← _{codigo_cliente} F_{MIN(fecha_pago)→primer_pago, MAX(fecha_pago)→ultimo_pago}(pago)\nπ_{cliente.nombre_cliente, cliente.nombre_contacto, cliente.apellido_contacto, A.primer_pago, A.ultimo_pago}(cliente ⋈_{cliente.codigo_cliente=A.codigo_cliente} A)",
     "origen_ar": "generada",
-    "sql": "WITH pagos_por_cliente AS (\n  SELECT\n    c.codigo_cliente,\n    c.nombre_contacto,\n    c.apellido_contacto,\n    MIN(p.fecha_pago) AS primer_pago,\n    MAX(p.fecha_pago) AS ultimo_pago\n  FROM cliente AS c\n  INNER JOIN pago AS p\n    ON c.codigo_cliente = p.codigo_cliente\n  GROUP BY\n    c.codigo_cliente,\n    c.nombre_contacto,\n    c.apellido_contacto\n)\nSELECT DISTINCT\n  nombre_contacto,\n  apellido_contacto,\n  primer_pago,\n  ultimo_pago\nFROM pagos_por_cliente",
-    "observaciones": "Se asume que se listan los clientes que tienen al menos un pago, porque para los demás no existe una primera ni una última fecha de pago. Si se quisiera incluirlos, habría que usar una junta izquierda y sus fechas resultarían NULL. El esquema tiene nombre_contacto y un único atributo apellido_contacto; se interpretan como el nombre y el apellido solicitados.",
+    "sql": "WITH A AS (\n    SELECT codigo_cliente,\n           MIN(fecha_pago) AS primer_pago,\n           MAX(fecha_pago) AS ultimo_pago\n    FROM pago\n    GROUP BY codigo_cliente\n)\nSELECT DISTINCT cliente.nombre_cliente,\n       cliente.nombre_contacto,\n       cliente.apellido_contacto,\n       A.primer_pago,\n       A.ultimo_pago\nFROM cliente\nINNER JOIN A ON cliente.codigo_cliente = A.codigo_cliente;",
+    "observaciones": "El esquema no tiene un par de atributos que represente inequívocamente el nombre y los apellidos del cliente: contiene nombre_cliente y, para el contacto, nombre_contacto y apellido_contacto. La consulta muestra esos tres campos disponibles. Además, al usar junta interna, se listan los clientes con al menos un pago; los clientes sin pagos no tienen fechas de primer ni último pago.",
     "estado": "pendiente",
     "hash_entradas": "478d52bf9ed38220",
     "modelo": "gpt-6-luna",
@@ -1077,6 +1313,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.39": {
@@ -1084,10 +1324,10 @@
     "seccion": "1",
     "ejercicio": "39",
     "enunciado": "39. Calcula el número de productos diferentes que hay en cada uno de los pedidos.",
-    "ar": "D ← PEDIDO ⟕_{PEDIDO.codigo_pedido=DETALLE_PEDIDO.codigo_pedido} DETALLE_PEDIDO\n_{codigo_pedido} F_{CUENTA(codigo_producto)→numero_productos}(D)",
+    "ar": "_{codigo_pedido} CUENTA_{codigo_producto}(detalle_pedido)",
     "origen_ar": "generada",
-    "sql": "SELECT p.codigo_pedido, COUNT(dp.codigo_producto) AS numero_productos\nFROM pedido AS p\nLEFT JOIN detalle_pedido AS dp\n  ON p.codigo_pedido = dp.codigo_pedido\nGROUP BY p.codigo_pedido;",
-    "observaciones": "La junta izquierda permite incluir también los pedidos que no tienen detalles; para ellos, COUNT(codigo_producto) devuelve 0. Si se presupone que todos los pedidos tienen al menos un detalle, también podría agruparse directamente detalle_pedido.",
+    "sql": "SELECT codigo_pedido, COUNT(DISTINCT codigo_producto) AS cantidad_productos\nFROM detalle_pedido\nGROUP BY codigo_pedido;",
+    "observaciones": "La consulta cuenta los productos distintos presentes en cada pedido con al menos un detalle. Si se deben incluir también los pedidos sin detalles, habría que aclararlo; esos pedidos requerirían una junta izquierda con pedido y el conteo sería cero.",
     "estado": "pendiente",
     "hash_entradas": "758a922a3920c47f",
     "modelo": "gpt-6-luna",
@@ -1095,6 +1335,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.4": {
@@ -1102,10 +1346,10 @@
     "seccion": "1",
     "ejercicio": "4",
     "enunciado": "4. Devuelva el nombre del puesto, nombre, apellidos y email del jefe de la empresa.",
-    "ar": "π_{puesto, nombre, apellido1, apellido2, email} (σ_{codigo_jefe IS NULL} (empleado))",
+    "ar": "π_{puesto,nombre,apellido1,apellido2,email}(σ_{codigo_jefe IS NULL}(EMPLEADO))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT puesto, nombre, apellido1, apellido2, email\nFROM empleado\nWHERE codigo_jefe IS NULL;",
-    "observaciones": "Se interpreta que el jefe de la empresa es el empleado cuyo codigo_jefe es NULL. El esquema no garantiza que exista exactamente uno.",
+    "observaciones": "Se interpreta que el jefe de la empresa es el empleado sin jefe asignado (codigo_jefe NULL), y que «apellidos» comprende apellido1 y apellido2. La selección sobre NULL es una extensión necesaria del AR clásico para reflejar el esquema SQL.",
     "estado": "pendiente",
     "hash_entradas": "a5474ce9f9be9aea",
     "modelo": "gpt-6-luna",
@@ -1113,6 +1357,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.40": {
@@ -1120,9 +1368,9 @@
     "seccion": "1",
     "ejercicio": "40",
     "enunciado": "40. Calcula la suma de la cantidad total de todos los productos que aparecen en cada uno de los pedidos.",
-    "ar": "_{codigo_pedido} SUMA_{cantidad}(detalle_pedido)",
+    "ar": "_{codigo_pedido} F_{SUMA(cantidad)→cantidad_total}(detalle_pedido)",
     "origen_ar": "generada",
-    "sql": "SELECT codigo_pedido, SUM(cantidad)\nFROM detalle_pedido\nGROUP BY codigo_pedido;",
+    "sql": "SELECT codigo_pedido, SUM(cantidad) AS cantidad_total\nFROM detalle_pedido\nGROUP BY codigo_pedido;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "d668b6984d84e0ef",
@@ -1131,6 +1379,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.41": {
@@ -1138,10 +1390,10 @@
     "seccion": "1",
     "ejercicio": "41",
     "enunciado": "41. Devuelva un listado de los 20 productos más vendidos y el número total de unidades que se han vendido de cada uno. El listado deberá estar ordenado por el número total de unidades vendidas.",
-    "ar": "V ← _{codigo_producto} SUMA_{cantidad→unidades_vendidas}(detalle_pedido)\nR ← π_{producto.codigo_producto, producto.nombre, V.unidades_vendidas}(producto ⋈_{producto.codigo_producto=V.codigo_producto} V)\nLa ordenación descendente por unidades_vendidas y la selección de las primeras 20 filas se aplican como una extensión de orden/top-k, ya que no forman parte del álgebra relacional clásica.",
+    "ar": "_{producto.codigo_producto, producto.nombre} F_{SUMA(detalle_pedido.cantidad)→unidades_vendidas}(producto ⋈_{producto.codigo_producto=detalle_pedido.codigo_producto} detalle_pedido)",
     "origen_ar": "generada",
-    "sql": "WITH ventas_producto AS (\n  SELECT codigo_producto, SUM(cantidad) AS unidades_vendidas\n  FROM detalle_pedido\n  GROUP BY codigo_producto\n)\nSELECT p.codigo_producto, p.nombre, v.unidades_vendidas\nFROM ventas_producto AS v\nINNER JOIN producto AS p\n  ON p.codigo_producto = v.codigo_producto\nORDER BY v.unidades_vendidas DESC, p.codigo_producto ASC\nFETCH FIRST 20 ROWS ONLY;",
-    "observaciones": "La consigna no especifica qué datos del producto mostrar; se incluyen código y nombre. Se consideran los productos con al menos una venta registrada. El desempate por código permite obtener exactamente 20 filas cuando hay productos empatados en unidades vendidas; si se quisiera incluir todos los empatados con el puesto 20, habría que usar otra variante de top-k.",
+    "sql": "SELECT p.codigo_producto, p.nombre, SUM(d.cantidad) AS unidades_vendidas\nFROM producto AS p\nINNER JOIN detalle_pedido AS d\n  ON p.codigo_producto = d.codigo_producto\nGROUP BY p.codigo_producto, p.nombre\nORDER BY unidades_vendidas DESC\nFETCH FIRST 20 ROWS ONLY;",
+    "observaciones": "El álgebra relacional indicada permite calcular las unidades vendidas por producto, pero no expresar el orden ni limitar el resultado a los primeros 20; esas operaciones se agregan en SQL. Si hay empate en el límite, la consigna no especifica cómo resolverlo.",
     "estado": "pendiente",
     "hash_entradas": "38486b915102992b",
     "modelo": "gpt-6-luna",
@@ -1149,6 +1401,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.42": {
@@ -1156,10 +1412,10 @@
     "seccion": "1",
     "ejercicio": "42",
     "enunciado": "42. La facturación que ha tenido la empresa en toda la historia, indicando la base imponible, el IVA y el total facturado. La base imponible se calcula sumando el coste del producto por el número de unidades vendidas de la tabla detalle_pedido. El IVA es el 21 % de la base imponible, y el total la suma de los dos campos anteriores.",
-    "ar": "D ← _{} F_{SUMA(cantidad * precio_unidad)→base_imponible}(DETALLE_PEDIDO)\nRESULTADO ← π_{base_imponible, base_imponible * 0.21→IVA, base_imponible + (base_imponible * 0.21)→total_facturado}(D)",
+    "ar": "_{ } F_{SUMA(cantidad × precio_unidad)→base_imponible, 0.21 × SUMA(cantidad × precio_unidad)→IVA, 1.21 × SUMA(cantidad × precio_unidad)→total_facturado}(DETALLE_PEDIDO)",
     "origen_ar": "generada",
-    "sql": "WITH facturacion AS (\n  SELECT SUM(cantidad * precio_unidad) AS base_imponible\n  FROM detalle_pedido\n)\nSELECT\n  base_imponible,\n  base_imponible * 0.21 AS IVA,\n  base_imponible + (base_imponible * 0.21) AS total_facturado\nFROM facturacion;",
-    "observaciones": "Se interpreta que el coste unitario es detalle_pedido.precio_unidad, que registra el precio de cada producto en el pedido; así se calcula la facturación histórica y no con el precio actual de producto.precio_venta.",
+    "sql": "SELECT SUM(cantidad * precio_unidad) AS base_imponible,\n       SUM(cantidad * precio_unidad) * 0.21 AS iva,\n       SUM(cantidad * precio_unidad) * 1.21 AS total_facturado\nFROM detalle_pedido;",
+    "observaciones": "Se interpreta el coste unitario como precio_unidad de detalle_pedido, que registra el precio de cada venta; así se calcula la facturación histórica y no con el precio actual del producto. El álgebra relacional básica indicada no define explícitamente operaciones aritméticas sobre atributos; la expresión usa esa extensión para calcular los importes derivados.",
     "estado": "pendiente",
     "hash_entradas": "10847db76d8ac234",
     "modelo": "gpt-6-luna",
@@ -1167,6 +1423,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.43": {
@@ -1174,10 +1434,10 @@
     "seccion": "1",
     "ejercicio": "43",
     "enunciado": "43. Agrupando por código de producto: La facturación que ha tenido la empresa en toda la historia, indicando la base imponible, el IVA y el total facturado. La base imponible se calcula sumando el coste del producto por el número de unidades vendidas de la tabla detalle_pedido. El IVA es el 21 % de la base imponible, y el total la suma de los dos campos anteriores.",
-    "ar": "F ← _{codigo_producto} F_{SUMA(cantidad × precio_unidad)→base_imponible}(detalle_pedido)\nResultado ← π_{codigo_producto, base_imponible, base_imponible × 0.21→IVA, base_imponible + (base_imponible × 0.21)→total_facturado}(F)",
+    "ar": "B ← _{codigo_producto} F_{SUMA(cantidad * precio_unidad)→base_imponible}(detalle_pedido)\nπ_{codigo_producto, base_imponible, (base_imponible * 0.21)→IVA, (base_imponible + base_imponible * 0.21)→total_facturado}(B)",
     "origen_ar": "generada",
-    "sql": "WITH facturacion_producto AS (\n  SELECT codigo_producto,\n         SUM(cantidad * precio_unidad) AS base_imponible\n  FROM detalle_pedido\n  GROUP BY codigo_producto\n)\nSELECT codigo_producto,\n       base_imponible,\n       base_imponible * 0.21 AS IVA,\n       base_imponible + (base_imponible * 0.21) AS total_facturado\nFROM facturacion_producto;",
-    "observaciones": "Se interpreta el coste unitario como detalle_pedido.precio_unidad. La proyección de IVA y total requiere permitir expresiones aritméticas y atributos calculados en la proyección del AR.",
+    "sql": "WITH B AS (\n    SELECT codigo_producto, SUM(cantidad * precio_unidad) AS base_imponible\n    FROM detalle_pedido\n    GROUP BY codigo_producto\n)\nSELECT codigo_producto,\n       base_imponible,\n       base_imponible * 0.21 AS IVA,\n       base_imponible + base_imponible * 0.21 AS total_facturado\nFROM B;",
+    "observaciones": "Se interpreta «coste del producto» como precio_unidad de detalle_pedido, que representa el precio de cada línea vendida; si se pretendía usar precio_venta o precio_proveedor de producto, la consigna debería precisarlo. El AR indicado usa proyección extendida para calcular atributos derivados, operación no definida explícitamente en la notación proporcionada. Solo aparecen productos con ventas registradas.",
     "estado": "pendiente",
     "hash_entradas": "1309ed06878b1862",
     "modelo": "gpt-6-luna",
@@ -1185,6 +1445,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.44": {
@@ -1192,10 +1456,10 @@
     "seccion": "1",
     "ejercicio": "44",
     "enunciado": "43. Agrupando por código de producto filtrada por los códigos que empiecen por O: La facturación que ha tenido la empresa en toda la historia, indicando la base imponible, el IVA y el total facturado. La base imponible se calcula sumando el coste del producto por el número de unidades vendidas de la tabla detalle_pedido. El IVA es el 21 % de la base imponible, y el total la suma de los dos campos anteriores.",
-    "ar": "D ← σ_{codigo_producto LIKE 'O%'}(detalle_pedido)\nF ← _{codigo_producto} F_{SUMA(precio_unidad · cantidad)→base_imponible}(D)\nπ_{codigo_producto, base_imponible, base_imponible · 0.21→iva, base_imponible + (base_imponible · 0.21)→total}(F)",
+    "ar": "A ← σ_{codigo_producto LIKE 'O%'}(detalle_pedido)\nB ← ρ_{B(codigo_producto, base_imponible)}(_{codigo_producto} F_{SUMA(precio_unidad × cantidad)}(A))\nπ_{codigo_producto, base_imponible, base_imponible × 0.21→IVA, base_imponible × 1.21→total_facturado}(B)",
     "origen_ar": "generada",
-    "sql": "WITH facturacion_producto AS (\n  SELECT codigo_producto,\n         SUM(precio_unidad * cantidad) AS base_imponible\n  FROM detalle_pedido\n  WHERE codigo_producto LIKE 'O%'\n  GROUP BY codigo_producto\n)\nSELECT codigo_producto,\n       base_imponible,\n       base_imponible * 0.21 AS iva,\n       base_imponible + (base_imponible * 0.21) AS total\nFROM facturacion_producto",
-    "observaciones": "Se interpreta «coste del producto» como precio_unidad de detalle_pedido, es decir, el precio unitario registrado en cada línea de venta. Si se pretendía usar otro precio, la consigna debería especificarlo. La condición de prefijo LIKE se usa como una extensión de la selección, porque los predicados de AR indicados no incluyen expresamente LIKE.",
+    "sql": "WITH A AS (\n    SELECT codigo_producto, precio_unidad, cantidad\n    FROM detalle_pedido\n    WHERE codigo_producto LIKE 'O%'\n),\nB AS (\n    SELECT codigo_producto, SUM(precio_unidad * cantidad) AS base_imponible\n    FROM A\n    GROUP BY codigo_producto\n)\nSELECT DISTINCT\n    codigo_producto,\n    base_imponible,\n    base_imponible * 0.21 AS IVA,\n    base_imponible * 1.21 AS total_facturado\nFROM B;",
+    "observaciones": "Se interpreta «coste del producto» como precio_unidad de detalle_pedido, que es el importe unitario registrado en cada línea. La selección por prefijo LIKE 'O%' requiere una condición extendida en AR: LIKE no está entre los predicados básicos indicados para σ.",
     "estado": "pendiente",
     "hash_entradas": "74db1af22488e055",
     "modelo": "gpt-6-luna",
@@ -1203,6 +1467,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.45": {
@@ -1210,10 +1478,10 @@
     "seccion": "1",
     "ejercicio": "45",
     "enunciado": "45. Lista las ventas totales de los productos que hayan facturado más de 3000 euros. Se  mostrará el nombre, unidades vendidas, total facturado y total facturado con impuestos  (21% IVA).",
-    "ar": "D ← detalle_pedido ⋈_{detalle_pedido.codigo_producto=producto.codigo_producto} producto\nT ← _{codigo_producto,nombre} F_{SUMA(cantidad)→unidades_vendidas, SUMA(cantidad*precio_unidad)→total_facturado, SUMA(cantidad*precio_unidad*1.21)→total_con_impuestos}(D)\nR ← σ_{total_facturado>3000}(T)\nπ_{nombre, unidades_vendidas, total_facturado, total_con_impuestos}(R)",
+    "ar": "T ← _{codigo_producto,nombre} F_{SUMA(cantidad)→unidades_vendidas, SUMA(cantidad·precio_unidad)→total_facturado, SUMA(cantidad·precio_unidad·1.21)→total_facturado_con_impuestos}(producto ⋈_{producto.codigo_producto=detalle_pedido.codigo_producto} detalle_pedido)\nπ_{nombre,unidades_vendidas,total_facturado,total_facturado_con_impuestos}(σ_{total_facturado>3000}(T))",
     "origen_ar": "generada",
-    "sql": "SELECT p.nombre,\n       SUM(dp.cantidad) AS unidades_vendidas,\n       SUM(dp.cantidad * dp.precio_unidad) AS total_facturado,\n       SUM(dp.cantidad * dp.precio_unidad * 1.21) AS total_facturado_con_impuestos\nFROM producto AS p\nINNER JOIN detalle_pedido AS dp\n    ON p.codigo_producto = dp.codigo_producto\nGROUP BY p.codigo_producto, p.nombre\nHAVING SUM(dp.cantidad * dp.precio_unidad) > 3000;",
-    "observaciones": "Se interpreta que el umbral de 3000 se aplica al total facturado antes del IVA. El esquema no especifica la moneda de los precios; se asume que están expresados en euros, como indica la consigna.",
+    "sql": "WITH T AS (\n    SELECT\n        p.codigo_producto,\n        p.nombre,\n        SUM(d.cantidad) AS unidades_vendidas,\n        SUM(d.cantidad * d.precio_unidad) AS total_facturado,\n        SUM(d.cantidad * d.precio_unidad * 1.21) AS total_facturado_con_impuestos\n    FROM producto AS p\n    INNER JOIN detalle_pedido AS d\n        ON p.codigo_producto = d.codigo_producto\n    GROUP BY p.codigo_producto, p.nombre\n)\nSELECT DISTINCT\n    nombre,\n    unidades_vendidas,\n    total_facturado,\n    total_facturado_con_impuestos\nFROM T\nWHERE total_facturado > 3000;",
+    "observaciones": "Se asume que se consideran todos los detalles de pedido, sin filtrar por estado ni fecha, y que los importes están expresados en euros. El esquema no especifica moneda.",
     "estado": "pendiente",
     "hash_entradas": "1341cf8f7131dd47",
     "modelo": "gpt-6-luna",
@@ -1221,6 +1489,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.46": {
@@ -1228,10 +1500,10 @@
     "seccion": "1",
     "ejercicio": "46",
     "enunciado": "46. Muestre la suma total de todos los pagos que se realizaron para cada uno de los años que aparecen en la tabla pagos.",
-    "ar": "_{AÑO(fecha_pago)} F_{SUMA(total)} (PAGO)",
+    "ar": "_{AÑO(fecha_pago)} SUMA_{total}(PAGO)",
     "origen_ar": "generada",
     "sql": "SELECT EXTRACT(YEAR FROM fecha_pago) AS anio, SUM(total) AS suma_total\nFROM pago\nGROUP BY EXTRACT(YEAR FROM fecha_pago);",
-    "observaciones": "Se asume que AÑO(fecha_pago) representa la extracción del año de la fecha. Esta operación de extracción no está definida entre los operadores básicos de AR indicados, pero es necesaria para agrupar los pagos por año.",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "4a4969b3f88cf191",
     "modelo": "gpt-6-luna",
@@ -1239,6 +1511,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.47": {
@@ -1246,10 +1522,10 @@
     "seccion": "1",
     "ejercicio": "47",
     "enunciado": "47. Devuelva el nombre del cliente con mayor límite de crédit",
-    "ar": "M ← ρ_{M(maximo)}(_{} MAX_{limite_credito}(CLIENTE))\nπ_{nombre_cliente}(σ_{limite_credito=maximo}(CLIENTE × M))",
+    "ar": "M ← _{} F_{MAX(limite_credito)→max_limite}(cliente)\nπ_{nombre_cliente}(cliente ⋈_{cliente.limite_credito=M.max_limite} M)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT c.nombre_cliente\nFROM cliente AS c\nWHERE c.limite_credito = (\n    SELECT MAX(limite_credito)\n    FROM cliente\n);",
-    "observaciones": "La consigna parece truncada en «crédit», pero se interpreta como «crédito» según el atributo limite_credito del esquema. Si varios clientes comparten el máximo, se devuelven todos sus nombres. Como limite_credito admite NULL, si todos sus valores son NULL no se devuelve ningún cliente.",
+    "sql": "WITH M AS (\n    SELECT MAX(limite_credito) AS max_limite\n    FROM cliente\n)\nSELECT DISTINCT c.nombre_cliente\nFROM cliente AS c\nINNER JOIN M\n    ON c.limite_credito = M.max_limite;",
+    "observaciones": "La consigna termina en «crédit»; se interpreta que solicita el cliente con mayor límite de crédito. Si hay empate, se devuelven los nombres de todos los clientes empatados.",
     "estado": "pendiente",
     "hash_entradas": "69d17056f7f40249",
     "modelo": "gpt-6-luna",
@@ -1257,6 +1533,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.48": {
@@ -1264,10 +1544,10 @@
     "seccion": "1",
     "ejercicio": "48",
     "enunciado": "48. Devuelva el nombre del producto que tenga el precio de venta más caro.",
-    "ar": "M ← ρ_{M(precio_maximo)} (_{} MAX_{precio_venta}(PRODUCTO))\nπ_{nombre} (PRODUCTO ⋈_{PRODUCTO.precio_venta=M.precio_maximo} M)",
+    "ar": "M ← ρ_{M(maximo)}(_{} MAX_{precio_venta}(producto))\nπ_{nombre}(producto ⋈_{producto.precio_venta=M.maximo} M)",
     "origen_ar": "generada",
-    "sql": "WITH precio_maximo(precio) AS (\n  SELECT MAX(precio_venta)\n  FROM producto\n)\nSELECT DISTINCT p.nombre\nFROM producto AS p\nCROSS JOIN precio_maximo AS m\nWHERE p.precio_venta = m.precio;",
-    "observaciones": "Si varios productos comparten el precio de venta máximo, se devuelven todos sus nombres. La consigna no especifica cómo resolver posibles empates.",
+    "sql": "WITH M AS (\n    SELECT MAX(precio_venta) AS maximo\n    FROM producto\n)\nSELECT DISTINCT p.nombre\nFROM producto AS p\nINNER JOIN M ON p.precio_venta = M.maximo;",
+    "observaciones": "Si varios productos comparten el precio de venta máximo, se devuelven todos sus nombres.",
     "estado": "pendiente",
     "hash_entradas": "72abcd4c2ff9d7a3",
     "modelo": "gpt-6-luna",
@@ -1275,6 +1555,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.49": {
@@ -1282,10 +1566,10 @@
     "seccion": "1",
     "ejercicio": "49",
     "enunciado": "49. Devuelva el nombre del producto del que se han vendido más unidades. (Tenga en cuenta que tendrá que calcular cuál es el número total de unidades que se han vendido de cada producto a partir de los datos de la tabla detalle_pedido)",
-    "ar": "V ← _{codigo_producto} SUMA_{cantidad→total_unidades}(detalle_pedido)\nM ← MAXIMO_{total_unidades→maximo}(V)\nT ← σ_{V.total_unidades=M.maximo}(ρ_V(V) × ρ_M(M))\nπ_{nombre}(producto ⋈_{producto.codigo_producto=V.codigo_producto} T)",
+    "ar": "V ← _{codigo_producto} F_{SUMA(cantidad)→total_vendido}(detalle_pedido)\nM ← _{} F_{MÁXIMO(total_vendido)→maximo}(V)\nπ_{producto.nombre}(producto ⋈_{producto.codigo_producto=V.codigo_producto ∧ V.total_vendido=M.maximo} (V × M))",
     "origen_ar": "generada",
-    "sql": "WITH ventas_por_producto AS (\n    SELECT codigo_producto, SUM(cantidad) AS total_unidades\n    FROM detalle_pedido\n    GROUP BY codigo_producto\n), maximo AS (\n    SELECT MAX(total_unidades) AS maximo\n    FROM ventas_por_producto\n)\nSELECT DISTINCT p.nombre\nFROM producto AS p\nJOIN ventas_por_producto AS v\n    ON p.codigo_producto = v.codigo_producto\nCROSS JOIN maximo AS m\nWHERE v.total_unidades = m.maximo;",
-    "observaciones": "Si varios productos empatan en el máximo, se devuelven todos sus nombres. Se consideran los productos presentes en detalle_pedido; si no hay ventas registradas, el resultado es vacío.",
+    "sql": "WITH V AS (\n    SELECT codigo_producto, SUM(cantidad) AS total_vendido\n    FROM detalle_pedido\n    GROUP BY codigo_producto\n),\nM AS (\n    SELECT MAX(total_vendido) AS maximo\n    FROM V\n)\nSELECT DISTINCT p.nombre\nFROM producto AS p\nINNER JOIN V ON p.codigo_producto = V.codigo_producto\nCROSS JOIN M\nWHERE V.total_vendido = M.maximo;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "affebace4b3e10df",
     "modelo": "gpt-6-luna",
@@ -1293,6 +1577,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.5": {
@@ -1300,10 +1588,10 @@
     "seccion": "1",
     "ejercicio": "5",
     "enunciado": "5. Devuelva un listado con el nombre, apellidos y puesto de aquellos empleados que no sean representantes de ventas.",
-    "ar": "π_{nombre, apellido1, apellido2, puesto} (σ_{puesto ≠ 'Representante Ventas'} (empleado))",
+    "ar": "π_{nombre, apellido1, apellido2, puesto}(σ_{puesto ≠ 'Representante Ventas'}(empleado))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT nombre, apellido1, apellido2, puesto\nFROM empleado\nWHERE puesto <> 'Representante Ventas';",
-    "observaciones": "Se interpreta que «representantes de ventas» son los empleados cuyo puesto es exactamente 'Representante Ventas'. Como puesto admite NULL, esos empleados no aparecen en el resultado SQL: la comparación con NULL no es verdadera.",
+    "observaciones": "Se asume que el valor que identifica a un representante de ventas es exactamente 'Representante Ventas'. Como puesto admite NULL, la consulta no incluye empleados cuyo puesto sea NULL: SQL no considera que NULL sea distinto de ese valor.",
     "estado": "pendiente",
     "hash_entradas": "996b71d8cfad92ee",
     "modelo": "gpt-6-luna",
@@ -1311,6 +1599,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.50": {
@@ -1318,10 +1610,10 @@
     "seccion": "1",
     "ejercicio": "50",
     "enunciado": "50. Los clientes cuyo límite de crédito sea mayor que los pagos que haya realizado. (Sin utilizar INNER JOIN).",
-    "ar": "PAGOS_CLIENTE ← ρ_{PAGOS_CLIENTE(codigo_cliente,total_pagado)} ( _{codigo_cliente} SUMA_{total}(PAGO) )\nRESULTADO ← π_{codigo_cliente,nombre_cliente} ( σ_{CLIENTE.codigo_cliente=PAGOS_CLIENTE.codigo_cliente ∧ limite_credito>total_pagado} (CLIENTE × PAGOS_CLIENTE) )",
+    "ar": "P ← _{codigo_cliente} SUMA_{total→total_pagado}(pago)\nR ← cliente ⟕_{cliente.codigo_cliente=P.codigo_cliente} P\nπ_{cliente.codigo_cliente,nombre_cliente}(σ_{limite_credito>total_pagado}(R))",
     "origen_ar": "generada",
-    "sql": "WITH pagos_cliente AS (\n  SELECT codigo_cliente, SUM(total) AS total_pagado\n  FROM pago\n  GROUP BY codigo_cliente\n)\nSELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c, pagos_cliente AS p\nWHERE c.codigo_cliente = p.codigo_cliente\n  AND c.limite_credito > p.total_pagado;",
-    "observaciones": "Se interpreta que el límite de crédito debe superar la suma de los pagos realizados por cada cliente. La agregación incluye únicamente clientes con al menos un pago; la consigna no aclara si los clientes sin pagos deben considerarse con un total pagado de cero. La consulta no utiliza INNER JOIN.",
+    "sql": "WITH P AS (\n    SELECT codigo_cliente, SUM(total) AS total_pagado\n    FROM pago\n    GROUP BY codigo_cliente\n)\nSELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c\nLEFT JOIN P\n    ON c.codigo_cliente = P.codigo_cliente\nWHERE c.limite_credito > P.total_pagado;",
+    "observaciones": "Se asume que “los pagos” refiere a la suma de todos los pagos de cada cliente. La consigna no aclara cómo tratar a los clientes sin pagos: con esta comparación, el total NULL no satisface la condición y esos clientes no aparecen. Si se pretende considerar que no haber pagado equivale a un total de cero, habría que especificarlo; el AR indicado no incluye un operador para reemplazar NULL por cero.",
     "estado": "pendiente",
     "hash_entradas": "dec6fcc3cccca22d",
     "modelo": "gpt-6-luna",
@@ -1329,6 +1621,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.51": {
@@ -1336,10 +1632,10 @@
     "seccion": "1",
     "ejercicio": "51",
     "enunciado": "51. Devuelva el producto que más unidades tiene en stoc",
-    "ar": "M ← _{} MÁXIMO_{cantidad_en_stock→max_stock}(producto)\nPRODUCTOS_MAXIMOS ← σ_{producto.cantidad_en_stock=max_stock}(producto × M)\nPRODUCTOS_MAXIMOS",
+    "ar": "M ← _{} MAXIMO_{cantidad_en_stock→max_stock}(PRODUCTO)\nπ_{codigo_producto,nombre,gama,dimensiones,proveedor,descripcion,cantidad_en_stock,precio_venta,precio_proveedor}(σ_{PRODUCTO.cantidad_en_stock=M.max_stock}(PRODUCTO × M))",
     "origen_ar": "generada",
-    "sql": "WITH max_stock AS (\n  SELECT MAX(cantidad_en_stock) AS max_stock\n  FROM producto\n)\nSELECT DISTINCT\n  p.codigo_producto,\n  p.nombre,\n  p.gama,\n  p.dimensiones,\n  p.proveedor,\n  p.descripcion,\n  p.cantidad_en_stock,\n  p.precio_venta,\n  p.precio_proveedor\nFROM producto AS p\nCROSS JOIN max_stock AS m\nWHERE p.cantidad_en_stock = m.max_stock;",
-    "observaciones": "Se interpreta «el producto» como la fila completa de producto; si hay empate en la cantidad máxima, se devuelven todos los productos empatados.",
+    "sql": "WITH M AS (\n    SELECT MAX(cantidad_en_stock) AS max_stock\n    FROM producto\n)\nSELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones,\n       p.proveedor, p.descripcion, p.cantidad_en_stock,\n       p.precio_venta, p.precio_proveedor\nFROM producto AS p\nCROSS JOIN M\nWHERE p.cantidad_en_stock = M.max_stock;",
+    "observaciones": "Si varios productos comparten la mayor cantidad en stock, la consulta devuelve todos; la consigna está formulada en singular, pero no especifica cómo desempatar.",
     "estado": "pendiente",
     "hash_entradas": "85f7bbcaa8839fcc",
     "modelo": "gpt-6-luna",
@@ -1347,6 +1643,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.52": {
@@ -1354,10 +1654,10 @@
     "seccion": "1",
     "ejercicio": "52",
     "enunciado": "52. Devuelva el producto que menos unidades tiene en stock.",
-    "ar": "MINIMO ← ρ_{MINIMO(stock_minimo)}(_{} MIN_{MIN(cantidad_en_stock)}(PRODUCTO))\nπ_{codigo_producto, nombre, gama, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor}(σ_{cantidad_en_stock=stock_minimo}(PRODUCTO × MINIMO))",
+    "ar": "M ← ρ_{M(minimo)} (_{} MIN_{cantidad_en_stock} (PRODUCTO))\nP ← ρ_{P(codigo_producto,nombre,gama,dimensiones,proveedor,descripcion,cantidad_en_stock,precio_venta,precio_proveedor)} (PRODUCTO)\nπ_{P.codigo_producto,P.nombre,P.gama,P.dimensiones,P.proveedor,P.descripcion,P.cantidad_en_stock,P.precio_venta,P.precio_proveedor} (σ_{P.cantidad_en_stock=M.minimo} (P × M))",
     "origen_ar": "generada",
-    "sql": "WITH minimo AS (\n  SELECT MIN(cantidad_en_stock) AS stock_minimo\n  FROM producto\n)\nSELECT p.codigo_producto, p.nombre, p.gama, p.dimensiones, p.proveedor,\n       p.descripcion, p.cantidad_en_stock, p.precio_venta, p.precio_proveedor\nFROM producto AS p\nCROSS JOIN minimo AS m\nWHERE p.cantidad_en_stock = m.stock_minimo;",
-    "observaciones": "Se interpreta «el producto» como la fila completa de producto. Si varios productos comparten el mínimo stock, se devuelven todos.",
+    "sql": "WITH M AS (\n    SELECT MIN(cantidad_en_stock) AS minimo\n    FROM producto\n)\nSELECT DISTINCT P.codigo_producto, P.nombre, P.gama, P.dimensiones,\n       P.proveedor, P.descripcion, P.cantidad_en_stock,\n       P.precio_venta, P.precio_proveedor\nFROM producto AS P\nCROSS JOIN M\nWHERE P.cantidad_en_stock = M.minimo;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "e7108325007c8bdc",
     "modelo": "gpt-6-luna",
@@ -1365,6 +1665,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.53": {
@@ -1372,9 +1676,9 @@
     "seccion": "1",
     "ejercicio": "53",
     "enunciado": "53. Devuelva el nombre, los apellidos y el email de los empleados que están a cargo de Alberto Soria.",
-    "ar": "J ← ρ_{J(codigo_empleado, nombre, apellido1, apellido2)}(empleado)\nE ← ρ_{E(codigo_empleado, nombre, apellido1, apellido2, email, codigo_jefe)}(empleado)\nR ← σ_{J.nombre='Alberto' ∧ J.apellido1='Soria' ∧ E.codigo_jefe=J.codigo_empleado}(J × E)\nπ_{E.nombre, E.apellido1, E.apellido2, E.email}(R)",
+    "ar": "π_{E.nombre,E.apellido1,E.apellido2,E.email} (σ_{J.nombre='Alberto' ∧ J.apellido1='Soria'} (ρ_E(empleado) ⋈_{E.codigo_jefe=J.codigo_empleado} ρ_J(empleado)))",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT E.nombre, E.apellido1, E.apellido2, E.email\nFROM empleado AS J\nINNER JOIN empleado AS E\n  ON E.codigo_jefe = J.codigo_empleado\nWHERE J.nombre = 'Alberto'\n  AND J.apellido1 = 'Soria';",
+    "sql": "SELECT DISTINCT E.nombre, E.apellido1, E.apellido2, E.email\nFROM empleado AS E\nINNER JOIN empleado AS J\n  ON E.codigo_jefe = J.codigo_empleado\nWHERE J.nombre = 'Alberto'\n  AND J.apellido1 = 'Soria';",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "29d6725587af38ec",
@@ -1383,6 +1687,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.54": {
@@ -1390,10 +1698,10 @@
     "seccion": "1",
     "ejercicio": "54",
     "enunciado": "54. Devuelva el nombre del cliente con mayor límite de crédit",
-    "ar": "M ← ρ_{M(limite_maximo)}(_{} MAX_{limite_credito}(CLIENTE))\nπ_{nombre_cliente}(σ_{CLIENTE.limite_credito=M.limite_maximo}(CLIENTE × M))",
+    "ar": "M ← ρ_{M(maximo)} ( _{} MAX_{limite_credito} (CLIENTE) )\nπ_{nombre_cliente} ( σ_{limite_credito=maximo} (CLIENTE × M) )",
     "origen_ar": "generada",
-    "sql": "WITH M AS (\n  SELECT MAX(limite_credito) AS limite_maximo\n  FROM cliente\n)\nSELECT DISTINCT c.nombre_cliente\nFROM cliente AS c CROSS JOIN M\nWHERE c.limite_credito = M.limite_maximo;",
-    "observaciones": "",
+    "sql": "WITH M AS (\n    SELECT MAX(limite_credito) AS maximo\n    FROM cliente\n)\nSELECT DISTINCT c.nombre_cliente\nFROM cliente AS c\nCROSS JOIN M\nWHERE c.limite_credito = M.maximo;",
+    "observaciones": "La consigna termina truncada en «crédit», pero se interpreta como «crédito». limite_credito admite NULL; si todos los clientes tienen NULL en ese atributo, la consulta no devuelve nombres.",
     "estado": "pendiente",
     "hash_entradas": "8c4bcfa4971a8959",
     "modelo": "gpt-6-luna",
@@ -1401,6 +1709,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.55": {
@@ -1408,10 +1720,10 @@
     "seccion": "1",
     "ejercicio": "55",
     "enunciado": "55. Devuelva el nombre del producto que tenga el precio de venta más caro.",
-    "ar": "M ← ρ_{M(precio_max)} (_{} MAX_{precio_venta}(producto))\nπ_{nombre} (producto ⋈_{producto.precio_venta=M.precio_max} M)",
+    "ar": "M ← ρ_{M(max_precio)} (_{} MÁXIMO_{precio_venta} (producto))\nπ_{nombre} (σ_{precio_venta=max_precio} (producto × M))",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT p.nombre\nFROM producto AS p\nWHERE p.precio_venta = (\n  SELECT MAX(p2.precio_venta)\n  FROM producto AS p2\n);",
-    "observaciones": "La consulta devuelve los nombres de todos los productos empatados en el precio de venta máximo, si los hubiera.",
+    "sql": "WITH M AS (\n    SELECT MAX(precio_venta) AS max_precio\n    FROM producto\n)\nSELECT DISTINCT p.nombre\nFROM producto AS p\nCROSS JOIN M\nWHERE p.precio_venta = M.max_precio;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "fcb7eafb7c30ed9e",
     "modelo": "gpt-6-luna",
@@ -1419,6 +1731,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.56": {
@@ -1426,10 +1742,10 @@
     "seccion": "1",
     "ejercicio": "56",
     "enunciado": "56. Devuelva el producto que menos unidades tiene en stock.",
-    "ar": "M ← ρ_{M(min_stock)} (_{} MIN_{cantidad_en_stock}(PRODUCTO))\nπ_{codigo_producto,nombre,gama,dimensiones,proveedor,descripcion,cantidad_en_stock,precio_venta,precio_proveedor} (σ_{cantidad_en_stock=min_stock} (PRODUCTO × M))",
+    "ar": "M ← _{} MIN_{min_stock←cantidad_en_stock}(producto)\nπ_{codigo_producto,nombre,gama,dimensiones,proveedor,descripcion,cantidad_en_stock,precio_venta,precio_proveedor}(σ_{producto.cantidad_en_stock=M.min_stock}(producto × M))",
     "origen_ar": "generada",
-    "sql": "WITH minimo AS (\n  SELECT MIN(cantidad_en_stock) AS min_stock\n  FROM producto\n)\nSELECT p.*\nFROM producto AS p\nCROSS JOIN minimo AS m\nWHERE p.cantidad_en_stock = m.min_stock;",
-    "observaciones": "Si varios productos comparten el mínimo de stock, se devuelven todos; la consigna no especifica un criterio para desempatar.",
+    "sql": "WITH M AS (\n    SELECT MIN(cantidad_en_stock) AS min_stock\n    FROM producto\n)\nSELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones,\n       p.proveedor, p.descripcion, p.cantidad_en_stock, p.precio_venta,\n       p.precio_proveedor\nFROM producto AS p\nCROSS JOIN M\nWHERE p.cantidad_en_stock = M.min_stock;",
+    "observaciones": "La consigna no especifica qué atributos devolver. Se interpreta «el producto» como el registro completo; si varios productos empatan con el mínimo stock, se devuelven todos.",
     "estado": "pendiente",
     "hash_entradas": "88193c8d480a8c9f",
     "modelo": "gpt-6-luna",
@@ -1437,6 +1753,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.57": {
@@ -1444,9 +1764,9 @@
     "seccion": "1",
     "ejercicio": "57",
     "enunciado": "57. Devuelva el nombre, apellido1 y cargo de los empleados que no representen a ningún cliente.",
-    "ar": "REPRESENTADOS ← π_{empleado.codigo_empleado} (empleado ⋈_{empleado.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nNO_REPRESENTADOS ← π_{codigo_empleado} (empleado) − REPRESENTADOS\nπ_{nombre,apellido1,puesto} (empleado ⋈_{empleado.codigo_empleado=NO_REPRESENTADOS.codigo_empleado} NO_REPRESENTADOS)",
+    "ar": "E ← π_{codigo_empleado,nombre,apellido1,puesto}(EMPLEADO)\nR ← π_{codigo_empleado,nombre,apellido1,puesto}(EMPLEADO ⋈_{EMPLEADO.codigo_empleado=CLIENTE.codigo_empleado_rep_ventas} CLIENTE)\nN ← E − R\nπ_{nombre,apellido1,puesto}(N)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT e.nombre, e.apellido1, e.puesto\nFROM empleado AS e\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM cliente AS c\n    WHERE c.codigo_empleado_rep_ventas = e.codigo_empleado\n);",
+    "sql": "WITH E AS (\n    SELECT DISTINCT codigo_empleado, nombre, apellido1, puesto\n    FROM empleado\n),\nR AS (\n    SELECT DISTINCT e.codigo_empleado, e.nombre, e.apellido1, e.puesto\n    FROM empleado AS e\n    INNER JOIN cliente AS c\n        ON e.codigo_empleado = c.codigo_empleado_rep_ventas\n),\nN AS (\n    SELECT codigo_empleado, nombre, apellido1, puesto FROM E\n    EXCEPT\n    SELECT codigo_empleado, nombre, apellido1, puesto FROM R\n)\nSELECT DISTINCT nombre, apellido1, puesto\nFROM N;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "95fc0e2ce8c13cc2",
@@ -1455,6 +1775,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.58": {
@@ -1462,10 +1786,10 @@
     "seccion": "1",
     "ejercicio": "58",
     "enunciado": "58. Devuelva un listado que muestre solamente los clientes que no han realizado ningún pago.",
-    "ar": "π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(cliente) − π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(cliente ⋈_{cliente.codigo_cliente=pago.codigo_cliente} pago)",
+    "ar": "π_{codigo_cliente,nombre_cliente,nombre_contacto,apellido_contacto,telefono,fax,linea_direccion1,linea_direccion2,ciudad,region,pais,codigo_postal,codigo_empleado_rep_ventas,limite_credito}(CLIENTE) − π_{CLIENTE.codigo_cliente,CLIENTE.nombre_cliente,CLIENTE.nombre_contacto,CLIENTE.apellido_contacto,CLIENTE.telefono,CLIENTE.fax,CLIENTE.linea_direccion1,CLIENTE.linea_direccion2,CLIENTE.ciudad,CLIENTE.region,CLIENTE.pais,CLIENTE.codigo_postal,CLIENTE.codigo_empleado_rep_ventas,CLIENTE.limite_credito}(CLIENTE ⋈_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO)",
     "origen_ar": "generada",
-    "sql": "SELECT codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito\nFROM cliente\nEXCEPT\nSELECT c.codigo_cliente, c.nombre_cliente, c.nombre_contacto, c.apellido_contacto, c.telefono, c.fax, c.linea_direccion1, c.linea_direccion2, c.ciudad, c.region, c.pais, c.codigo_postal, c.codigo_empleado_rep_ventas, c.limite_credito\nFROM cliente AS c\nINNER JOIN pago AS p ON c.codigo_cliente = p.codigo_cliente;",
-    "observaciones": "Se interpreta «listado de clientes» como la devolución de todas las columnas de cliente; la consigna no especifica qué atributos mostrar.",
+    "sql": "SELECT DISTINCT codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito\nFROM cliente\nEXCEPT\nSELECT DISTINCT cliente.codigo_cliente, cliente.nombre_cliente, cliente.nombre_contacto, cliente.apellido_contacto, cliente.telefono, cliente.fax, cliente.linea_direccion1, cliente.linea_direccion2, cliente.ciudad, cliente.region, cliente.pais, cliente.codigo_postal, cliente.codigo_empleado_rep_ventas, cliente.limite_credito\nFROM cliente INNER JOIN pago\n  ON cliente.codigo_cliente = pago.codigo_cliente;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "05771f48c27393a8",
     "modelo": "gpt-6-luna",
@@ -1473,6 +1797,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.59": {
@@ -1480,10 +1808,10 @@
     "seccion": "1",
     "ejercicio": "59",
     "enunciado": "59. Devuelva un listado que muestre solamente los clientes que sí han realizado algún pago",
-    "ar": "π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito} (cliente ⋈_{cliente.codigo_cliente=pago.codigo_cliente} pago)",
+    "ar": "π_{codigo_cliente,nombre_cliente,nombre_contacto,apellido_contacto,telefono,fax,linea_direccion1,linea_direccion2,ciudad,region,pais,codigo_postal,codigo_empleado_rep_ventas,limite_credito} (CLIENTE ⋈_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO)",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT c.codigo_cliente, c.nombre_cliente, c.nombre_contacto, c.apellido_contacto, c.telefono, c.fax, c.linea_direccion1, c.linea_direccion2, c.ciudad, c.region, c.pais, c.codigo_postal, c.codigo_empleado_rep_ventas, c.limite_credito\nFROM cliente AS c\nINNER JOIN pago AS p ON c.codigo_cliente = p.codigo_cliente;",
-    "observaciones": "La consigna no especifica qué columnas debe mostrar el listado; se asume que debe mostrar todos los datos de cada cliente que tenga al menos un pago.",
+    "observaciones": "La consigna no especifica qué datos del cliente debe mostrar el listado; se interpreta que debe devolver todos los atributos de cliente.",
     "estado": "pendiente",
     "hash_entradas": "c4c92717aca44742",
     "modelo": "gpt-6-luna",
@@ -1491,6 +1819,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.6": {
@@ -1501,7 +1833,7 @@
     "ar": "π_{nombre_cliente}(σ_{pais='España'}(cliente))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT nombre_cliente\nFROM cliente\nWHERE pais = 'España';",
-    "observaciones": "Se interpreta «españole» como «españoles»; la consigna se entiende como obtener los nombres de los clientes cuyo país es España.",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "be35665442604c39",
     "modelo": "gpt-6-luna",
@@ -1509,6 +1841,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.60": {
@@ -1516,9 +1852,9 @@
     "seccion": "1",
     "ejercicio": "60",
     "enunciado": "60. Devuelva un listado de los productos que nunca han aparecido en un pedido.",
-    "ar": "A ← π_{codigo_producto}(PRODUCTO) − π_{codigo_producto}(DETALLE_PEDIDO)\nπ_{codigo_producto, nombre, gama, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor}(PRODUCTO ⋈ A)",
+    "ar": "π_{codigo_producto,nombre,gama,dimensiones,proveedor,descripcion,cantidad_en_stock,precio_venta,precio_proveedor}(PRODUCTO) − π_{codigo_producto,nombre,gama,dimensiones,proveedor,descripcion,cantidad_en_stock,precio_venta,precio_proveedor}(PRODUCTO ⋈_{PRODUCTO.codigo_producto=detalle_pedido.codigo_producto} detalle_pedido)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones, p.proveedor, p.descripcion, p.cantidad_en_stock, p.precio_venta, p.precio_proveedor\nFROM producto AS p\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM detalle_pedido AS dp\n  WHERE dp.codigo_producto = p.codigo_producto\n);",
+    "sql": "SELECT DISTINCT codigo_producto, nombre, gama, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor\nFROM producto\nEXCEPT\nSELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones, p.proveedor, p.descripcion, p.cantidad_en_stock, p.precio_venta, p.precio_proveedor\nFROM producto AS p\nINNER JOIN detalle_pedido AS dp ON p.codigo_producto = dp.codigo_producto",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "f837b4eabf38a76a",
@@ -1527,6 +1863,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.61": {
@@ -1534,9 +1874,9 @@
     "seccion": "1",
     "ejercicio": "61",
     "enunciado": "61. Devuelva el nombre, apellidos, puesto y teléfono de la oficina de aquellos empleados que no sean representante de ventas de ningún cliente.",
-    "ar": "E_con_rep ← π_{codigo_empleado, nombre, apellido1, apellido2, extension, email, codigo_oficina, codigo_jefe, puesto} (empleado ⋈_{empleado.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nE_sin_rep ← empleado − E_con_rep\nπ_{nombre, apellido1, apellido2, puesto, telefono} (E_sin_rep ⋈_{E_sin_rep.codigo_oficina=oficina.codigo_oficina} oficina)",
+    "ar": "R ← π_{empleado.codigo_empleado}(empleado ⋈_{empleado.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nN ← π_{codigo_empleado}(empleado) − R\nπ_{empleado.nombre, empleado.apellido1, empleado.apellido2, empleado.puesto, oficina.telefono}(N ⋈_{N.codigo_empleado=empleado.codigo_empleado} empleado ⋈_{empleado.codigo_oficina=oficina.codigo_oficina} oficina)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT e.nombre, e.apellido1, e.apellido2, e.puesto, o.telefono\nFROM empleado AS e\nINNER JOIN oficina AS o\n  ON e.codigo_oficina = o.codigo_oficina\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM cliente AS c\n  WHERE c.codigo_empleado_rep_ventas = e.codigo_empleado\n);",
+    "sql": "WITH R AS (\n    SELECT DISTINCT e.codigo_empleado\n    FROM empleado AS e\n    INNER JOIN cliente AS c\n        ON e.codigo_empleado = c.codigo_empleado_rep_ventas\n),\nN AS (\n    SELECT DISTINCT codigo_empleado\n    FROM empleado\n    EXCEPT\n    SELECT codigo_empleado\n    FROM R\n)\nSELECT DISTINCT e.nombre, e.apellido1, e.apellido2, e.puesto, o.telefono\nFROM N\nINNER JOIN empleado AS e\n    ON N.codigo_empleado = e.codigo_empleado\nINNER JOIN oficina AS o\n    ON e.codigo_oficina = o.codigo_oficina;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "10e1d1ec8cd1e0a5",
@@ -1545,6 +1885,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.62": {
@@ -1552,10 +1896,10 @@
     "seccion": "1",
     "ejercicio": "62",
     "enunciado": "62. Devuelva las oficinas donde no trabajan ninguno de los empleados que hayan sido los representantes de ventas de algún cliente que haya realizado la compra de algún producto de la gama Frutales.",
-    "ar": "P_Frutales ← σ_{gama='Frutales'}(PRODUCTO)\nA_1 ← EMPLEADO ⋈_{EMPLEADO.codigo_empleado=CLIENTE.codigo_empleado_rep_ventas} CLIENTE\nA_2 ← A_1 ⋈_{CLIENTE.codigo_cliente=PEDIDO.codigo_cliente} PEDIDO\nA_3 ← A_2 ⋈_{PEDIDO.codigo_pedido=DETALLE_PEDIDO.codigo_pedido} DETALLE_PEDIDO\nA_4 ← A_3 ⋈_{DETALLE_PEDIDO.codigo_producto=P_Frutales.codigo_producto} P_Frutales\nQ ← ρ_{Q(codigo_oficina)}(π_{EMPLEADO.codigo_oficina}(A_4))\nO ← π_{codigo_oficina,ciudad,pais,region,codigo_postal,telefono,linea_direccion1,linea_direccion2}(OFICINA)\nM ← π_{OFICINA.codigo_oficina,OFICINA.ciudad,OFICINA.pais,OFICINA.region,OFICINA.codigo_postal,OFICINA.telefono,OFICINA.linea_direccion1,OFICINA.linea_direccion2}(OFICINA ⋈_{OFICINA.codigo_oficina=Q.codigo_oficina} Q)\nResultado ← O − M",
+    "ar": "E ← ρ_E(empleado)\nC ← ρ_C(cliente)\nP ← ρ_P(pedido)\nD ← ρ_D(detalle_pedido)\nPr ← ρ_Pr(producto)\nEC ← π_{E.codigo_oficina,C.codigo_cliente}(E ⋈_{E.codigo_empleado=C.codigo_empleado_rep_ventas} C)\nECP ← π_{EC.codigo_oficina,P.codigo_pedido}(EC ⋈_{EC.codigo_cliente=P.codigo_cliente} P)\nECPD ← π_{ECP.codigo_oficina,D.codigo_producto}(ECP ⋈_{ECP.codigo_pedido=D.codigo_pedido} D)\nQ ← π_{ECPD.codigo_oficina}(σ_{Pr.gama='Frutales'}(ECPD ⋈_{ECPD.codigo_producto=Pr.codigo_producto} Pr))\nO ← ρ_O(oficina)\nR ← π_{O.codigo_oficina}(O) − Q\nO ⋈_{O.codigo_oficina=R.codigo_oficina} R",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT o.codigo_oficina, o.ciudad, o.pais, o.region, o.codigo_postal, o.telefono, o.linea_direccion1, o.linea_direccion2\nFROM oficina AS o\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM empleado AS e\n    INNER JOIN cliente AS c\n        ON e.codigo_empleado = c.codigo_empleado_rep_ventas\n    INNER JOIN pedido AS p\n        ON c.codigo_cliente = p.codigo_cliente\n    INNER JOIN detalle_pedido AS dp\n        ON p.codigo_pedido = dp.codigo_pedido\n    INNER JOIN producto AS pr\n        ON dp.codigo_producto = pr.codigo_producto\n    WHERE e.codigo_oficina = o.codigo_oficina\n      AND pr.gama = 'Frutales'\n);",
-    "observaciones": "",
+    "sql": "WITH EC AS (\n    SELECT DISTINCT E.codigo_oficina, C.codigo_cliente\n    FROM empleado AS E\n    INNER JOIN cliente AS C\n        ON E.codigo_empleado = C.codigo_empleado_rep_ventas\n),\nECP AS (\n    SELECT DISTINCT EC.codigo_oficina, P.codigo_pedido\n    FROM EC\n    INNER JOIN pedido AS P\n        ON EC.codigo_cliente = P.codigo_cliente\n),\nECPD AS (\n    SELECT DISTINCT ECP.codigo_oficina, D.codigo_producto\n    FROM ECP\n    INNER JOIN detalle_pedido AS D\n        ON ECP.codigo_pedido = D.codigo_pedido\n),\nQ AS (\n    SELECT DISTINCT ECPD.codigo_oficina\n    FROM ECPD\n    INNER JOIN producto AS Pr\n        ON ECPD.codigo_producto = Pr.codigo_producto\n    WHERE Pr.gama = 'Frutales'\n),\nR AS (\n    SELECT codigo_oficina\n    FROM oficina\n    EXCEPT\n    SELECT codigo_oficina\n    FROM Q\n)\nSELECT O.*\nFROM oficina AS O\nINNER JOIN R\n    ON O.codigo_oficina = R.codigo_oficina;",
+    "observaciones": "Se interpreta que una compra corresponde a un pedido con al menos un detalle de producto de la gama Frutales, sin filtrar por estado ni fecha de entrega.",
     "estado": "pendiente",
     "hash_entradas": "172fbc5ca30cb945",
     "modelo": "gpt-6-luna",
@@ -1563,6 +1907,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.63": {
@@ -1570,10 +1918,10 @@
     "seccion": "1",
     "ejercicio": "63",
     "enunciado": "63. Devuelva un listado con los clientes que han realizado algún pedido pero no han realizado ningún pago.",
-    "ar": "P ← π_{codigo_cliente}(pedido)\nG ← π_{codigo_cliente}(pago)\nS ← P − G\nResultado ← π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(cliente ⋈_{cliente.codigo_cliente=S.codigo_cliente} S)",
+    "ar": "C_Pedido ← π_{codigo_cliente}(pedido)\nC_Pago ← π_{codigo_cliente}(pago)\nC_Sin_Pago ← C_Pedido − C_Pago\nR ← cliente ⋈_{cliente.codigo_cliente=C_Sin_Pago.codigo_cliente} C_Sin_Pago\nπ_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(R)",
     "origen_ar": "generada",
-    "sql": "WITH clientes_con_pedido AS (\n    SELECT codigo_cliente\n    FROM pedido\n),\nclientes_con_pago AS (\n    SELECT codigo_cliente\n    FROM pago\n),\nclientes_sin_pago AS (\n    SELECT codigo_cliente\n    FROM clientes_con_pedido\n    EXCEPT\n    SELECT codigo_cliente\n    FROM clientes_con_pago\n)\nSELECT DISTINCT c.*\nFROM cliente AS c\nINNER JOIN clientes_sin_pago AS s\n    ON c.codigo_cliente = s.codigo_cliente;",
-    "observaciones": "Se interpreta “listado con los clientes” como devolver todos los atributos de cada cliente que cumple la condición.",
+    "sql": "WITH C_Pedido AS (\n    SELECT DISTINCT codigo_cliente\n    FROM pedido\n),\nC_Pago AS (\n    SELECT DISTINCT codigo_cliente\n    FROM pago\n),\nC_Sin_Pago AS (\n    SELECT codigo_cliente\n    FROM C_Pedido\n    EXCEPT\n    SELECT codigo_cliente\n    FROM C_Pago\n)\nSELECT DISTINCT\n    c.codigo_cliente,\n    c.nombre_cliente,\n    c.nombre_contacto,\n    c.apellido_contacto,\n    c.telefono,\n    c.fax,\n    c.linea_direccion1,\n    c.linea_direccion2,\n    c.ciudad,\n    c.region,\n    c.pais,\n    c.codigo_postal,\n    c.codigo_empleado_rep_ventas,\n    c.limite_credito\nFROM cliente AS c\nINNER JOIN C_Sin_Pago AS sp\n    ON c.codigo_cliente = sp.codigo_cliente;",
+    "observaciones": "La consigna no especifica qué datos deben incluirse en el listado. Se interpreta «los clientes» como la fila completa de cada cliente; si se esperaba solo el código y el nombre, habría que ajustar la proyección.",
     "estado": "pendiente",
     "hash_entradas": "e6c039742f1332b6",
     "modelo": "gpt-6-luna",
@@ -1581,6 +1929,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.64": {
@@ -1588,10 +1940,10 @@
     "seccion": "1",
     "ejercicio": "64",
     "enunciado": "64. Devuelva un listado que muestre solamente los clientes que no han realizado ningún pago",
-    "ar": "π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(CLIENTE) − π_{codigo_cliente, nombre_cliente, nombre_contacto, apellido_contacto, telefono, fax, linea_direccion1, linea_direccion2, ciudad, region, pais, codigo_postal, codigo_empleado_rep_ventas, limite_credito}(CLIENTE ⋈_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO)",
+    "ar": "A ← π_{codigo_cliente}(cliente) − π_{codigo_cliente}(pago)\nπ_{cliente.codigo_cliente, cliente.nombre_cliente, cliente.nombre_contacto, cliente.apellido_contacto, cliente.telefono, cliente.fax, cliente.linea_direccion1, cliente.linea_direccion2, cliente.ciudad, cliente.region, cliente.pais, cliente.codigo_postal, cliente.codigo_empleado_rep_ventas, cliente.limite_credito}(A ⋈_{A.codigo_cliente=cliente.codigo_cliente} cliente)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT c.codigo_cliente, c.nombre_cliente, c.nombre_contacto, c.apellido_contacto, c.telefono, c.fax, c.linea_direccion1, c.linea_direccion2, c.ciudad, c.region, c.pais, c.codigo_postal, c.codigo_empleado_rep_ventas, c.limite_credito\nFROM cliente AS c\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM pago AS p\n    WHERE p.codigo_cliente = c.codigo_cliente\n);",
-    "observaciones": "",
+    "sql": "WITH A AS (\n    SELECT DISTINCT codigo_cliente\n    FROM cliente\n    EXCEPT\n    SELECT DISTINCT codigo_cliente\n    FROM pago\n)\nSELECT DISTINCT cliente.codigo_cliente,\n       cliente.nombre_cliente,\n       cliente.nombre_contacto,\n       cliente.apellido_contacto,\n       cliente.telefono,\n       cliente.fax,\n       cliente.linea_direccion1,\n       cliente.linea_direccion2,\n       cliente.ciudad,\n       cliente.region,\n       cliente.pais,\n       cliente.codigo_postal,\n       cliente.codigo_empleado_rep_ventas,\n       cliente.limite_credito\nFROM A\nINNER JOIN cliente\n    ON A.codigo_cliente = cliente.codigo_cliente;",
+    "observaciones": "La consigna no especifica qué columnas debe mostrar el listado. Se asume que se deben devolver todos los datos de cada cliente que no tenga pagos.",
     "estado": "pendiente",
     "hash_entradas": "913dc431356eb2aa",
     "modelo": "gpt-6-luna",
@@ -1599,6 +1951,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.65": {
@@ -1606,10 +1962,10 @@
     "seccion": "1",
     "ejercicio": "65",
     "enunciado": "65. Devuelva un listado que muestre solamente los clientes que sí han realizado algún pago",
-    "ar": "π_{cliente.codigo_cliente, cliente.nombre_cliente, cliente.nombre_contacto, cliente.apellido_contacto, cliente.telefono, cliente.fax, cliente.linea_direccion1, cliente.linea_direccion2, cliente.ciudad, cliente.region, cliente.pais, cliente.codigo_postal, cliente.codigo_empleado_rep_ventas, cliente.limite_credito} (cliente ⋈_{cliente.codigo_cliente=pago.codigo_cliente} pago)",
+    "ar": "π_{codigo_cliente,nombre_cliente,nombre_contacto,apellido_contacto,telefono,fax,linea_direccion1,linea_direccion2,ciudad,region,pais,codigo_postal,codigo_empleado_rep_ventas,limite_credito} (CLIENTE ⋈_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT c.*\nFROM cliente AS c\nINNER JOIN pago AS p ON c.codigo_cliente = p.codigo_cliente;",
-    "observaciones": "La consigna no especifica qué columnas debe mostrar el listado. Se interpreta que debe devolver todos los atributos de cada cliente que tenga al menos un pago.",
+    "sql": "SELECT DISTINCT c.codigo_cliente, c.nombre_cliente, c.nombre_contacto, c.apellido_contacto, c.telefono, c.fax, c.linea_direccion1, c.linea_direccion2, c.ciudad, c.region, c.pais, c.codigo_postal, c.codigo_empleado_rep_ventas, c.limite_credito\nFROM cliente AS c\nINNER JOIN pago AS p ON c.codigo_cliente = p.codigo_cliente;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "c84bbf201497e814",
     "modelo": "gpt-6-luna",
@@ -1617,6 +1973,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.66": {
@@ -1624,9 +1984,9 @@
     "seccion": "1",
     "ejercicio": "66",
     "enunciado": "66. Devuelva un listado de los productos que nunca han aparecido en un pedido.",
-    "ar": "PRODUCTOS_SIN_PEDIDO ← PRODUCTO − π_{codigo_producto, nombre, gama, dimensiones, proveedor, descripcion, cantidad_en_stock, precio_venta, precio_proveedor} (PRODUCTO ⋈_{PRODUCTO.codigo_producto=DETALLE_PEDIDO.codigo_producto} DETALLE_PEDIDO)\n\nResultado: PRODUCTOS_SIN_PEDIDO",
+    "ar": "A ← π_{codigo_producto}(PRODUCTO) − π_{codigo_producto}(DETALLE_PEDIDO)\nPRODUCTO ⋈_{PRODUCTO.codigo_producto=A.codigo_producto} A",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones, p.proveedor, p.descripcion, p.cantidad_en_stock, p.precio_venta, p.precio_proveedor\nFROM producto AS p\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM detalle_pedido AS dp\n    WHERE dp.codigo_producto = p.codigo_producto\n);",
+    "sql": "WITH A AS (\n    SELECT DISTINCT codigo_producto\n    FROM producto\n    EXCEPT\n    SELECT DISTINCT codigo_producto\n    FROM detalle_pedido\n)\nSELECT producto.*\nFROM producto\nINNER JOIN A\n    ON producto.codigo_producto = A.codigo_producto;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "942b5ab87d9a7e55",
@@ -1635,6 +1995,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.67": {
@@ -1642,10 +2006,10 @@
     "seccion": "1",
     "ejercicio": "67",
     "enunciado": "67. Devuelva un listado de los productos que han aparecido en un pedido alguna vez.",
-    "ar": "π_{producto.codigo_producto, producto.nombre, producto.gama, producto.dimensiones, producto.proveedor, producto.descripcion, producto.cantidad_en_stock, producto.precio_venta, producto.precio_proveedor} (producto ⋈_{producto.codigo_producto=detalle_pedido.codigo_producto} detalle_pedido)",
+    "ar": "π_{codigo_producto,nombre,gama,dimensiones,proveedor,descripcion,cantidad_en_stock,precio_venta,precio_proveedor}(producto ⋈_{producto.codigo_producto=detalle_pedido.codigo_producto} detalle_pedido)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones, p.proveedor, p.descripcion, p.cantidad_en_stock, p.precio_venta, p.precio_proveedor\nFROM producto AS p\nINNER JOIN detalle_pedido AS d\n  ON p.codigo_producto = d.codigo_producto;",
-    "observaciones": "La consigna no especifica qué atributos incluir en el listado; se asume que se solicitan todos los atributos del producto. La proyección elimina duplicados si un producto aparece en varios pedidos.",
+    "sql": "SELECT DISTINCT p.codigo_producto, p.nombre, p.gama, p.dimensiones, p.proveedor, p.descripcion, p.cantidad_en_stock, p.precio_venta, p.precio_proveedor\nFROM producto AS p\nINNER JOIN detalle_pedido AS d ON p.codigo_producto = d.codigo_producto;",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "b84a405b0d4c935b",
     "modelo": "gpt-6-luna",
@@ -1653,6 +2017,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.68": {
@@ -1660,9 +2028,9 @@
     "seccion": "1",
     "ejercicio": "68",
     "enunciado": "68. Devuelva el listado de clientes indicando el nombre del cliente y cuántos pedidos ha realizado. Tenga en cuenta que pueden existir clientes que no han realizado ningún pedido.",
-    "ar": "A ← cliente ⟕_{cliente.codigo_cliente=pedido.codigo_cliente} pedido\nB ← _{cliente.codigo_cliente, nombre_cliente} CUENTA_{pedido.codigo_pedido→cantidad_pedidos}(A)\nπ_{nombre_cliente, cantidad_pedidos}(B)",
+    "ar": "π_{nombre_cliente,cantidad_pedidos}(_{codigo_cliente,nombre_cliente} F_{CUENTA(pedido.codigo_pedido)→cantidad_pedidos}(cliente izq⋈_{cliente.codigo_cliente=pedido.codigo_cliente} pedido))",
     "origen_ar": "generada",
-    "sql": "WITH pedidos_por_cliente AS (\n  SELECT c.codigo_cliente,\n         c.nombre_cliente,\n         COUNT(p.codigo_pedido) AS cantidad_pedidos\n  FROM cliente AS c\n  LEFT JOIN pedido AS p\n    ON c.codigo_cliente = p.codigo_cliente\n  GROUP BY c.codigo_cliente, c.nombre_cliente\n)\nSELECT DISTINCT nombre_cliente, cantidad_pedidos\nFROM pedidos_por_cliente;",
+    "sql": "SELECT DISTINCT c.nombre_cliente, COUNT(p.codigo_pedido) AS cantidad_pedidos\nFROM cliente AS c\nLEFT JOIN pedido AS p ON c.codigo_cliente = p.codigo_cliente\nGROUP BY c.codigo_cliente, c.nombre_cliente;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "3fe93f59f990234c",
@@ -1671,6 +2039,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.69": {
@@ -1678,10 +2050,10 @@
     "seccion": "1",
     "ejercicio": "69",
     "enunciado": "69. Devuelva un listado con los nombres de los clientes y el total pagado por cada uno de ellos. Tenga en cuenta que pueden existir clientes que no han realizado ningún pago.",
-    "ar": "_{codigo_cliente, nombre_cliente} SUMA_{total}(cliente ⟕_{cliente.codigo_cliente=pago.codigo_cliente} pago)",
+    "ar": "A ← π_{CLIENTE.codigo_cliente,nombre_cliente,PAGO.id_transaccion,total}(CLIENTE ⟕_{CLIENTE.codigo_cliente=PAGO.codigo_cliente} PAGO)\nB ← _{codigo_cliente,nombre_cliente} SUMA_{total}(A)\nπ_{nombre_cliente,total}(B)",
     "origen_ar": "generada",
-    "sql": "SELECT c.nombre_cliente, COALESCE(SUM(p.total), 0) AS total_pagado\nFROM cliente AS c\nLEFT JOIN pago AS p ON c.codigo_cliente = p.codigo_cliente\nGROUP BY c.codigo_cliente, c.nombre_cliente;",
-    "observaciones": "La consigna no especifica qué valor mostrar para clientes sin pagos. La consulta los incluye y muestra 0 mediante COALESCE; la suma directa de un grupo sin pagos sería NULL en SQL. El AR indicado conserva esos clientes mediante la junta izquierda, pero la notación de agregación provista no define cómo reemplazar ese NULL por 0.",
+    "sql": "WITH A AS (\n    SELECT DISTINCT\n        C.codigo_cliente,\n        C.nombre_cliente,\n        P.id_transaccion,\n        P.total\n    FROM cliente AS C\n    LEFT JOIN pago AS P\n        ON C.codigo_cliente = P.codigo_cliente\n),\nB AS (\n    SELECT\n        codigo_cliente,\n        nombre_cliente,\n        SUM(total) AS total\n    FROM A\n    GROUP BY codigo_cliente, nombre_cliente\n)\nSELECT DISTINCT nombre_cliente, total\nFROM B;",
+    "observaciones": "Los clientes sin pagos aparecen por la junta izquierda, pero SUM(total) devuelve NULL para ellos. La consigna no especifica si se debe mostrar NULL o 0; para mostrar 0 habría que definir ese criterio y usar COALESCE en SQL.",
     "estado": "pendiente",
     "hash_entradas": "b6658eac2a50a530",
     "modelo": "gpt-6-luna",
@@ -1689,6 +2061,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.7": {
@@ -1696,10 +2072,10 @@
     "seccion": "1",
     "ejercicio": "7",
     "enunciado": "7. Devuelva un listado con los distintos estados por los que puede pasar un pedido.",
-    "ar": "π_{estado} (PEDIDO)",
+    "ar": "π_{estado} (pedido)",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT estado\nFROM pedido;",
-    "observaciones": "El esquema no define un conjunto de estados permitidos. La consulta devuelve los estados distintos que aparecen actualmente en PEDIDO; no permite determinar todos los estados posibles.",
+    "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "e529c8f923a32c84",
     "modelo": "gpt-6-luna",
@@ -1707,6 +2083,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.70": {
@@ -1716,8 +2096,8 @@
     "enunciado": "70. Devuelva el nombre de los clientes que hayan hecho pedidos en 2008 ordenados alfabéticamente de menor a mayor",
     "ar": "π_{nombre_cliente} (σ_{fecha_pedido ≥ '2008-01-01' ∧ fecha_pedido < '2009-01-01'} (CLIENTE ⋈_{CLIENTE.codigo_cliente=PEDIDO.codigo_cliente} PEDIDO))",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT c.nombre_cliente\nFROM cliente AS c\nINNER JOIN pedido AS p\n  ON c.codigo_cliente = p.codigo_cliente\nWHERE p.fecha_pedido >= DATE '2008-01-01'\n  AND p.fecha_pedido < DATE '2009-01-01'\nORDER BY c.nombre_cliente ASC;",
-    "observaciones": "El álgebra relacional no expresa el orden de salida; el orden alfabético se especifica en SQL mediante ORDER BY. Se interpreta que «hayan hecho pedidos en 2008» refiere a fecha_pedido.",
+    "sql": "SELECT DISTINCT c.nombre_cliente\nFROM cliente AS c\nINNER JOIN pedido AS p ON c.codigo_cliente = p.codigo_cliente\nWHERE p.fecha_pedido >= DATE '2008-01-01'\n  AND p.fecha_pedido < DATE '2009-01-01'\nORDER BY c.nombre_cliente ASC;",
+    "observaciones": "El álgebra relacional no expresa orden; el orden alfabético solicitado se agrega en SQL mediante ORDER BY.",
     "estado": "pendiente",
     "hash_entradas": "8a6c342d024dfd92",
     "modelo": "gpt-6-luna",
@@ -1725,6 +2105,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.71": {
@@ -1732,10 +2116,10 @@
     "seccion": "1",
     "ejercicio": "71",
     "enunciado": "71. Devuelva el nombre del cliente, el nombre y primer apellido de su representante de ventas y el número de teléfono de la oficina del representante de ventas, de aquellos clientes que no hayan realizado ningún pago.",
-    "ar": "C ← π_{codigo_cliente,nombre_cliente,codigo_empleado_rep_ventas}(cliente)\nConPago ← π_{codigo_cliente,nombre_cliente,codigo_empleado_rep_ventas}(cliente ⋈_{cliente.codigo_cliente=pago.codigo_cliente} pago)\nSinPago ← C − ConPago\nE ← ρ_{E(codigo_empleado,nombre_rep,apellido1_rep,codigo_oficina)}(π_{codigo_empleado,nombre,apellido1,codigo_oficina}(empleado))\nO ← ρ_{O(codigo_oficina,telefono_oficina)}(π_{codigo_oficina,telefono}(oficina))\nT ← SinPago izq⋈_{SinPago.codigo_empleado_rep_ventas=E.codigo_empleado} E\nU ← T izq⋈_{E.codigo_oficina=O.codigo_oficina} O\nResultado ← π_{nombre_cliente,nombre_rep,apellido1_rep,telefono_oficina}(U)",
+    "ar": "C ← ρ_{C(cod_cliente,nombre_cliente,cod_rep)}(π_{codigo_cliente,nombre_cliente,codigo_empleado_rep_ventas}(cliente))\nE ← ρ_{E(cod_rep,nombre_rep,apellido_rep,cod_oficina)}(π_{codigo_empleado,nombre,apellido1,codigo_oficina}(empleado))\nO ← ρ_{O(cod_oficina,telefono)}(π_{codigo_oficina,telefono}(oficina))\nSinPago ← π_{codigo_cliente}(cliente) − π_{codigo_cliente}(pago)\nU ← C ⋈_{C.cod_cliente=SinPago.codigo_cliente} SinPago\nV ← U ⟕_{U.cod_rep=E.cod_rep} E\nW ← V ⟕_{E.cod_oficina=O.cod_oficina} O\nπ_{nombre_cliente,nombre_rep,apellido_rep,telefono}(W)",
     "origen_ar": "generada",
-    "sql": "WITH clientes_sin_pago AS (\n    SELECT codigo_cliente, nombre_cliente, codigo_empleado_rep_ventas\n    FROM cliente\n    EXCEPT\n    SELECT c.codigo_cliente, c.nombre_cliente, c.codigo_empleado_rep_ventas\n    FROM cliente AS c\n    INNER JOIN pago AS p\n        ON c.codigo_cliente = p.codigo_cliente\n)\nSELECT DISTINCT\n    csp.nombre_cliente,\n    e.nombre AS nombre_rep,\n    e.apellido1 AS apellido1_rep,\n    o.telefono AS telefono_oficina\nFROM clientes_sin_pago AS csp\nLEFT JOIN empleado AS e\n    ON csp.codigo_empleado_rep_ventas = e.codigo_empleado\nLEFT JOIN oficina AS o\n    ON e.codigo_oficina = o.codigo_oficina;",
-    "observaciones": "El esquema permite que codigo_empleado_rep_ventas sea NULL. Se usan juntas izquierdas para conservar también a los clientes sin pagos que no tengan representante asignado; en esos casos, los datos del representante y el teléfono de la oficina quedan en NULL.",
+    "sql": "WITH C AS (\n    SELECT DISTINCT\n        codigo_cliente AS cod_cliente,\n        nombre_cliente,\n        codigo_empleado_rep_ventas AS cod_rep\n    FROM cliente\n),\nE AS (\n    SELECT DISTINCT\n        codigo_empleado AS cod_rep,\n        nombre AS nombre_rep,\n        apellido1 AS apellido_rep,\n        codigo_oficina AS cod_oficina\n    FROM empleado\n),\nO AS (\n    SELECT DISTINCT\n        codigo_oficina AS cod_oficina,\n        telefono\n    FROM oficina\n),\nSinPago AS (\n    SELECT DISTINCT codigo_cliente\n    FROM cliente\n    EXCEPT\n    SELECT DISTINCT codigo_cliente\n    FROM pago\n),\nU AS (\n    SELECT DISTINCT C.cod_cliente, C.nombre_cliente, C.cod_rep\n    FROM C\n    INNER JOIN SinPago\n        ON C.cod_cliente = SinPago.codigo_cliente\n),\nV AS (\n    SELECT DISTINCT U.cod_cliente, U.nombre_cliente, U.cod_rep,\n           E.nombre_rep, E.apellido_rep, E.cod_oficina\n    FROM U\n    LEFT JOIN E\n        ON U.cod_rep = E.cod_rep\n),\nW AS (\n    SELECT DISTINCT V.nombre_cliente, V.nombre_rep, V.apellido_rep, O.telefono\n    FROM V\n    LEFT JOIN O\n        ON V.cod_oficina = O.cod_oficina\n)\nSELECT DISTINCT nombre_cliente, nombre_rep, apellido_rep, telefono\nFROM W;",
+    "observaciones": "La clave foránea codigo_empleado_rep_ventas admite NULL. Se usan juntas izquierdas para incluir también a clientes sin pagos que no tengan representante asignado; en esos casos, los datos del representante y el teléfono de la oficina resultan NULL. Si se pretendía excluirlos, corresponderían juntas internas.",
     "estado": "pendiente",
     "hash_entradas": "b513480633fbce81",
     "modelo": "gpt-6-luna",
@@ -1743,6 +2127,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.72": {
@@ -1750,10 +2138,10 @@
     "seccion": "1",
     "ejercicio": "72",
     "enunciado": "72. Devuelva el listado de clientes donde aparezca el nombre del cliente, el nombre y primer apellido de su representante de ventas y la ciudad donde está su oficina",
-    "ar": "C ← ρ_C(cliente)\nR ← ρ_R(empleado)\nO ← ρ_O(oficina)\nCR ← C ⟕_{C.codigo_empleado_rep_ventas=R.codigo_empleado} R\nCRO ← CR ⟕_{R.codigo_oficina=O.codigo_oficina} O\nπ_{C.nombre_cliente,R.nombre,R.apellido1,O.ciudad}(CRO)",
+    "ar": "π_{C.nombre_cliente, E.nombre, E.apellido1, O.ciudad} ((ρ_C(cliente) ⋈_{C.codigo_empleado_rep_ventas=E.codigo_empleado} ρ_E(empleado)) ⋈_{E.codigo_oficina=O.codigo_oficina} ρ_O(oficina))",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT c.nombre_cliente, r.nombre, r.apellido1, o.ciudad\nFROM cliente AS c\nLEFT JOIN empleado AS r\n  ON c.codigo_empleado_rep_ventas = r.codigo_empleado\nLEFT JOIN oficina AS o\n  ON r.codigo_oficina = o.codigo_oficina;",
-    "observaciones": "Interpreto “listado de clientes” como incluir a todos los clientes. Como codigo_empleado_rep_ventas admite NULL, uso juntas izquierdas para conservar también los clientes sin representante asignado; en esos casos, los datos del representante y de la oficina resultan NULL. DISTINCT refleja la semántica de conjuntos de la proyección en AR.",
+    "sql": "SELECT DISTINCT C.nombre_cliente, E.nombre, E.apellido1, O.ciudad\nFROM cliente AS C\nINNER JOIN empleado AS E\n  ON C.codigo_empleado_rep_ventas = E.codigo_empleado\nINNER JOIN oficina AS O\n  ON E.codigo_oficina = O.codigo_oficina;",
+    "observaciones": "Se asume que el listado incluye solo clientes con representante asignado. Como codigo_empleado_rep_ventas admite NULL, las juntas internas excluyen a los clientes sin representante; si se deben incluir todos los clientes, corresponderían juntas izquierdas y los datos del representante y su oficina quedarían NULL.",
     "estado": "pendiente",
     "hash_entradas": "03fc18f4a80b32a5",
     "modelo": "gpt-6-luna",
@@ -1761,6 +2149,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.73": {
@@ -1768,9 +2160,9 @@
     "seccion": "1",
     "ejercicio": "73",
     "enunciado": "73. Devuelva el nombre, apellidos, puesto y teléfono de la oficina de aquellos empleados que no sean representante de ventas de ningún cliente.",
-    "ar": "E ← π_{codigo_empleado,nombre,apellido1,apellido2,puesto,codigo_oficina}(empleado)\nR ← π_{codigo_empleado,nombre,apellido1,apellido2,puesto,codigo_oficina}(empleado ⋈_{empleado.codigo_empleado=cliente.codigo_empleado_rep_ventas} cliente)\nN ← E − R\nπ_{nombre,apellido1,apellido2,puesto,telefono}(N ⋈_{N.codigo_oficina=oficina.codigo_oficina} oficina)",
+    "ar": "NR ← π_{codigo_empleado}(empleado) − ρ_{codigo_empleado}(π_{codigo_empleado_rep_ventas}(cliente))\nE ← NR ⋈_{NR.codigo_empleado=empleado.codigo_empleado} empleado\nπ_{nombre,apellido1,apellido2,puesto,telefono}(E ⋈_{E.codigo_oficina=oficina.codigo_oficina} oficina)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT e.nombre, e.apellido1, e.apellido2, e.puesto, o.telefono\nFROM empleado AS e\nINNER JOIN oficina AS o ON e.codigo_oficina = o.codigo_oficina\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM cliente AS c\n    WHERE c.codigo_empleado_rep_ventas = e.codigo_empleado\n);",
+    "sql": "WITH NR AS (\n    SELECT codigo_empleado\n    FROM empleado\n    EXCEPT\n    SELECT codigo_empleado_rep_ventas\n    FROM cliente\n)\nSELECT DISTINCT e.nombre, e.apellido1, e.apellido2, e.puesto, o.telefono\nFROM NR\nINNER JOIN empleado AS e\n    ON NR.codigo_empleado = e.codigo_empleado\nINNER JOIN oficina AS o\n    ON e.codigo_oficina = o.codigo_oficina;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "0a11bf828c08eb97",
@@ -1779,6 +2171,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.74": {
@@ -1786,10 +2182,10 @@
     "seccion": "1",
     "ejercicio": "74",
     "enunciado": "74. Devuelva un listado indicando todas las ciudades donde hay oficinas y el número de empleados que tiene.",
-    "ar": "_ {ciudad} F_{CUENTA(codigo_empleado)→numero_empleados} (OFICINA ⟕_{OFICINA.codigo_oficina=EMPLEADO.codigo_oficina} EMPLEADO)",
+    "ar": "_{ciudad} F_{CUENTA(codigo_empleado)→numero_empleados}(oficina ⟕_{oficina.codigo_oficina=empleado.codigo_oficina} empleado)",
     "origen_ar": "generada",
-    "sql": "SELECT o.ciudad, COUNT(e.codigo_empleado) AS numero_empleados\nFROM oficina AS o\nLEFT JOIN empleado AS e\n  ON o.codigo_oficina = e.codigo_oficina\nGROUP BY o.ciudad;",
-    "observaciones": "Se usa junta izquierda para incluir también las ciudades con oficinas cuyos empleados asignados sean cero; CUENTA(codigo_empleado) cuenta sólo los empleados no nulos. Si la consigna pretendiera excluir esas ciudades, correspondería una junta interna.",
+    "sql": "SELECT o.ciudad, COUNT(e.codigo_empleado) AS numero_empleados\nFROM oficina AS o\nLEFT JOIN empleado AS e ON o.codigo_oficina = e.codigo_oficina\nGROUP BY o.ciudad;",
+    "observaciones": "Se usa una junta izquierda para incluir también las oficinas que no tienen empleados, contabilizándolas con cero. Si se presupone que toda oficina tiene al menos un empleado, una junta interna daría el mismo resultado.",
     "estado": "pendiente",
     "hash_entradas": "386beb3d6f6347e0",
     "modelo": "gpt-6-luna",
@@ -1797,6 +2193,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.75": {
@@ -1804,10 +2204,10 @@
     "seccion": "1",
     "ejercicio": "75",
     "enunciado": "75. Clientes que hayan pedido absolutamente todos los productos (en uno o en más pedidos)",
-    "ar": "CP ← π_{codigo_cliente,codigo_producto} (pedido ⋈_{pedido.codigo_pedido=detalle_pedido.codigo_pedido} detalle_pedido)\nTodos ← CP ÷ π_{codigo_producto} (producto)\nResultado ← π_{cliente.codigo_cliente,nombre_cliente} (cliente ⋈_{cliente.codigo_cliente=Todos.codigo_cliente} Todos)",
+    "ar": "A ← π_{codigo_cliente,codigo_producto} (cliente ⋈_{cliente.codigo_cliente=pedido.codigo_cliente} pedido ⋈_{pedido.codigo_pedido=detalle_pedido.codigo_pedido} detalle_pedido)\nB ← π_{codigo_producto} (producto)\nC ← A ÷ B\nπ_{cliente.codigo_cliente,nombre_cliente} (cliente ⋈_{cliente.codigo_cliente=C.codigo_cliente} C)",
     "origen_ar": "generada",
-    "sql": "SELECT DISTINCT c.codigo_cliente, c.nombre_cliente\nFROM cliente AS c\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM producto AS p\n  WHERE NOT EXISTS (\n    SELECT 1\n    FROM pedido AS pe\n    INNER JOIN detalle_pedido AS dp\n      ON pe.codigo_pedido = dp.codigo_pedido\n    WHERE pe.codigo_cliente = c.codigo_cliente\n      AND dp.codigo_producto = p.codigo_producto\n  )\n);",
-    "observaciones": "La consigna no especifica qué datos de los clientes mostrar. Se asumió que se deben informar codigo_cliente y nombre_cliente.",
+    "sql": "WITH A AS (\n    SELECT DISTINCT p.codigo_cliente, dp.codigo_producto\n    FROM pedido AS p\n    INNER JOIN detalle_pedido AS dp\n        ON p.codigo_pedido = dp.codigo_pedido\n),\nB AS (\n    SELECT DISTINCT codigo_producto\n    FROM producto\n),\nC AS (\n    SELECT DISTINCT A1.codigo_cliente\n    FROM A AS A1\n    WHERE NOT EXISTS (\n        SELECT 1\n        FROM A AS A2, B\n        WHERE A1.codigo_cliente = A2.codigo_cliente\n          AND NOT EXISTS (\n              SELECT 1\n              FROM A AS A3\n              WHERE A3.codigo_cliente = A2.codigo_cliente\n                AND A3.codigo_producto = B.codigo_producto\n          )\n    )\n)\nSELECT DISTINCT cl.codigo_cliente, cl.nombre_cliente\nFROM cliente AS cl\nINNER JOIN C\n    ON cl.codigo_cliente = C.codigo_cliente;",
+    "observaciones": "La consigna no especifica qué datos mostrar de cada cliente; se asumió código y nombre. La relación de productos pedidos se obtiene de los detalles asociados a sus pedidos.",
     "estado": "pendiente",
     "hash_entradas": "71e43ab5f5e3df99",
     "modelo": "gpt-6-luna",
@@ -1815,6 +2215,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   },
   "4.1.8": {
@@ -1822,7 +2226,7 @@
     "seccion": "1",
     "ejercicio": "8",
     "enunciado": "8. Devuelva un listado con el código de cliente de aquellos clientes que realizaron algú pago en 2008. Tenga en cuenta que deberá eliminar aquellos códigos de cliente que aparezcan repetidos.",
-    "ar": "π_{codigo_cliente}(σ_{fecha_pago ≥ '2008-01-01' ∧ fecha_pago < '2009-01-01'}(pago))",
+    "ar": "π_{codigo_cliente} (σ_{fecha_pago≥'2008-01-01' ∧ fecha_pago<'2009-01-01'} (pago))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT codigo_cliente\nFROM pago\nWHERE fecha_pago >= DATE '2008-01-01'\n  AND fecha_pago < DATE '2009-01-01';",
     "observaciones": "",
@@ -1833,6 +2237,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "4.1.9": {
@@ -1840,10 +2248,10 @@
     "seccion": "1",
     "ejercicio": "9",
     "enunciado": "9. Devuelva un listado con el código de pedido, código de cliente, fecha esperada y fecha entrega de los pedidos que no han sido entregados a tiempo.",
-    "ar": "π_{codigo_pedido, codigo_cliente, fecha_esperada, fecha_entrega} (σ_{fecha_entrega > fecha_esperada} (pedido))",
+    "ar": "π_{codigo_pedido, codigo_cliente, fecha_esperada, fecha_entrega}(σ_{fecha_entrega>fecha_esperada}(pedido))",
     "origen_ar": "generada",
     "sql": "SELECT DISTINCT codigo_pedido, codigo_cliente, fecha_esperada, fecha_entrega\nFROM pedido\nWHERE fecha_entrega > fecha_esperada;",
-    "observaciones": "Se interpreta «no han sido entregados a tiempo» como pedidos entregados después de la fecha esperada. Los pedidos aún no entregados tienen fecha_entrega NULL y no aparecen; si también deben incluirse, hace falta precisar ese criterio.",
+    "observaciones": "Se consideran entregas tardías aquellas cuya fecha_entrega es posterior a fecha_esperada. Los pedidos aún no entregados (fecha_entrega NULL) no aparecen; para incluir pedidos pendientes cuyo plazo ya venció haría falta precisar que deben compararse con la fecha actual.",
     "estado": "pendiente",
     "hash_entradas": "62293ba4389bbf44",
     "modelo": "gpt-6-luna",
@@ -1851,6 +2259,10 @@
       "ok": true,
       "nivel": "esquema",
       "detalle": "tablas y columnas verificadas contra el esquema de la sección"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "Extra.1.a": {
@@ -1869,6 +2281,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "Extra.1.b": {
@@ -1878,7 +2294,7 @@
     "enunciado": "Videoclubes que dispongan de alguna película que le guste al aficionado \"José Perez\"",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT VIDEOTECA.videoclub\nFROM GUSTA\nINNER JOIN VIDEOTECA ON GUSTA.pelicula = VIDEOTECA.pelicula\nWHERE GUSTA.aficionado = 'José Perez';",
+    "sql": "SELECT DISTINCT videoclub\nFROM GUSTA\nINNER JOIN VIDEOTECA ON GUSTA.pelicula = VIDEOTECA.pelicula\nWHERE aficionado = 'José Perez';",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "8469096c5d7becdf",
@@ -1887,6 +2303,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "Extra.1.c": {
@@ -1896,7 +2316,7 @@
     "enunciado": "Aficionados que son socios al menos de un videoclub que dispone de alguna película de su gusto",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT DISTINCT SOCIO.aficionado\nFROM SOCIO\nINNER JOIN VIDEOTECA\n  ON SOCIO.videoclub = VIDEOTECA.videoclub\nINNER JOIN GUSTA\n  ON SOCIO.aficionado = GUSTA.aficionado\n AND VIDEOTECA.pelicula = GUSTA.pelicula;",
+    "sql": "SELECT DISTINCT SOCIO.aficionado\nFROM SOCIO\nINNER JOIN VIDEOTECA\n    ON SOCIO.videoclub = VIDEOTECA.videoclub\nINNER JOIN GUSTA\n    ON SOCIO.aficionado = GUSTA.aficionado\n   AND VIDEOTECA.pelicula = GUSTA.pelicula;",
     "observaciones": "",
     "estado": "pendiente",
     "hash_entradas": "b7f29df0992dd069",
@@ -1905,6 +2325,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "sin operaciones de conjunto"
     }
   },
   "Extra.1.d": {
@@ -1914,8 +2338,8 @@
     "enunciado": "Aficionados que no son socios de ningún Videoclub que dispone de alguna película de su gusto",
     "ar": null,
     "origen_ar": "planilla",
-    "sql": "SELECT aficionado\nFROM GUSTA\nEXCEPT\nSELECT SOCIO.aficionado\nFROM SOCIO\nINNER JOIN VIDEOTECA\n    ON SOCIO.videoclub = VIDEOTECA.videoclub\nINNER JOIN GUSTA\n    ON SOCIO.aficionado = GUSTA.aficionado\n   AND VIDEOTECA.pelicula = GUSTA.pelicula;",
-    "observaciones": "",
+    "sql": "WITH R AS (\n    SELECT S.aficionado AS aficionado,\n           S.videoclub AS socio_videoclub,\n           V.videoclub AS videoteca_videoclub,\n           V.pelicula AS pelicula\n    FROM SOCIO AS S\n    INNER JOIN VIDEOTECA AS V\n        ON S.videoclub = V.videoclub\n),\nT AS (\n    SELECT R.aficionado AS aficionado,\n           R.socio_videoclub AS socio_videoclub,\n           R.videoteca_videoclub AS videoteca_videoclub,\n           R.pelicula AS videoteca_pelicula,\n           G.aficionado AS gusta_aficionado,\n           G.pelicula AS gusta_pelicula\n    FROM R\n    INNER JOIN GUSTA AS G\n        ON R.aficionado = G.aficionado\n       AND R.pelicula = G.pelicula\n),\nTprima AS (\n    SELECT DISTINCT aficionado\n    FROM T\n),\nA AS (\n    SELECT DISTINCT aficionado\n    FROM GUSTA\n)\nSELECT aficionado\nFROM A\nEXCEPT\nSELECT aficionado\nFROM Tprima;",
+    "observaciones": "La solución oficial toma como conjunto de todos los aficionados a quienes aparecen en GUSTA. Por eso, aficionados que aparezcan únicamente en SOCIO —sin gustos registrados— no se incluyen en el resultado.",
     "estado": "pendiente",
     "hash_entradas": "8230401c1aea1566",
     "modelo": "gpt-6-luna",
@@ -1923,6 +2347,10 @@
       "ok": true,
       "nivel": "sintaxis",
       "detalle": "sin CREATE TABLE en la sección: solo se validó la sintaxis"
+    },
+    "forma_canonica": {
+      "ok": true,
+      "detalle": "operaciones de conjunto y cociente en forma canónica"
     }
   }
 }

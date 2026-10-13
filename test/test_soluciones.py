@@ -152,7 +152,7 @@ def test_merge_without_generated_file_leaves_sql_empty(path):
     art = _artifact()
     soluciones.merge(art, path)
     b = art["practicas"][0]["secciones"][0]["ejercicios"][1]
-    assert b["solucion"] == {"ar": [], "origen_ar": None, "sql": None, "estado": None, "sql_valido": None}
+    assert b["solucion"] == {"ar": [], "origen_ar": None, "sql": None, "estado": None, "sql_valido": None, "sql_canonico": None}
 
 
 def test_ansi_functions_unsupported_by_sqlite_are_accepted():
@@ -198,3 +198,20 @@ def test_no_correction_round_when_sql_is_valid(path):
     llm = FakeLLM()
     _run(_artifact(), path, llm)
     assert len(llm.calls) == 2  # one per exercise
+
+
+def test_non_canonical_translation_triggers_the_correction_round(path):
+    class NotExistsFirst(FakeLLM):
+        async def ainvoke(self, messages):
+            self.calls.append(messages)
+            first = len(self.calls) == 1
+            sql = ("SELECT codigo FROM oficina o WHERE NOT EXISTS (SELECT 1 FROM oficina x WHERE x.codigo = o.codigo)"
+                   if first else "SELECT codigo FROM oficina EXCEPT SELECT codigo FROM oficina WHERE ciudad = 'X'")
+            return Solucion(ar="π_{codigo}(oficina) − π_{codigo}(σ_{ciudad='X'}(oficina))", sql=sql)
+
+    art = _artifact()
+    art["practicas"][0]["secciones"][0]["ejercicios"].pop(0)
+    llm = NotExistsFirst()
+    _run(art, path, llm)
+    assert len(llm.calls) == 2 and "− se traduce con EXCEPT" in llm.calls[1][-1][1]
+    assert _entries(path)["1.1.b"]["forma_canonica"]["ok"] is True

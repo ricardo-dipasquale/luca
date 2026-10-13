@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlglot import exp
 from sqlglot.optimizer.qualify import qualify
 
+from course.canonical import check_canonical
 from course.rules import ALL_RULES
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ CONCURRENCIA = 6
 
 
 class Solucion(BaseModel):
-    ar: str = Field(description="Solución en álgebra relacional, con la notación de los ejemplos")
+    ar: str = Field(description="Sólo la expresión en álgebra relacional, con la notación de los ejemplos; sin orden ni explicaciones")
     sql: str = Field(description="Sólo la consulta SQL ANSI derivada del AR, sin texto adicional; vacío si no se puede resolver")
     observaciones: str = Field(
         default="",
@@ -83,6 +84,15 @@ def validate_sql(sql: str, schema: dict[str, dict[str, str]]) -> dict[str, Any]:
     except sqlglot.errors.SqlglotError as e:
         return {"ok": False, "nivel": "esquema", "detalle": str(e).splitlines()[0]}
     return {"ok": True, "nivel": "esquema", "detalle": "tablas y columnas verificadas contra el esquema de la sección"}
+
+
+def _problemas(ar: str, sql: str, schema: dict[str, dict[str, str]]) -> list[str]:
+    problemas = []
+    if not (v := validate_sql(sql, schema))["ok"]:
+        problemas.append(f"el SQL no es válido para el esquema ({v['detalle']})")
+    if not (c := check_canonical(ar, sql))["ok"]:
+        problemas.append(f"no respeta la forma canónica ({c['detalle']})")
+    return problemas
 
 
 def _ejemplos(artifact: dict, practica: dict, excluir: str) -> list[tuple[str, str]]:
@@ -168,12 +178,12 @@ async def _generate(artifact: dict, path: Path, llm: Any, modelo: str, force: bo
             try:
                 messages = _prompt(artifact, p, s, e, key)
                 sol: Solucion = await llm.ainvoke(messages)
-                validacion = validate_sql(sol.sql, schema)
-                if sol.sql.strip() and not validacion["ok"]:
-                    # One correction round with the validator's error; usually a column in the wrong table.
+                problemas = _problemas(e["respuestas"][0] if e["respuestas"] else sol.ar, sol.sql, schema)
+                if sol.sql.strip() and problemas:
+                    # One correction round with the checks' findings (wrong table, non-canonical translation…).
                     sol = await llm.ainvoke(messages + [
-                        ("assistant", sol.sql),
-                        ("user", f"Ese SQL no es válido para el esquema: {validacion['detalle']}. Corregilo."),
+                        ("assistant", f"AR: {sol.ar}\nSQL: {sol.sql}"),
+                        ("user", f"Corregí la solución: {'; '.join(problemas)}."),
                     ])
             except Exception as exc:
                 logger.error(f"{key}: no se pudo generar la solución ({exc})")
@@ -199,22 +209,26 @@ async def _generate(artifact: dict, path: Path, llm: Any, modelo: str, force: bo
     await asyncio.gather(*(resolver(*args) for args in pendientes))
 
     # Revalidate everything: the teacher may have edited SQL by hand.
-    secciones = {key: s for _, s, _, key in _ejercicios(artifact)}
+    por_clave = {key: (s, e) for _, s, e, key in _ejercicios(artifact)}
     for key, entrada in entradas.items():
-        s = secciones[key]
+        s, e = por_clave[key]
         schema = schemas.setdefault(id(s), section_schema(s["enunciado"]))
         entrada["validacion"] = validate_sql(entrada["sql"], schema)
+        ar = e["respuestas"][0] if e["respuestas"] else (entrada.get("ar") or "")
+        entrada["forma_canonica"] = check_canonical(ar, entrada["sql"])
     _save(path, entradas)
     return stats
 
 
 def generate(artifact: dict, path: Path, llm_factory: Callable[[], Any], modelo: str, force: bool = False) -> dict[str, int]:
     stats = asyncio.run(_generate(artifact, path, llm_factory(), modelo, force))
-    invalidas = sum(1 for e in _load(path).values() if not e["validacion"]["ok"])
+    entradas = _load(path).values()
+    invalidas = sum(1 for e in entradas if not e["validacion"]["ok"])
+    no_canonicas = sum(1 for e in entradas if not e["forma_canonica"]["ok"])
     logger.info(
         f"soluciones: {stats['generadas']} generadas, {stats['sin_cambios']} sin cambios, "
         f"{stats['aprobadas']} aprobadas, {stats['desactualizadas']} desactualizadas, "
-        f"{stats['fallidas']} fallidas, {invalidas} con SQL inválido → {path}"
+        f"{stats['fallidas']} fallidas, {invalidas} con SQL inválido, {no_canonicas} no canónicas → {path}"
     )
     return stats
 
@@ -231,6 +245,7 @@ def merge(artifact: dict, path: Path) -> None:
             "sql": entrada["sql"] if entrada else None,
             "estado": entrada["estado"] if entrada else None,
             "sql_valido": entrada["validacion"]["ok"] if entrada and "validacion" in entrada else None,
+            "sql_canonico": entrada["forma_canonica"]["ok"] if entrada and "forma_canonica" in entrada else None,
         }
 
 
