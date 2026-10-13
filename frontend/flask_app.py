@@ -1,20 +1,19 @@
-"""
-LUCA Flask Frontend - Reemplazo del frontend de Streamlit
-
-Frontend web moderno usando Flask que evita los problemas de AsyncIO y 
-persistencia que tiene Streamlit con LangGraph.
-"""
+"""LUCA: frontend Flask (login, chat con el tutor, panel de prácticas, conversaciones)."""
 
 import os
+import secrets
 import sys
 import asyncio
-from datetime import datetime
+import threading
+import time
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, Optional
 from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, session
-from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -27,9 +26,66 @@ from storage import db
 from utils import get_subjects as load_subjects
 
 
+PRODUCTION = os.environ.get('FLASK_ENV') == 'production'
+MAX_MESSAGE_CHARS = 4000  # caps what a single request can cost in LLM tokens
+# Placeholders that have shipped in templates or code: never valid as a real key.
+WEAK_SECRET_KEYS = {
+    '', 'CHANGEME', 'dev-secret-key-change-in-production', 'dev-secret-key-for-luca',
+    'production-secret-key-change-me', 'your-secure-secret-key-for-production',
+}
+
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
-CORS(app)
+_secret_key = os.environ.get('FLASK_SECRET_KEY', '')
+if _secret_key in WEAK_SECRET_KEYS:
+    if PRODUCTION:
+        raise RuntimeError("FLASK_SECRET_KEY falta o es un valor de ejemplo. Generá una con: python -c "
+                           "\"import secrets; print(secrets.token_hex(32))\"")
+    _secret_key = secrets.token_hex(32)  # development: sessions don't survive a restart
+app.secret_key = _secret_key
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('LUCA_COOKIE_SECURE', '1' if PRODUCTION else '0') == '1',
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+    MAX_CONTENT_LENGTH=64 * 1024,
+)
+if os.environ.get('LUCA_BEHIND_PROXY') == '1':
+    # Behind exactly one reverse proxy (Caddy): trust its X-Forwarded-* to get the client IP and scheme.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+class LoginThrottle:
+    """Failed logins per client IP and per email in a sliding window. In memory: run a single worker."""
+
+    def __init__(self, max_per_ip: int = 20, max_per_email: int = 5, window_seconds: int = 900):
+        self.limits = {'ip': max_per_ip, 'email': max_per_email}
+        self.window = window_seconds
+        self._failures: Dict[tuple, deque] = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def _recent(self, key: tuple) -> deque:
+        q = self._failures[key]
+        while q and q[0] < time.time() - self.window:
+            q.popleft()
+        return q
+
+    def blocked(self, ip: str, email: str) -> bool:
+        with self._lock:
+            return (len(self._recent(('ip', ip))) >= self.limits['ip']
+                    or len(self._recent(('email', email))) >= self.limits['email'])
+
+    def failure(self, ip: str, email: str) -> None:
+        with self._lock:
+            now = time.time()
+            self._failures[('ip', ip)].append(now)
+            self._failures[('email', email)].append(now)
+
+    def success(self, email: str) -> None:
+        with self._lock:
+            self._failures.pop(('email', email), None)
+
+
+login_throttle = LoginThrottle()
 
 # Fail at startup rather than on the first page load if `python -m ingest` hasn't run.
 get_practice_repository()
@@ -49,18 +105,38 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Templates use inline <script> and onclick handlers, hence 'unsafe-inline'; third-party code is limited
+# to the pinned CDN files, each with an SRI hash in base.html.
+CONTENT_SECURITY_POLICY = "; ".join([
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+    "font-src 'self' https://cdnjs.cloudflare.com",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+])
+
+
 @app.after_request
 def add_security_headers(response):
-    """Add security headers to all responses."""
-    # Prevent clickjacking
     response.headers['X-Frame-Options'] = 'DENY'
-    # Prevent MIME type sniffing
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    # Enable XSS protection
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    # Force HTTPS (uncomment for production)
-    # response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Referrer-Policy'] = 'same-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+    response.headers['Content-Security-Policy'] = CONTENT_SECURITY_POLICY
+    if app.config['SESSION_COOKIE_SECURE']:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     return response
+
+
+@app.route('/healthz')
+def healthz():
+    """Liveness probe for Docker and the reverse proxy (no auth, no data)."""
+    return jsonify({'status': 'ok'})
 
 @app.route('/')
 @require_auth
@@ -103,21 +179,24 @@ def login():
             print(f"⚠️ Login attempt with invalid domain: {email} from IP: {request.remote_addr}")
             return jsonify({'success': False, 'error': 'Email debe ser del dominio @uca.edu.ar'}), 400
         
-        # Attempt authentication
+        ip = request.remote_addr or 'unknown'
+        if login_throttle.blocked(ip, email):
+            print(f"⛔ Login throttled for {email} from IP: {ip}")
+            return jsonify({'success': False, 'error': 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.'}), 429
+
         user = authenticate_user(email, password)
         if user:
-            # Successful login - clear any existing session data first
-            session.clear()
+            session.clear()  # drop anything from a previous session before authenticating
+            session.permanent = True
             session['authenticated'] = True
             session['user_email'] = email
             session['login_time'] = datetime.now().isoformat()
-            
-            print(f"✅ Successful login for user: {email} from IP: {request.remote_addr}")
+            login_throttle.success(email)
+            print(f"✅ Successful login for user: {email} from IP: {ip}")
             return jsonify({'success': True})
-        else:
-            # Failed login
-            print(f"❌ Failed login attempt for user: {email} from IP: {request.remote_addr}")
-            return jsonify({'success': False, 'error': 'Email o contraseña incorrectos'}), 401
+        login_throttle.failure(ip, email)
+        print(f"❌ Failed login attempt for user: {email} from IP: {ip}")
+        return jsonify({'success': False, 'error': 'Email o contraseña incorrectos'}), 401
             
     except Exception as e:
         print(f"🚨 Login error: {e} from IP: {request.remote_addr}")
@@ -156,6 +235,8 @@ def chat():
 
     if not message:
         return jsonify({'error': 'Message is required'}), 400
+    if len(message) > MAX_MESSAGE_CHARS:
+        return jsonify({'success': False, 'error': f'El mensaje es demasiado largo (máximo {MAX_MESSAGE_CHARS} caracteres).'}), 400
     # The id selects the tutor's memory: never let a user write to (or read) someone else's thread.
     if conversation_id and db.conversation_owner(conversation_id) != user_email:
         return jsonify({'success': False, 'error': 'Access denied to this conversation'}), 403
@@ -166,10 +247,11 @@ def chat():
         print(f"❌ Flask chat error: {e}")
         import traceback
         traceback.print_exc()
+        # Details stay in the server log: they can include internal paths or provider messages.
         return jsonify({
             'success': False,
-            'error': str(e),
-            'content': 'Error al procesar el mensaje. Por favor, intenta nuevamente.'
+            'error': 'Error interno',
+            'content': 'Error al procesar el mensaje. Por favor, intentá nuevamente.'
         }), 500
 
 def process_message_sync(message: str, user_email: str, subject: Optional[str], conversation_id: Optional[str],

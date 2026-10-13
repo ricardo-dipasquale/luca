@@ -1,44 +1,46 @@
-# LUCA Flask Application Dockerfile
-# Builds a container image for the LUCA educational AI system
-FROM python:3.12-slim
+# syntax=docker/dockerfile:1
+# LUCA: imagen de la app (tutor + frontend). También ejecuta la ingesta con `python -m ingest`.
 
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    python3-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first for better caching
+FROM python:3.12-slim-bookworm AS builder
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN python -m venv /opt/venv
 COPY requirements.txt .
+RUN /opt/venv/bin/pip install -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire application
-COPY . .
+FROM python:3.12-slim-bookworm
+ENV PATH=/opt/venv/bin:$PATH \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/tmp \
+    ANONYMIZED_TELEMETRY=False \
+    FLASK_ENV=production
 
-# Note: Running as root in Docker container for SSL support
-# In production, consider using a reverse proxy like nginx for SSL termination
+RUN groupadd --system --gid 10001 luca \
+    && useradd --system --uid 10001 --gid luca --no-create-home --shell /usr/sbin/nologin luca
 
-# Set environment variables for Flask
-ENV FLASK_ENV=production
-ENV FLASK_SECRET_KEY=production-secret-key-change-me
-ENV PYTHONPATH=/app
+COPY --from=builder /opt/venv /opt/venv
 
-# Health check (supports both HTTP and HTTPS)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f -k https://localhost:443/ || curl -f http://localhost:5000/ || exit 1
+WORKDIR /app
+# Only the code the app and the ingestion need; secrets, content and tests never enter the image.
+COPY agent ./agent
+COPY course ./course
+COPY ingest ./ingest
+COPY storage ./storage
+COPY guardrails ./guardrails
+COPY tools ./tools
+COPY frontend ./frontend
+COPY scripts/import_usuarios.py scripts/export_conversaciones.py ./scripts/
 
-# Expose ports for both HTTP and HTTPS
-EXPOSE 5000 443
+# Volume mount points: named volumes inherit this ownership on first use.
+RUN mkdir -p /app/data /app/artifacts && chown luca:luca /app/data /app/artifacts
 
-# Set the working directory to frontend for proper imports
-WORKDIR /app/frontend
+USER luca
+EXPOSE 5000
 
-# Command to run the application
-CMD ["python", "docker_run.py"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD ["python", "-c", "import urllib.request, sys; sys.exit(urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=4).status != 200)"]
+
+# One worker: the login throttle and the guardrails' rate limits live in memory and SQLite has a single writer.
+CMD ["gunicorn", "--chdir", "/app/frontend", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "8", \
+     "--timeout", "180", "--access-logfile", "-", "wsgi:app"]

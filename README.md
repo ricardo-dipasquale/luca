@@ -41,7 +41,9 @@ uv run python -c "from storage import db; db.upsert_user('alguien@uca.edu.ar', '
 uv run python frontend/run.py            # http://localhost:5000
 ```
 
-Con Docker, después de la ingesta: `docker compose up -d` levanta Chroma y la aplicación.
+Con Docker, después de la ingesta: `docker compose up -d` levanta Chroma y la aplicación (desarrollo).
+
+Para publicar en un servidor: `docker-compose.prod.yml` (Caddy con TLS, secretos como archivos, contenedores endurecidos). Guía paso a paso en [deploy/README.md](deploy/README.md).
 
 ## Contenido de la materia
 
@@ -83,7 +85,8 @@ ingest/      ingesta batch (prácticas, soluciones, apuntes)
 storage/     SQLite
 guardrails/  seguridad y validación
 frontend/    Flask y plantillas
-tools/       configuración del LLM
+tools/       configuración del LLM y carga de Docker secrets
+deploy/      Caddyfile y guía de publicación
 content/     material de la materia
 scripts/     administración
 test/        tests
@@ -91,4 +94,4 @@ test/        tests
 
 ## Seguridad
 
-Los secretos (`OPENAI_API_KEY`, `FLASK_SECRET_KEY`, certificados, claves SSH) nunca van al repositorio ni a la imagen de Docker: `.gitignore` y `.dockerignore` los excluyen. La configuración de publicación con hardening está pendiente.
+Los secretos (`OPENAI_API_KEY`, `FLASK_SECRET_KEY`, certificados, claves SSH) nunca van al repositorio ni a la imagen de Docker: `.gitignore` y `.dockerignore` los excluyen. En producción se montan como Docker secrets y sólo el proxy publica puertos; el detalle de cada medida está en [deploy/README.md](deploy/README.md).

@@ -17,8 +17,6 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Set environment variables if not already set
-if 'FLASK_SECRET_KEY' not in os.environ:
-    os.environ['FLASK_SECRET_KEY'] = 'dev-secret-key-for-luca'
 
 if 'FLASK_ENV' not in os.environ:
     os.environ['FLASK_ENV'] = 'development'

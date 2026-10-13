@@ -1,0 +1,132 @@
+# LUCA en producción. Guía completa: deploy/README.md
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml --profile tools run --rm ingest   # prácticas + apuntes
+#
+# Sólo Caddy publica puertos (80/443). La app y Chroma no son accesibles desde afuera; Chroma ni siquiera
+# tiene salida a internet. Los secretos se montan como archivos (/run/secrets): nunca van en `environment:`,
+# así que no aparecen en `docker inspect` ni en la imagen.
+
+name: luca
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs:
+    - /tmp:size=256m
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: 256
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-luca-env: &luca-env
+  FLASK_ENV: "production"
+  LUCA_BEHIND_PROXY: "1"
+  LUCA_COOKIE_SECURE: "1"
+  LUCA_DB_PATH: "/app/data/luca.db"
+  PRACTICAS_PATH: "/app/artifacts/practicas.json"
+  CHROMA_HOST: "chroma"
+  CHROMA_PORT: "8000"
+  CHROMA_COLLECTION: "apuntes"
+  EMBEDDING_MODEL: "${EMBEDDING_MODEL:-text-embedding-3-small}"
+  DEFAULT_LLM_MODEL: "${DEFAULT_LLM_MODEL:-gpt-6-luna}"
+  DEFAULT_LLM_PROVIDER: "openai"
+  DEFAULT_LLM_TIMEOUT: "60"
+  GUARDRAILS_CONTENT_SAFETY_METHOD: "llm"
+  GUARDRAILS_ENABLE_OPENAI_MODERATION: "false"
+  GUARDRAILS_MAX_REQUESTS_PER_MINUTE: "${GUARDRAILS_MAX_REQUESTS_PER_MINUTE:-10}"
+  GUARDRAILS_MAX_REQUESTS_PER_HOUR: "${GUARDRAILS_MAX_REQUESTS_PER_HOUR:-100}"
+  GUARDRAILS_MAX_REQUESTS_PER_DAY: "${GUARDRAILS_MAX_REQUESTS_PER_DAY:-300}"
+
+services:
+  caddy:
+    <<: *hardening
+    image: caddy:2.10-alpine
+    ports:
+      - "${LUCA_HTTP_PORT:-80}:80"
+      - "${LUCA_HTTPS_PORT:-443}:443"
+    cap_add: [NET_BIND_SERVICE]
+    environment:
+      LUCA_DOMAIN: "${LUCA_DOMAIN:?definí LUCA_DOMAIN en .env (dominio público)}"
+      LUCA_ACME_EMAIL: "${LUCA_ACME_EMAIL:?definí LUCA_ACME_EMAIL en .env (avisos de Let's Encrypt)}"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      luca:
+        condition: service_healthy
+    mem_limit: 256m
+    networks: [edge]
+
+  luca:
+    <<: *hardening
+    build: .
+    image: luca-app:latest
+    environment: *luca-env
+    secrets: [openai_api_key, flask_secret_key]
+    volumes:
+      - luca_data:/app/data
+      - artifacts:/app/artifacts:ro
+    depends_on:
+      chroma:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1.5
+    networks: [edge, backend]
+
+  chroma:
+    <<: *hardening
+    image: chromadb/chroma:1.5.9
+    volumes:
+      - chroma_data:/data
+    healthcheck:
+      # The image ships bash but no curl/wget.
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 1g
+    networks: [backend]
+
+  # One-shot: python -m ingest. Solutions are generated and reviewed in development and arrive through git,
+  # so the server only rebuilds practices and indexes notes; content/ is mounted read-only.
+  ingest:
+    <<: *hardening
+    image: luca-app:latest
+    profiles: [tools]
+    restart: "no"
+    command: ["python", "-m", "ingest", "--only", "practicas", "--only", "apuntes",
+              "--content", "/content", "--artifacts", "/app/artifacts"]
+    environment: *luca-env
+    secrets: [openai_api_key]
+    volumes:
+      - ./content:/content:ro
+      - artifacts:/app/artifacts
+    depends_on:
+      chroma:
+        condition: service_healthy
+    networks: [edge, backend]
+
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key
+  flask_secret_key:
+    file: ./secrets/flask_secret_key
+
+volumes:
+  luca_data:
+  artifacts:
+  chroma_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  edge: {}
+  backend:
+    internal: true

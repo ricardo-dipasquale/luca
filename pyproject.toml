@@ -35,7 +35,7 @@ dependencies = [
     "sqlglot>=30.22.0",
     # Frontend
     "flask>=2.3.0",
-    "flask-cors>=4.0.0",
+    "gunicorn>=23",
 ]
 
 [dependency-groups]

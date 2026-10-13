@@ -10,6 +10,7 @@
 *.pem
 *.key
 ssl/
+secrets/
 
 # Local virtualenv and runtime data
 .venv/

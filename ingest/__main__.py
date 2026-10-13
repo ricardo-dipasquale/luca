@@ -32,6 +32,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--content", type=Path, default=PROJECT_ROOT / "content")
     parser.add_argument("--artifacts", type=Path, default=PROJECT_ROOT / "artifacts")
     args = parser.parse_args(argv)
+    from tools.secrets import load_docker_secrets
+
+    load_docker_secrets()  # inside the `ingest` container the OpenAI key arrives as a Docker secret
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     for noisy in ("httpx", "openai", "langchain", "langchain_openai"):
         logging.getLogger(noisy).setLevel(logging.WARNING)

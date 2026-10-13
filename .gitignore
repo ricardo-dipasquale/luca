@@ -198,3 +198,6 @@ artifacts/
 
 # Datos de runtime: Chroma y SQLite (usuarios, conversaciones, memoria del agente)
 data/
+
+# Docker secrets de producción (docker-compose.prod.yml)
+secrets/

@@ -1,4 +1,4 @@
-# Desarrollo local: tutor (Flask) + Chroma. La publicación con hardening va en un compose aparte.
+# Desarrollo local: tutor + Chroma. Para publicar usar docker-compose.prod.yml (ver deploy/README.md).
 #
 # Antes de levantar `luca`:
 #   docker compose up -d chroma
@@ -35,7 +35,6 @@ services:
     volumes:
       - ./data/luca:/app/data          # SQLite: usuarios, conversaciones, memoria del tutor
       - ./artifacts:/app/artifacts:ro  # practicas.json generado por `python -m ingest`
-      - ./ssl:/app/ssl:ro
     environment:
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       DEFAULT_LLM_MODEL: "${DEFAULT_LLM_MODEL:-gpt-6-luna}"
@@ -47,9 +46,8 @@ services:
       CHROMA_COLLECTION: "${CHROMA_COLLECTION:-apuntes}"
       EMBEDDING_MODEL: "${EMBEDDING_MODEL:-text-embedding-3-small}"
       LUCA_DB_PATH: "/app/data/luca.db"
-      FLASK_ENV: "production"
-      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-production-secret-key-change-me}"
-      LUCA_ENABLE_HTTPS: "${LUCA_ENABLE_HTTPS:-false}"
+      FLASK_ENV: "development"           # cookies sin Secure (http://localhost)
+      FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-}"
     restart: unless-stopped
     networks:
       - luca-network

@@ -11,6 +11,8 @@ uv run ruff check .
 docker compose up -d chroma               # requerido por la ingesta de apuntes y por la app
 uv run python -m ingest [--only practicas|soluciones|apuntes] [--force] [--regenerar-no-conformes]
 uv run python frontend/run.py --port 5000 [--no-debug]
+# producción (ver deploy/README.md): Caddy + app (gunicorn) + Chroma, secretos en ./secrets
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 Variables de entorno: `.env.example`. El usuario usa direnv (`.envrc`): nunca leer, imprimir ni copiar `.envrc`, `.env`, `*.pem` ni `ssl/`.
@@ -33,13 +35,16 @@ Variables de entorno: `.env.example`. El usuario usa direnv (`.envrc`): nunca le
 4. **Soluciones aprobadas por el docente** (`estado: aprobada` en `content/soluciones_generadas.json`) nunca se regeneran ni se editan programáticamente.
 5. **Ownership**: toda ruta que reciba un `conversation_id` verifica `db.conversation_owner(...) == session['user_email']`.
 6. **Nada de HTML sin sanitizar** en el chat: texto del alumno con `textContent`, respuestas del tutor con `DOMPurify.sanitize(marked.parse(...))`.
+7. **Secretos**: en producción sólo como Docker secrets (`tools/secrets.py` los carga en `frontend/wsgi.py` e `ingest`); nunca en `environment:`, en la imagen, en logs ni en respuestas de error. Sólo Caddy publica puertos en `docker-compose.prod.yml`. Una librería nueva de CDN necesita su hash SRI y estar permitida en `CONTENT_SECURITY_POLICY` (`frontend/flask_app.py`).
 
 ## Detalles no obvios
 
 - Flask corre cada pedido en su propio `asyncio.run()`. Por eso: el cliente HTTP async de los LLM no reutiliza conexiones (`_async_http_client` en `tools/llm_config.py`) y el checkpointer SQLite (`AsyncSqliteSaver`) se abre por pedido en `TutorAgent.stream`. Un recurso async compartido entre pedidos falla con "Event loop is closed".
 - `gpt-6-luna` sólo acepta temperature=1 y `max_completion_tokens`: usar `temperature_for` / `chat_completion_params` de `tools/llm_config.py`, no pasar esos parámetros a mano.
 - Flask consume el stream completo del ejecutor: la validación de salida de los guardrails corre después de la respuesta final.
-- La app falla al arrancar si falta `artifacts/practicas.json` o la colección de Chroma: es intencional (correr `python -m ingest`).
+- La app falla al arrancar si falta `artifacts/practicas.json` o la colección de Chroma: es intencional (correr `python -m ingest`). En producción también falla si `FLASK_SECRET_KEY` falta o es un valor de ejemplo.
+- gunicorn corre con un solo worker (8 threads): el límite de login (`LoginThrottle`) y el de uso de los guardrails viven en memoria.
+- La CSP bloquea `eval`: en pruebas con Playwright usar esperas por locator, no `wait_for_function` con strings.
 
 ## Convenciones
 
