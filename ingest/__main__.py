@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
                 programa_path=args.content / "Programa.xlsx",
                 practicas_path=args.content / "Prácticas Bases de Datos.xlsx",
                 output_path=args.artifacts / "practicas.json",
+                apuntes_dir=args.content / "apuntes",
             )
     except IngestValidationError as e:
         logging.error(str(e))

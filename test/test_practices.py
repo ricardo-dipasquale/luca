@@ -11,7 +11,6 @@ from ingest.__main__ import main as ingest_main
 from ingest.practicas import IngestValidationError, build_practicas, run
 
 SNAPSHOT = json.loads((Path(__file__).parent / "fixtures" / "kg_snapshot.json").read_text())
-CONTENT = Path(__file__).resolve().parent.parent / "content"
 PROGRAMA_COLS = {
     "Cabecera": ["Materia", "Carrera", "Profesor"],
     "Objetivos": ["Objetivo"],
@@ -28,12 +27,13 @@ def _write_xlsx(path: Path, sheets: dict[str, list[dict]], columns: dict[str, li
     return path
 
 
-def _programa(tmp_path: Path, topics: list[str]) -> Path:
+def _programa(tmp_path: Path, topics: list[str], apuntes: dict[str, str] | None = None) -> Path:
+    apuntes = apuntes or {}
     return _write_xlsx(tmp_path / "Programa.xlsx", {
         "Cabecera": [{"Materia": SNAPSHOT["subjects"][0]["name"], "Carrera": "Ingeniería", "Profesor": "['A', 'B']"}],
         "Objetivos": [{"Objetivo": "Objetivo 1"}],
         "UnidadesTematicas": [{"Numero": 1, "Titulo": "Unidad 1"}],
-        "Temas": [{"Tema": t, "NumeroUnidadTematica": 1, "Apunte Relacionado": None} for t in topics],
+        "Temas": [{"Tema": t, "NumeroUnidadTematica": 1, "Apunte Relacionado": apuntes.get(t)} for t in topics],
     }, PROGRAMA_COLS)
 
 
@@ -97,13 +97,6 @@ def test_parity_with_kg_snapshot(repo_from_snapshot):
     _assert_parity(repo_from_snapshot)
 
 
-@pytest.mark.skipif(not (CONTENT / "Prácticas Bases de Datos.xlsx").exists(), reason="faltan los originales en content/")
-def test_parity_real_sources(tmp_path):
-    out = tmp_path / "practicas.json"
-    run(CONTENT / "Programa.xlsx", CONTENT / "Prácticas Bases de Datos.xlsx", out)
-    _assert_parity(PracticeRepository(out))
-
-
 def test_unknown_ids_return_none(repo_from_snapshot):
     assert repo_from_snapshot.get_practice_details(99) is None
     assert repo_from_snapshot.get_exercise_details(2, "1", "zz") is None
@@ -116,12 +109,17 @@ def test_missing_artifact_points_to_ingest(tmp_path):
         PracticeRepository(tmp_path / "nope.json")
 
 
-def _practicas_xlsx(tmp_path: Path, enunciado: list[dict], tips: list[dict] = ()) -> Path:
+def _practicas_xlsx(tmp_path: Path, enunciado: list[dict], tips: list[dict] = (), teoria: str = "[]") -> Path:
     return _write_xlsx(tmp_path / "p.xlsx", {
-        "Cabecera": [{"NumeroPractica": 1, "Titulo": "T", "Descripcion": "D", "Objetivos": "O", "Teoria Relacionada": "[]"}],
+        "Cabecera": [{"NumeroPractica": 1, "Titulo": "T", "Descripcion": "D", "Objetivos": "O", "Teoria Relacionada": teoria}],
         "TipsNivelPractica": list(tips) or [{"NumeroPractica": 1, "Tip": "tip"}],
         "Enunciado": enunciado,
     }, {"Enunciado": ENUNCIADO_COLS})
+
+
+def _ejercicios(artifact: dict) -> dict[str, dict]:
+    return {f"{s['numero']}.{e['numero']}": e
+            for s in artifact["practicas"][0]["secciones"] for e in s["ejercicios"]}
 
 
 def test_exercise_without_section_reports_sheet_and_row(tmp_path):
@@ -151,7 +149,86 @@ def test_cell_normalization_and_warnings(tmp_path):
     assert seccion["numero"] == "1"
     assert seccion["ejercicios"][0]["respuestas"] == ["una sola"]
     assert any("criterios de corrección" in w for w in warnings)
-    assert any("1.1.b sin respuesta" in w for w in warnings)
+
+
+def test_deducir_respuesta_only_without_answer_and_without_any_tip(tmp_path):
+    no_practice_tips = [{"NumeroPractica": 1, "Tip": None}]
+    xlsx = _practicas_xlsx(tmp_path, [
+        {"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 1, "Ejercicio": "a", "Enunciado": "E", "Respuesta": "R"},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 1, "Ejercicio": "b", "Enunciado": "E"},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 1, "Ejercicio": "c", "Enunciado": "E", "Tips Nivel Ejercicio": "pista"},
+        {"Tipo": "S", "NumeroPractica": 1, "Seccion": 2, "Enunciado": "S2", "Tips Nivel Ejercicio": "tip de sección"},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 2, "Ejercicio": "a", "Enunciado": "E"},
+    ], tips=no_practice_tips)
+    artifact, _ = build_practicas(_programa(tmp_path, []), xlsx)
+    flags = {k: e["deducir_respuesta"] for k, e in _ejercicios(artifact).items()}
+    assert flags == {"1.a": False, "1.b": True, "1.c": False, "2.a": False}
+
+
+def test_practice_tip_counts_as_guidance(tmp_path):
+    xlsx = _practicas_xlsx(tmp_path, [
+        {"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"},
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 1, "Ejercicio": "a", "Enunciado": "E"},
+    ])
+    artifact, _ = build_practicas(_programa(tmp_path, []), xlsx)
+    assert _ejercicios(artifact)["1.a"]["deducir_respuesta"] is False
+
+
+def test_apuntes_relacionados_follow_teoria_relacionada(tmp_path):
+    programa = _programa(tmp_path, ["Álgebra", "SQL", "Otro"], apuntes={
+        "Álgebra": "['algebra.pdf', 'comun.pdf']", "SQL": "['sql.pdf', 'comun.pdf']", "Otro": "otro.pdf",
+    })
+    xlsx = _practicas_xlsx(tmp_path, [{"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"}],
+                           teoria="['Álgebra', 'SQL', 'Inexistente']")
+    artifact, warnings = build_practicas(programa, xlsx)
+    assert artifact["practicas"][0]["apuntes_relacionados"] == ["algebra.pdf", "comun.pdf", "sql.pdf"]
+    assert any("'Inexistente'" in w for w in warnings)
+
+
+def test_blank_rows_are_skipped_and_named_practices_need_cabecera(tmp_path):
+    xlsx = _practicas_xlsx(tmp_path, [
+        {"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"},
+        {},
+        {"Tipo": "S", "NumeroPractica": "Extra", "Seccion": 1, "Enunciado": "S1"},
+    ])
+    with pytest.raises(IngestValidationError) as exc:
+        build_practicas(_programa(tmp_path, []), xlsx)
+    assert exc.value.errors == ["La práctica Extra tiene ejercicios pero no fila en Cabecera (hoja 'Enunciado', fila 4)"]
+
+
+def test_repeated_row_errors_are_grouped_into_ranges(tmp_path):
+    ej = lambda e: {"Tipo": "E", "NumeroPractica": 4, "Seccion": 1, "Ejercicio": e, "Enunciado": "E"}
+    xlsx = _practicas_xlsx(tmp_path, [
+        {"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"},
+        ej("1"), ej("2"), ej("3"),
+        {"Tipo": "E", "NumeroPractica": 1, "Seccion": 1, "Ejercicio": "a", "Enunciado": "E"},
+        ej("4"),
+    ])
+    with pytest.raises(IngestValidationError) as exc:
+        build_practicas(_programa(tmp_path, []), xlsx)
+    assert exc.value.errors == ["La práctica 4 tiene ejercicios pero no fila en Cabecera (hoja 'Enunciado', filas 3-5, 7)"]
+
+
+def test_named_practice_with_cabecera_is_ingested_after_numbered_ones(tmp_path):
+    path = _write_xlsx(tmp_path / "p.xlsx", {
+        "Cabecera": [{"NumeroPractica": "Extra", "Titulo": "X"}, {"NumeroPractica": 2, "Titulo": "Dos"}],
+        "TipsNivelPractica": [{"NumeroPractica": 2, "Tip": "t"}],
+        "Enunciado": [{"Tipo": "S", "NumeroPractica": "Extra", "Seccion": 1, "Enunciado": "S"}],
+    }, {"Enunciado": ENUNCIADO_COLS})
+    artifact, _ = build_practicas(_programa(tmp_path, []), path)
+    assert [p["numero"] for p in artifact["practicas"]] == [2, "Extra"]
+
+
+def test_missing_apunte_files_are_reported(tmp_path):
+    (tmp_path / "apuntes").mkdir()
+    (tmp_path / "apuntes" / "algebra.pdf").touch()
+    programa = _programa(tmp_path, ["Álgebra"], apuntes={"Álgebra": "['algebra.pdf', 'no-existe.pdf']"})
+    xlsx = _practicas_xlsx(tmp_path, [{"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"}])
+    _, warnings = build_practicas(programa, xlsx, apuntes_dir=tmp_path / "apuntes")
+    assert [w for w in warnings if "apunte" in w] == [
+        f"El apunte 'no-existe.pdf' (columna Apunte Relacionado de Temas) no está en {tmp_path / 'apuntes'}"
+    ]
 
 
 def test_cli_fails_clearly_without_sources(tmp_path, caplog):

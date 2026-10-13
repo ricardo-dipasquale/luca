@@ -11,7 +11,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class IngestValidationError(Exception):
@@ -24,6 +24,26 @@ class IngestValidationError(Exception):
 class _Report:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    _grouped: dict[tuple[str, str], list[int]] = field(default_factory=dict)
+
+    def row_error(self, message: str, sheet: str, idx: int) -> None:
+        """Same problem on many rows (e.g. a whole practice missing in Cabecera) → one line with a row range."""
+        self._grouped.setdefault((message, sheet), []).append(idx + 2)
+
+    def all_errors(self) -> list[str]:
+        grouped = [f"{msg} (hoja '{sheet}', {_row_ranges(rows)})" for (msg, sheet), rows in self._grouped.items()]
+        return grouped + self.errors
+
+
+def _row_ranges(rows: list[int]) -> str:
+    spans: list[list[int]] = []
+    for r in sorted(rows):
+        if spans and r == spans[-1][1] + 1:
+            spans[-1][1] = r
+        else:
+            spans.append([r, r])
+    text = ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in spans)
+    return f"fila {text}" if len(rows) == 1 else f"filas {text}"
 
 
 def _blank(value: Any) -> bool:
@@ -60,6 +80,19 @@ def _as_id(value: Any) -> str:
     return str(value).strip()
 
 
+def _practice_id(value: Any) -> int | str:
+    """Practices are numbered, but the sheets may also name one (e.g. "Extra")."""
+    text = _as_id(value)
+    return int(text) if text.isdigit() else text
+
+
+def _rows(xls: pd.ExcelFile, sheet: str):
+    """Rows with at least one value; hand-edited sheets use blank rows as separators."""
+    for idx, row in xls.parse(sheet).iterrows():
+        if not all(_blank(v) for v in row):
+            yield idx, row
+
+
 def _row(sheet: str, idx: int) -> str:
     return f"hoja '{sheet}', fila {idx + 2}"
 
@@ -73,7 +106,7 @@ def _parse_programa(path: Path) -> dict:
     cab = xls.parse("Cabecera")
     first = cab.iloc[0]
     temas_by_unit: dict[int, list[dict]] = {}
-    for _, row in xls.parse("Temas").iterrows():
+    for _, row in _rows(xls, "Temas"):
         temas_by_unit.setdefault(int(row["NumeroUnidadTematica"]), []).append(
             {"descripcion": str(row["Tema"]).strip(), "apuntes": [str(a) for a in _as_list(row.get("Apunte Relacionado"))]}
         )
@@ -84,18 +117,18 @@ def _parse_programa(path: Path) -> dict:
         "objetivos": [str(o).strip() for o in xls.parse("Objetivos")["Objetivo"] if not _blank(o)],
         "unidades": [
             {"numero": int(r["Numero"]), "titulo": str(r["Titulo"]).strip(), "temas": temas_by_unit.get(int(r["Numero"]), [])}
-            for _, r in xls.parse("UnidadesTematicas").iterrows()
+            for _, r in _rows(xls, "UnidadesTematicas")
         ],
     }
 
 
 def _parse_practicas(path: Path, report: _Report) -> list[dict]:
     xls = pd.ExcelFile(path)
-    practicas: dict[int, dict] = {}
+    practicas: dict[int | str, dict] = {}
 
-    for idx, row in xls.parse("Cabecera").iterrows():
+    for idx, row in _rows(xls, "Cabecera"):
         props = {str(c).lower().replace(" ", "_"): row[c] for c in row.index}
-        numero = int(props["numeropractica"])
+        numero = _practice_id(props["numeropractica"])
         criterios = props.get("criterioscorreccion", props.get("criterios_correccion"))
         practicas[numero] = {
             "numero": numero,
@@ -110,19 +143,19 @@ def _parse_practicas(path: Path, report: _Report) -> list[dict]:
         if _blank(criterios):
             report.warnings.append(f"Práctica {numero} sin criterios de corrección ({_row('Cabecera', idx)})")
 
-    for idx, row in xls.parse("TipsNivelPractica").iterrows():
-        numero = int(row["NumeroPractica"])
+    for idx, row in _rows(xls, "TipsNivelPractica"):
+        numero = _practice_id(row["NumeroPractica"])
         if numero not in practicas:
-            report.errors.append(f"Tip para la práctica {numero}, que no está en Cabecera ({_row('TipsNivelPractica', idx)})")
+            report.row_error(f"La práctica {numero} tiene tips pero no fila en Cabecera", "TipsNivelPractica", idx)
         elif not _blank(row["Tip"]):
             practicas[numero]["tips"].append(str(row["Tip"]).strip())
 
-    secciones: dict[tuple[int, str], dict] = {}
-    for idx, row in xls.parse("Enunciado").iterrows():
+    secciones: dict[tuple[int | str, str], dict] = {}
+    for idx, row in _rows(xls, "Enunciado"):
         where = _row("Enunciado", idx)
-        numero = int(row["NumeroPractica"])
+        numero = _practice_id(row["NumeroPractica"])
         if numero not in practicas:
-            report.errors.append(f"Fila de la práctica {numero}, que no está en Cabecera ({where})")
+            report.row_error(f"La práctica {numero} tiene ejercicios pero no fila en Cabecera", "Enunciado", idx)
             continue
         sec_id = _as_id(row["Seccion"])
         tips = [str(t) for t in _as_list(row.get("Tips Nivel Ejercicio"))]
@@ -138,45 +171,78 @@ def _parse_practicas(path: Path, report: _Report) -> list[dict]:
 
         seccion = secciones.get((numero, sec_id))
         if seccion is None:
-            report.errors.append(f"Ejercicio de la sección {numero}.{sec_id}, que no tiene fila Tipo=S antes ({where})")
+            report.row_error(f"La sección {numero}.{sec_id} tiene ejercicios pero no fila Tipo=S antes", "Enunciado", idx)
             continue
         ej_id = _as_id(row["Ejercicio"])
         if any(e["numero"] == ej_id for e in seccion["ejercicios"]):
             report.errors.append(f"Ejercicio {numero}.{sec_id}.{ej_id} repetido ({where})")
             continue
-        respuestas = _as_answers(row["Respuesta"])
-        if not respuestas:
-            report.warnings.append(f"Ejercicio {numero}.{sec_id}.{ej_id} sin respuesta esperada ({where})")
-        seccion["ejercicios"].append(
-            {"numero": ej_id, "enunciado": _text(row["Enunciado"]), "respuestas": respuestas, "tips": tips}
-        )
+        seccion["ejercicios"].append({
+            "numero": ej_id,
+            "enunciado": _text(row["Enunciado"]),
+            "respuestas": _as_answers(row["Respuesta"]),
+            "tips": tips,
+        })
 
-    return [practicas[n] for n in sorted(practicas)]
+    for p in practicas.values():
+        for s in p["secciones"]:
+            for e in s["ejercicios"]:
+                # Nothing to guide the agent: it must infer the answer from the practice's rules,
+                # the other exercises and the related notes.
+                e["deducir_respuesta"] = not (e["respuestas"] or e["tips"] or s["tips"] or p["tips"])
+
+    # Numbered practices first, in order; named ones (e.g. "Extra") after.
+    return [practicas[n] for n in sorted(practicas, key=lambda n: (isinstance(n, str), str(n).zfill(6)))]
 
 
-def build_practicas(programa_path: Path, practicas_path: Path) -> tuple[dict, list[str]]:
+def _link_apuntes(materia: dict, practicas: list[dict], report: _Report) -> None:
+    apuntes_por_tema = {t["descripcion"]: t["apuntes"] for u in materia["unidades"] for t in u["temas"]}
+    for p in practicas:
+        apuntes: list[str] = []
+        for tema in p["teoria_relacionada"]:
+            if tema not in apuntes_por_tema:
+                report.warnings.append(f"Práctica {p['numero']}: el tema '{tema}' de Teoria Relacionada no está en la hoja Temas del programa")
+                continue
+            apuntes += [a for a in apuntes_por_tema[tema] if a not in apuntes]
+        p["apuntes_relacionados"] = apuntes
+
+
+def _check_apuntes_exist(materia: dict, apuntes_dir: Path, report: _Report) -> None:
+    existentes = {p.name for p in apuntes_dir.iterdir()} if apuntes_dir.is_dir() else set()
+    referenciados = {a for u in materia["unidades"] for t in u["temas"] for a in t["apuntes"]}
+    for faltante in sorted(referenciados - existentes):
+        report.warnings.append(f"El apunte '{faltante}' (columna Apunte Relacionado de Temas) no está en {apuntes_dir}")
+
+
+def build_practicas(
+    programa_path: Path, practicas_path: Path, apuntes_dir: Path | None = None
+) -> tuple[dict, list[str]]:
     """Returns (artifact, warnings). Raises IngestValidationError if the sheets are inconsistent."""
     report = _Report()
-    artifact = {
-        "schema_version": SCHEMA_VERSION,
-        "materia": _parse_programa(programa_path),
-        "practicas": _parse_practicas(practicas_path, report),
-    }
-    if report.errors:
-        raise IngestValidationError(report.errors)
+    materia = _parse_programa(programa_path)
+    practicas = _parse_practicas(practicas_path, report)
+    _link_apuntes(materia, practicas, report)
+    if apuntes_dir is not None:
+        _check_apuntes_exist(materia, apuntes_dir, report)
+    artifact = {"schema_version": SCHEMA_VERSION, "materia": materia, "practicas": practicas}
+    if errors := report.all_errors():
+        raise IngestValidationError(errors)
     return artifact, report.warnings
 
 
-def run(programa_path: Path, practicas_path: Path, output_path: Path) -> None:
-    artifact, warnings = build_practicas(programa_path, practicas_path)
+def run(programa_path: Path, practicas_path: Path, output_path: Path, apuntes_dir: Path | None = None) -> None:
+    artifact, warnings = build_practicas(programa_path, practicas_path, apuntes_dir)
     for w in warnings:
         logger.warning(w)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = output_path.with_suffix(".tmp")
     tmp.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(output_path)
-    n_ej = sum(len(s["ejercicios"]) for p in artifact["practicas"] for s in p["secciones"])
+    ejercicios = [e for p in artifact["practicas"] for s in p["secciones"] for e in s["ejercicios"]]
+    con_respuesta = sum(1 for e in ejercicios if e["respuestas"])
+    a_deducir = sum(1 for e in ejercicios if e["deducir_respuesta"])
     logger.info(
-        f"practicas: {len(artifact['practicas'])} prácticas, {n_ej} ejercicios, "
-        f"{len(warnings)} advertencias → {output_path}"
+        f"practicas: {len(artifact['practicas'])} prácticas, {len(ejercicios)} ejercicios "
+        f"({con_respuesta} con respuesta, {len(ejercicios) - con_respuesta - a_deducir} solo con tips, "
+        f"{a_deducir} a deducir), {len(warnings)} advertencias → {output_path}"
     )
