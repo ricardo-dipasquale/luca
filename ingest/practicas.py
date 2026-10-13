@@ -195,23 +195,34 @@ def _parse_practicas(path: Path, report: _Report) -> list[dict]:
     return [practicas[n] for n in sorted(practicas, key=lambda n: (isinstance(n, str), str(n).zfill(6)))]
 
 
+_APUNTE_SUFFIXES = (".pdf", ".md")
+
+
 def _link_apuntes(materia: dict, practicas: list[dict], report: _Report) -> None:
+    """Teoria Relacionada may name program topics (→ their notes) or note files directly."""
     apuntes_por_tema = {t["descripcion"]: t["apuntes"] for u in materia["unidades"] for t in u["temas"]}
     for p in practicas:
         apuntes: list[str] = []
-        for tema in p["teoria_relacionada"]:
-            if tema not in apuntes_por_tema:
-                report.warnings.append(f"Práctica {p['numero']}: el tema '{tema}' de Teoria Relacionada no está en la hoja Temas del programa")
+        for ref in p["teoria_relacionada"]:
+            if ref in apuntes_por_tema:
+                nuevos = apuntes_por_tema[ref]
+            elif ref.lower().endswith(_APUNTE_SUFFIXES):
+                nuevos = [ref]
+            else:
+                report.warnings.append(f"Práctica {p['numero']}: '{ref}' de Teoria Relacionada no es un tema del programa ni un apunte (.pdf/.md)")
                 continue
-            apuntes += [a for a in apuntes_por_tema[tema] if a not in apuntes]
+            apuntes += [a for a in nuevos if a not in apuntes]
         p["apuntes_relacionados"] = apuntes
 
 
-def _check_apuntes_exist(materia: dict, apuntes_dir: Path, report: _Report) -> None:
+def _check_apuntes_exist(materia: dict, practicas: list[dict], apuntes_dir: Path, report: _Report) -> None:
     existentes = {p.name for p in apuntes_dir.iterdir()} if apuntes_dir.is_dir() else set()
-    referenciados = {a for u in materia["unidades"] for t in u["temas"] for a in t["apuntes"]}
-    for faltante in sorted(referenciados - existentes):
+    del_programa = {a for u in materia["unidades"] for t in u["temas"] for a in t["apuntes"]}
+    for faltante in sorted(del_programa - existentes):
         report.warnings.append(f"El apunte '{faltante}' (columna Apunte Relacionado de Temas) no está en {apuntes_dir}")
+    for p in practicas:
+        for faltante in [a for a in p["apuntes_relacionados"] if a not in existentes and a not in del_programa]:
+            report.warnings.append(f"Práctica {p['numero']}: el apunte '{faltante}' de Teoria Relacionada no está en {apuntes_dir}")
 
 
 def build_practicas(
@@ -223,7 +234,7 @@ def build_practicas(
     practicas = _parse_practicas(practicas_path, report)
     _link_apuntes(materia, practicas, report)
     if apuntes_dir is not None:
-        _check_apuntes_exist(materia, apuntes_dir, report)
+        _check_apuntes_exist(materia, practicas, apuntes_dir, report)
     artifact = {"schema_version": SCHEMA_VERSION, "materia": materia, "practicas": practicas}
     if errors := report.all_errors():
         raise IngestValidationError(errors)

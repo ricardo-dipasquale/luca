@@ -220,6 +220,17 @@ def test_named_practice_with_cabecera_is_ingested_after_numbered_ones(tmp_path):
     assert [p["numero"] for p in artifact["practicas"]] == [2, "Extra"]
 
 
+def test_teoria_relacionada_can_name_note_files_directly(tmp_path):
+    (tmp_path / "apuntes").mkdir()
+    (tmp_path / "apuntes" / "taller.pdf").touch()
+    programa = _programa(tmp_path, ["Álgebra"], apuntes={"Álgebra": "['algebra.pdf']"})
+    xlsx = _practicas_xlsx(tmp_path, [{"Tipo": "S", "NumeroPractica": 1, "Seccion": 1, "Enunciado": "S1"}],
+                           teoria="['Álgebra', 'taller.pdf', 'falta.pdf']")
+    artifact, warnings = build_practicas(programa, xlsx, apuntes_dir=tmp_path / "apuntes")
+    assert artifact["practicas"][0]["apuntes_relacionados"] == ["algebra.pdf", "taller.pdf", "falta.pdf"]
+    assert any("'falta.pdf' de Teoria Relacionada no está" in w for w in warnings)
+
+
 def test_missing_apunte_files_are_reported(tmp_path):
     (tmp_path / "apuntes").mkdir()
     (tmp_path / "apuntes" / "algebra.pdf").touch()
