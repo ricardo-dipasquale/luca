@@ -51,6 +51,8 @@ LUCA_ACME_EMAIL=tu-email@uca.edu.ar
 EOF
 ```
 
+Cuenta de administración (ve `/admin` para dar de alta usuarios): `LUCA_ADMINS=docente@uca.edu.ar` (varias, separadas por coma).
+
 Opcionales en `.env`: `DEFAULT_LLM_MODEL`, `EMBEDDING_MODEL`, `GUARDRAILS_MAX_REQUESTS_PER_MINUTE/HOUR/DAY`.
 
 ## 4. Secretos
@@ -77,7 +79,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 La ingesta en el servidor sólo reconstruye las prácticas e indexa los apuntes. Las soluciones (`content/soluciones_generadas.json`) se generan y revisan en desarrollo y llegan por `git pull`, así el servidor nunca modifica el contenido.
 
-Usuarios (planilla con nombre en la 1.ª columna, email en la 3.ª y contraseña en la 4.ª):
+Usuarios: desde `/admin`, con una cuenta listada en `LUCA_ADMINS`. La primera cuenta de administración (o una carga masiva desde el servidor) se hace con la planilla (nombre en la 1.ª columna, email en la 3.ª y contraseña de 8 caracteres o más en la 4.ª):
 
 ```bash
 docker compose -f docker-compose.prod.yml run --rm --no-deps \
@@ -85,6 +87,8 @@ docker compose -f docker-compose.prod.yml run --rm --no-deps \
   python scripts/import_usuarios.py --file /tmp/usuarios.xlsx
 rm usuarios-luca.xlsx    # tiene contraseñas en texto plano
 ```
+
+A quien ya existe no se le cambia la contraseña, porque puede haberla cambiado desde LUCA. Para blanquear la de quien la olvidó, agregá `--reset-passwords` con una planilla que tenga sólo esas filas.
 
 ## 6. Verificar
 

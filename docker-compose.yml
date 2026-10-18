@@ -46,6 +46,7 @@ services:
       CHROMA_COLLECTION: "${CHROMA_COLLECTION:-apuntes}"
       EMBEDDING_MODEL: "${EMBEDDING_MODEL:-text-embedding-3-small}"
       LUCA_DB_PATH: "/app/data/luca.db"
+      LUCA_ADMINS: "${LUCA_ADMINS:-}"
       FLASK_ENV: "development"           # cookies sin Secure (http://localhost)
       FLASK_SECRET_KEY: "${FLASK_SECRET_KEY:-}"
     restart: unless-stopped

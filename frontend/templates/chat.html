@@ -13,6 +13,15 @@
             </div>
             <div class="col-auto">
                 <span class="me-3">{{ user_email }}</span>
+                {% if is_admin %}
+                <a class="btn btn-outline-light btn-sm me-2" href="/admin" title="Administrar usuarios">
+                    <i class="fas fa-users-cog"></i> Usuarios
+                </a>
+                {% endif %}
+                <button class="btn btn-outline-light btn-sm me-2" data-bs-toggle="modal" data-bs-target="#passwordModal"
+                        title="Cambiar contraseña">
+                    <i class="fas fa-key"></i> Contraseña
+                </button>
                 <button class="btn btn-outline-light btn-sm" onclick="logout()">
                     <i class="fas fa-sign-out-alt"></i> Salir
                 </button>
@@ -266,6 +275,41 @@
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" id="passwordForm" onsubmit="changePassword(event)">
+            <div class="modal-header">
+                <h5 class="modal-title" id="passwordModalLabel">Cambiar contraseña</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning d-none" id="provisionalNotice">
+                    Tu contraseña es provisoria. Elegí una nueva para empezar a usar LUCA.
+                </div>
+                <div class="mb-3">
+                    <label for="currentPassword" class="form-label">Contraseña actual</label>
+                    <input type="password" class="form-control" id="currentPassword" autocomplete="current-password" required>
+                </div>
+                <div class="mb-3">
+                    <label for="newPassword" class="form-label">Contraseña nueva</label>
+                    <input type="password" class="form-control" id="newPassword" autocomplete="new-password"
+                           minlength="8" maxlength="128" required>
+                    <div class="form-text">Al menos 8 caracteres. Se cierran tus sesiones en otros dispositivos.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="repeatPassword" class="form-label">Repetí la contraseña nueva</label>
+                    <input type="password" class="form-control" id="repeatPassword" autocomplete="new-password" required>
+                </div>
+                <div class="alert d-none mb-0" id="passwordMessage" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="passwordCancel">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="passwordSubmit">Cambiar</button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -682,6 +726,65 @@ function logout() {
         window.location.href = '/';
     });
 }
+
+function showPasswordMessage(text, ok) {
+    const box = document.getElementById('passwordMessage');
+    box.textContent = text;
+    box.className = 'alert mb-0 ' + (ok ? 'alert-success' : 'alert-danger');
+}
+
+async function changePassword(event) {
+    event.preventDefault();
+    const current = document.getElementById('currentPassword').value;
+    const nueva = document.getElementById('newPassword').value;
+    if (nueva !== document.getElementById('repeatPassword').value) {
+        showPasswordMessage('Las contraseñas nuevas no coinciden.', false);
+        return;
+    }
+    const submit = document.getElementById('passwordSubmit');
+    submit.disabled = true;
+    try {
+        const response = await fetch('/password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({current_password: current, new_password: nueva})
+        });
+        if (response.status === 401) {
+            window.location.href = '/';
+            return;
+        }
+        const result = await response.json();
+        if (result.success) {
+            document.getElementById('passwordForm').reset();
+            if (MUST_CHANGE_PASSWORD) {
+                window.location.reload();
+                return;
+            }
+            showPasswordMessage('Listo, tu contraseña cambió.', true);
+        } else {
+            showPasswordMessage(result.error || 'No se pudo cambiar la contraseña.', false);
+        }
+    } catch (error) {
+        console.error('Password change error:', error);
+        showPasswordMessage('Error de conexión. Probá de nuevo.', false);
+    } finally {
+        submit.disabled = false;
+    }
+}
+
+const MUST_CHANGE_PASSWORD = {{ 'true' if must_change_password else 'false' }};
+if (MUST_CHANGE_PASSWORD) {
+    // Can't be dismissed: until the provisional password is changed the server refuses everything else.
+    document.getElementById('provisionalNotice').classList.remove('d-none');
+    document.querySelector('#passwordModal .btn-close').classList.add('d-none');
+    document.getElementById('passwordCancel').classList.add('d-none');
+    new bootstrap.Modal(document.getElementById('passwordModal'), {backdrop: 'static', keyboard: false}).show();
+}
+
+document.getElementById('passwordModal').addEventListener('hidden.bs.modal', () => {
+    document.getElementById('passwordForm').reset();
+    document.getElementById('passwordMessage').className = 'alert d-none mb-0';
+});
 
 function refreshConversationsList() {
     fetch('/conversations')

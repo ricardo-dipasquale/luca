@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Usuarios - LUCA{% endblock %}
+
+{% block content %}
+<div class="header-brand">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col">
+                <h2 class="mb-0">LUCA - Usuarios</h2>
+            </div>
+            <div class="col-auto">
+                <span class="me-3">{{ user_email }}</span>
+                <a class="btn btn-outline-light btn-sm" href="/">
+                    <i class="fas fa-arrow-left"></i> Volver al chat
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container my-4">
+    <p class="text-muted">
+        Las contraseñas que se cargan acá son <strong>provisorias</strong>: cada persona tiene que cambiarla
+        la primera vez que entra. Pasásela por un canal privado.
+    </p>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-user-plus"></i> Alta individual</div>
+                <form class="card-body" id="userForm" onsubmit="createUser(event)">
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label">Nombre</label>
+                        <input class="form-control" id="nombre" autocomplete="off" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" placeholder="nombre@uca.edu.ar"
+                               autocomplete="off" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="provisional" class="form-label">Contraseña provisoria</label>
+                        <input class="form-control" id="provisional" autocomplete="off" maxlength="128">
+                        <div class="form-text">Vacía: se genera una. Si la escribís, al menos 8 caracteres.</div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="userReset">
+                        <label class="form-check-label" for="userReset">
+                            Si ya existe, blanquear su contraseña (para quien la olvidó)
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="userSubmit">Dar de alta</button>
+                    <div class="alert d-none mt-3 mb-0" id="userMessage" role="alert"></div>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-file-excel"></i> Subir planilla</div>
+                <form class="card-body" id="planillaForm" onsubmit="uploadPlanilla(event)">
+                    <p class="small mb-2">
+                        Excel (.xlsx). La primera fila es el encabezado. Columnas por posición:
+                        <strong>A</strong> nombre, <strong>B</strong> (no se usa), <strong>C</strong> email
+                        @uca.edu.ar, <strong>D</strong> contraseña provisoria (8 caracteres o más).
+                        <a href="{{ url_for('static', filename='plantilla_usuarios.xlsx') }}" download>
+                            <i class="fas fa-download"></i> Descargar plantilla</a>
+                    </p>
+                    <div class="mb-3">
+                        <input type="file" class="form-control" id="planilla" required
+                               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="planillaReset">
+                        <label class="form-check-label" for="planillaReset">
+                            Blanquear también la contraseña de quienes ya existen
+                        </label>
+                        <div class="form-text">Sin marcar, a quien ya existe sólo se le actualiza el nombre.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="planillaSubmit">Subir</button>
+                    <div class="alert d-none mt-3 mb-0" id="planillaMessage" role="alert"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header"><i class="fas fa-users"></i> Usuarios (<span id="userCount">…</span>)</div>
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-sm table-striped mb-0">
+                <thead>
+                    <tr><th>Email</th><th>Nombre</th><th>Alta</th><th>Último ingreso</th><th>Contraseña</th></tr>
+                </thead>
+                <tbody id="usersTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ADMIN_HEADERS = {'X-Requested-With': 'luca'};
+
+function showMessage(id, ok, ...lines) {
+    const box = document.getElementById(id);
+    box.replaceChildren();
+    lines.forEach((line, i) => {
+        if (i) box.appendChild(document.createElement('br'));
+        box.appendChild(document.createTextNode(line));
+    });
+    box.className = 'alert mt-3 mb-0 ' + (ok ? 'alert-success' : 'alert-danger');
+}
+
+async function adminFetch(url, options) {
+    const response = await fetch(url, options);
+    if (response.status === 401) {
+        window.location.href = '/';
+        throw new Error('not authenticated');
+    }
+    return response.json();
+}
+
+function day(iso) {
+    return iso ? new Date(iso).toLocaleString('es-AR', {dateStyle: 'short', timeStyle: 'short'}) : '—';
+}
+
+async function loadUsers() {
+    const users = await adminFetch('/admin/usuarios');
+    const tbody = document.getElementById('usersTable');
+    tbody.replaceChildren();
+    users.forEach(u => {
+        const tr = document.createElement('tr');
+        [u.email, u.nombre || '', day(u.created_at), day(u.last_login),
+         u.password_provisoria ? 'provisoria' : 'propia'].forEach(text => {
+            const td = document.createElement('td');
+            td.textContent = text;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    document.getElementById('userCount').textContent = users.length;
+}
+
+async function createUser(event) {
+    event.preventDefault();
+    const submit = document.getElementById('userSubmit');
+    submit.disabled = true;
+    try {
+        const email = document.getElementById('email').value.trim().toLowerCase();
+        const result = await adminFetch('/admin/usuarios', {
+            method: 'POST',
+            headers: {...ADMIN_HEADERS, 'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                nombre: document.getElementById('nombre').value,
+                email: email,
+                password: document.getElementById('provisional').value,
+                reset: document.getElementById('userReset').checked
+            })
+        });
+        if (!result.success) {
+            showMessage('userMessage', false, result.error);
+            return;
+        }
+        document.getElementById('userForm').reset();
+        const lines = [result.created ? `Alta de ${email} lista.` : `Contraseña de ${email} blanqueada.`];
+        if (result.password) {
+            lines.push(`Contraseña provisoria: ${result.password}`, 'Copiala ahora: no se vuelve a mostrar.');
+        }
+        showMessage('userMessage', true, ...lines);
+        loadUsers();
+    } catch (error) {
+        console.error('Create user error:', error);
+        showMessage('userMessage', false, 'Error de conexión. Probá de nuevo.');
+    } finally {
+        submit.disabled = false;
+    }
+}
+
+async function uploadPlanilla(event) {
+    event.preventDefault();
+    const submit = document.getElementById('planillaSubmit');
+    submit.disabled = true;
+    try {
+        const form = new FormData();
+        form.append('planilla', document.getElementById('planilla').files[0]);
+        form.append('reset', document.getElementById('planillaReset').checked ? 'true' : 'false');
+        const result = await adminFetch('/admin/usuarios/planilla', {method: 'POST', headers: ADMIN_HEADERS, body: form});
+        if (!result.success) {
+            showMessage('planillaMessage', false, result.error);
+            return;
+        }
+        document.getElementById('planillaForm').reset();
+        const lines = [`${result.created.length} altas nuevas.`,
+                       `${result.updated.length} ya existían (${result.reset ? 'con contraseña blanqueada' : 'sólo se actualizó el nombre'}).`];
+        if (result.skipped.length) {
+            lines.push(`${result.skipped.length} filas omitidas:`, ...result.skipped);
+        }
+        showMessage('planillaMessage', result.skipped.length === 0, ...lines);
+        loadUsers();
+    } catch (error) {
+        console.error('Upload error:', error);
+        showMessage('planillaMessage', false, 'No se pudo subir la planilla. Revisá que pese menos de 1 MB.');
+    } finally {
+        submit.disabled = false;
+    }
+}
+
+loadUsers();
+</script>
+{% endblock %}

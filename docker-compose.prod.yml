@@ -30,6 +30,7 @@ x-luca-env: &luca-env
   LUCA_COOKIE_SECURE: "1"
   LUCA_DB_PATH: "/app/data/luca.db"
   LUCA_ACTIVITY_FILE: "/app/data/last_activity"   # read by the idle-shutdown timer (deploy/aws)
+  LUCA_ADMINS: "${LUCA_ADMINS:-}"   # accounts that see /admin (user management)
   PRACTICAS_PATH: "/app/artifacts/practicas.json"
   CHROMA_HOST: "chroma"
   CHROMA_PORT: "8000"

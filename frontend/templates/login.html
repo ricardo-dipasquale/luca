@@ -93,11 +93,5 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
         spinner.classList.add('d-none');
     }
 });
-
-// Auto-fill test credentials on page load
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('email').value = 'visitante@uca.edu.ar';
-    document.getElementById('password').value = 'visitante!';
-});
 </script>
 {% endblock %}

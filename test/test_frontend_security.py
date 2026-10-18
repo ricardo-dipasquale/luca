@@ -1,10 +1,12 @@
 """Security behaviour of the Flask app, with the tutor and the practice data faked (no Chroma, no OpenAI)."""
 
 import importlib
+import io
 import json
 import sys
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 import agent.executor
@@ -32,7 +34,8 @@ class FakePractices:
 
 def _load_app(monkeypatch, tmp_path, **env):
     monkeypatch.setenv("LUCA_DB_PATH", str(tmp_path / "luca.db"))
-    for key in ("FLASK_ENV", "FLASK_SECRET_KEY", "LUCA_COOKIE_SECURE", "LUCA_BEHIND_PROXY", "LUCA_ACTIVITY_FILE"):
+    for key in ("FLASK_ENV", "FLASK_SECRET_KEY", "LUCA_COOKIE_SECURE", "LUCA_BEHIND_PROXY", "LUCA_ACTIVITY_FILE",
+                "LUCA_ADMINS"):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
@@ -114,6 +117,36 @@ def test_only_logged_in_use_counts_as_activity(monkeypatch, tmp_path):
     assert marker.exists()
 
 
+def _change_password(client, current="clave-correcta", new="una-clave-nueva"):
+    return client.post("/password", json={"current_password": current, "new_password": new})
+
+
+def test_password_change_logs_out_other_sessions(app_module):
+    laptop, phone = app_module.app.test_client(), app_module.app.test_client()
+    _login(laptop)
+    _login(phone)
+    assert _change_password(laptop).json == {"success": True}
+    assert laptop.get("/conversations").status_code == 200  # the session that changed it stays in
+    assert phone.get("/auth/status").json == {"authenticated": False}
+    assert b"loginForm" in phone.get("/conversations").data
+    assert _login(phone).status_code == 401
+    assert _login(phone, password="una-clave-nueva").status_code == 200
+
+
+def test_password_change_validates_and_is_throttled(app_module):
+    client = app_module.app.test_client()
+    assert _change_password(client).status_code == 401  # login required
+    _login(client)
+    assert _change_password(client, new="corta").status_code == 400
+    assert _change_password(client, new="clave-correcta").status_code == 400
+    assert _change_password(client, new="ana@uca.edu.ar").status_code == 400
+    assert _change_password(client, new=" con-espacio ").status_code == 400
+    for _ in range(5):
+        assert _change_password(client, current="adivinando").status_code == 403
+    assert _change_password(client).status_code == 429  # a stolen session can't guess the password
+    assert _login(app_module.app.test_client()).status_code == 429  # nor keep guessing through the login
+
+
 def test_cannot_use_someone_elses_conversation(app_module):
     beto = app_module.app.test_client()
     _login(beto, "beto@uca.edu.ar", "otra-clave")
@@ -151,3 +184,119 @@ def test_docker_secrets_are_loaded_without_overriding(tmp_path, monkeypatch):
     assert load_docker_secrets(tmp_path) == ["OPENAI_API_KEY"]
     import os
     assert os.environ["OPENAI_API_KEY"] == "sk-desde-secreto" and os.environ["FLASK_SECRET_KEY"] == "ya-definida"
+
+
+ADMIN = {"X-Requested-With": "luca"}
+
+
+@pytest.fixture
+def admin_app(monkeypatch, tmp_path):
+    module = _load_app(monkeypatch, tmp_path, LUCA_ADMINS="docente@uca.edu.ar")
+    db.upsert_user("docente@uca.edu.ar", "clave-docente", "Docente")
+    db.upsert_user("ana@uca.edu.ar", "clave-correcta", "Ana")
+    return module
+
+
+def _xlsx(rows):
+    buffer = io.BytesIO()
+    pd.DataFrame(rows, columns=["Nombre", "Legajo", "Email", "Contraseña"]).to_excel(buffer, index=False)
+    buffer.seek(0)
+    return buffer
+
+
+def test_admin_is_only_for_the_configured_accounts(admin_app):
+    student = admin_app.app.test_client()
+    _login(student)
+    assert b"/admin" not in student.get("/").data
+    for method, path in (("get", "/admin"), ("get", "/admin/usuarios"), ("post", "/admin/usuarios"),
+                         ("post", "/admin/usuarios/planilla")):
+        assert getattr(student, method)(path, headers=ADMIN).status_code == 404, path
+    assert b"loginForm" in admin_app.app.test_client().get("/admin/usuarios").data
+
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    assert b"/admin" in admin.get("/").data
+    assert admin.get("/admin").status_code == 200
+    emails = [u["email"] for u in admin.get("/admin/usuarios").json]
+    assert emails == ["ana@uca.edu.ar", "docente@uca.edu.ar"]
+    assert all("password" not in key for u in admin.get("/admin/usuarios").json for key in u if key != "password_provisoria")
+    # Without the custom header (what a cross-site form would send) writes are refused.
+    assert admin.post("/admin/usuarios", json={"nombre": "X", "email": "x@uca.edu.ar"}).status_code == 400
+
+
+def test_admin_creates_a_user_with_a_provisional_password(admin_app):
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    response = admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "Carla", "email": "Carla@UCA.edu.ar"})
+    generated = response.json["password"]
+    assert response.json["success"] and response.json["created"] and len(generated) == 14
+    assert admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "Carla", "email": "carla@uca.edu.ar",
+                                                              "password": "otra-clave-1"}).status_code == 409
+    assert admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "D", "email": "d@gmail.com"}).status_code == 400
+    assert admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "D", "email": "d@uca.edu.ar",
+                                                              "password": "corta"}).status_code == 400
+
+    carla = admin_app.app.test_client()
+    assert _login(carla, "carla@uca.edu.ar", generated).status_code == 200
+    assert b"MUST_CHANGE_PASSWORD = true" in carla.get("/").data
+    blocked = carla.post("/chat", json={"message": "hola"})
+    assert blocked.status_code == 403 and blocked.json["must_change_password"]
+    assert carla.get("/practicas").status_code == 200  # the page can load behind the modal
+    assert _change_password(carla, generated, "elegida-por-carla").json == {"success": True}
+    assert carla.post("/chat", json={"message": "hola"}).status_code == 200
+    assert b"MUST_CHANGE_PASSWORD = false" in carla.get("/").data
+
+    # Forgotten password: reset with a provisional one; her open session is logged out.
+    reset = admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "Carla", "email": "carla@uca.edu.ar",
+                                                                "password": "blanqueo-123", "reset": True})
+    assert reset.json == {"success": True, "created": False, "password": None}
+    assert carla.get("/auth/status").json == {"authenticated": False}
+    assert _login(carla, "carla@uca.edu.ar", "blanqueo-123").status_code == 200
+    assert carla.post("/chat", json={"message": "hola"}).status_code == 403
+
+
+def test_admin_uploads_a_planilla(admin_app):
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    planilla = _xlsx([
+        ["Ana Pérez", "1", "ana@uca.edu.ar", "no-se-usa-123"],
+        ["Beto", "2", "BETO@uca.edu.ar", "01234567"],
+        ["Ceci", "3", "ceci@gmail.com", "clave-ceci-1"],
+        ["Dani", "4", "dani@uca.edu.ar", "corta"],
+        ["", "5", "eli@uca.edu.ar", "clave-eli-12"],
+    ])
+    response = admin.post("/admin/usuarios/planilla", headers=ADMIN,
+                          data={"planilla": (planilla, "usuarios.xlsx"), "reset": "false"})
+    assert response.json["created"] == ["beto@uca.edu.ar"] and response.json["updated"] == ["ana@uca.edu.ar"]
+    assert [r.split(":")[0] for r in response.json["skipped"]] == ["fila 4", "fila 5", "fila 6"]
+    assert _login(admin_app.app.test_client()).status_code == 200  # Ana keeps her password
+    assert _login(admin_app.app.test_client(), "beto@uca.edu.ar", "01234567").status_code == 200  # leading 0 kept
+
+    bad = admin.post("/admin/usuarios/planilla", headers=ADMIN, data={"planilla": (io.BytesIO(b"hola"), "x.xlsx")})
+    assert bad.status_code == 400 and "No se pudo leer" in bad.json["error"]
+    assert admin.post("/admin/usuarios/planilla", headers=ADMIN,
+                      data={"planilla": (io.BytesIO(b"a,b"), "x.csv")}).status_code == 400
+
+
+def test_login_page_does_not_ship_credentials(app_module):
+    page = app_module.app.test_client().get("/").data.decode()
+    assert "visitante" not in page and ".value = '" not in page
+
+
+def test_the_downloadable_template_is_accepted_by_the_importer(admin_app):
+    from openpyxl import load_workbook
+    from storage.user_admin import read_planilla
+
+    template = FRONTEND / "static" / "plantilla_usuarios.xlsx"
+    assert read_planilla(template) == ([], [])  # empty: no users, no warnings for the formatted rows
+    workbook = load_workbook(template)
+    workbook.worksheets[0]["A2"], workbook.worksheets[0]["C2"], workbook.worksheets[0]["D2"] = (
+        "Ana", "ana.perez@uca.edu.ar", "01234567")
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    assert read_planilla(buffer)[0] == [{"nombre": "Ana", "email": "ana.perez@uca.edu.ar", "password": "01234567"}]
+
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    assert b"plantilla_usuarios.xlsx" in admin.get("/admin").data

@@ -120,14 +120,28 @@ cat > .env <<'EOF'
 LUCA_DOMAIN=52.1.2.3
 LUCA_ACME_EMAIL=tu-email@uca.edu.ar
 LUCA_CADDYFILE=Caddyfile.ip
+LUCA_ADMINS=tu-email@uca.edu.ar
 EOF
 ```
 
-Después seguí los pasos 4 (secretos) y 5 (levantar) de [deploy/README.md](../README.md#4-secretos), incluida la carga de usuarios. Al final:
+`LUCA_ADMINS` es la cuenta (o las cuentas, separadas por coma) que ve `/admin` para dar de alta estudiantes.
+
+Después seguí los pasos 4 (secretos) y 5 (levantar) de [deploy/README.md](../README.md#4-secretos). Al final:
 
 ```bash
 curl -sI https://52.1.2.3/healthz | head -1     # HTTP/2 200, con certificado válido
 ```
+
+**Cuenta de administración.** No hay una de fábrica: creá la tuya con una contraseña provisoria. `read -s` evita que quede en el historial; LUCA te la hace cambiar al primer ingreso:
+
+```bash
+read -rsp "Contraseña provisoria (8+ caracteres): " PROV; echo; export PROV
+docker compose -f docker-compose.prod.yml run --rm --no-deps -e PROV luca python -c \
+  "import os; from storage import db; db.upsert_user('tu-email@uca.edu.ar', os.environ['PROV'], 'Tu Nombre', provisional=True)"
+unset PROV
+```
+
+El resto de los usuarios se carga desde `https://52.1.2.3/admin`: de a uno, o con la planilla (hay un enlace para descargar la plantilla).
 
 Si el certificado no sale, mirá `docker compose -f docker-compose.prod.yml logs caddy` (ver [Problemas frecuentes](#problemas-frecuentes)).
 
