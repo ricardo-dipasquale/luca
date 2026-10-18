@@ -66,7 +66,11 @@ Pasale esta tabla completa al equipo de LUCA. No contiene secretos.
 
 ## 3. Rol de la instancia
 
-**IAM → Roles → Create role** → *Trusted entity*: AWS service, *Use case*: **EC2** → política administrada **`AmazonSSMManagedInstanceCore`** → nombre `luca-ec2`.
+**IAM → Roles → Create role**:
+
+1. *Trusted entity type*: **AWS service**. *Use case*: **EC2**, la primera opción («Allows EC2 instances to call AWS services on your behalf»), no las de Spot ni las otras → *Next*.
+2. *Add permissions*: buscá y tildá la política administrada **`AmazonSSMManagedInstanceCore`**. Es la única → *Next*.
+3. *Role name*: **`luca-ec2`** → *Create role*.
 
 Es el único permiso de la instancia: le permite registrarse en Session Manager. No puede leer ni modificar ningún otro recurso de la cuenta.
 
