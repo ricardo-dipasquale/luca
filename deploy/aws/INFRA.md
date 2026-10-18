@@ -100,7 +100,12 @@ Es el único permiso de la instancia: le permite registrarse en Session Manager.
 
 Si no se registra en unos 10 minutos:
 - **El rol.** En la pestaña **Security** de la instancia tiene que figurar *IAM Role* `luca-ec2`. Si no está, asignalo en **Actions → Security → Modify IAM role** y reiniciá la instancia.
-- **La salida a internet.** La Elastic IP tiene que estar asociada, porque la instancia no tiene otra IP pública, y la subnet necesita una ruta a un Internet Gateway.
+- **La salida a internet.** Si Session Manager muestra *«SSM Agent unable to acquire credentials … RequestError: send request failed»*, es un problema de red, no del rol. Revisá estas tres cosas y después hacé **Instance state → Reboot instance**, para que el agente reintente enseguida en vez de esperar:
+  1. la Elastic IP asociada: en la pestaña **Networking**, *Public IPv4 address*. Es la causa habitual, porque la instancia arranca sin IP pública hasta que se asocia;
+  2. en el security group, la regla de salida *All traffic* a `0.0.0.0/0`;
+  3. en la tabla de rutas de la subnet, `0.0.0.0/0` hacia un `igw-…`.
+
+  El mensaje puede seguir figurando como «último error» un rato después de conectarse: lo que vale es que **Connect** quede habilitado.
 
 ## 5. Lambda `luca-wake`
 
