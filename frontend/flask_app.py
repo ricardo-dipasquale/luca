@@ -93,6 +93,30 @@ get_practice_repository()
 # Global tutor (shared across requests: conversation memory lives in its checkpointer)
 tutor = TutorExecutor()
 
+class ActivityMarker:
+    """Touches LUCA_ACTIVITY_FILE on authenticated use; the idle-shutdown timer reads its mtime (deploy/aws).
+
+    Only logged-in users count, so bots and health checks don't keep the server awake. At most once a minute.
+    """
+
+    def __init__(self, path: Optional[str], min_interval_seconds: int = 60):
+        self.path = Path(path) if path else None
+        self.min_interval = min_interval_seconds
+        self._last = 0.0
+
+    def touch(self) -> None:
+        if self.path is None or time.time() - self._last < self.min_interval:
+            return
+        self._last = time.time()
+        try:
+            self.path.touch()
+        except OSError as e:
+            print(f"⚠️ Could not update the activity marker {self.path}: {e}")
+
+
+activity = ActivityMarker(os.environ.get('LUCA_ACTIVITY_FILE'))
+
+
 def require_auth(f):
     """Decorator to require authentication for protected endpoints."""
     @wraps(f)
@@ -102,6 +126,7 @@ def require_auth(f):
                 return jsonify({'error': 'Not authenticated'}), 401
             else:
                 return render_template('login.html')
+        activity.touch()
         return f(*args, **kwargs)
     return decorated_function
 
@@ -192,6 +217,7 @@ def login():
             session['user_email'] = email
             session['login_time'] = datetime.now().isoformat()
             login_throttle.success(email)
+            activity.touch()
             print(f"✅ Successful login for user: {email} from IP: {ip}")
             return jsonify({'success': True})
         login_throttle.failure(ip, email)

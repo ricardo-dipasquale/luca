@@ -1,0 +1,18 @@
+# Variante sin dominio: LUCA_DOMAIN es la IP pública fija del servidor (ej. 52.1.2.3).
+# Let's Encrypt sólo emite certificados para IPs con el perfil "shortlived" (vencen a los 6 días;
+# Caddy los renueva solo, también al arrancar si el servidor estuvo apagado).
+# Los navegadores no mandan SNI cuando se entra por IP: default_sni le dice a Caddy qué certificado usar.
+{
+	email {$LUCA_ACME_EMAIL}
+	admin off
+	default_sni {$LUCA_DOMAIN}
+}
+
+{$LUCA_DOMAIN} {
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
+	import site.caddy
+}

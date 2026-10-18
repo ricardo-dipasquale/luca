@@ -1,32 +1,12 @@
 # Único punto de entrada público de LUCA: TLS automático (Let's Encrypt) y proxy a la app.
 # LUCA_DOMAIN: dominio público (ej. luca.uca.edu.ar); con "localhost" Caddy usa su propia CA (pruebas).
 # LUCA_ACME_EMAIL: email para avisos de Let's Encrypt.
-
+# Sin dominio (sólo una IP fija): usar Caddyfile.ip (ver deploy/aws/README.md).
 {
 	email {$LUCA_ACME_EMAIL}
 	admin off
 }
 
 {$LUCA_DOMAIN} {
-	encode zstd gzip
-
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		-Server
-		-Via
-	}
-
-	request_body {
-		max_size 1MB
-	}
-
-	reverse_proxy luca:5000 {
-		health_uri /healthz
-	}
-
-	log {
-		output stdout
-		format console
-	}
+	import site.caddy
 }

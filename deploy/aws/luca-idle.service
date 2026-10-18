@@ -1,0 +1,8 @@
+[Unit]
+Description=Apagar LUCA si no se usa (deploy/aws/README.md)
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/luca-idle
+ExecStart=/usr/local/bin/luca-idle-check

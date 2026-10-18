@@ -29,6 +29,7 @@ x-luca-env: &luca-env
   LUCA_BEHIND_PROXY: "1"
   LUCA_COOKIE_SECURE: "1"
   LUCA_DB_PATH: "/app/data/luca.db"
+  LUCA_ACTIVITY_FILE: "/app/data/last_activity"   # read by the idle-shutdown timer (deploy/aws)
   PRACTICAS_PATH: "/app/artifacts/practicas.json"
   CHROMA_HOST: "chroma"
   CHROMA_PORT: "8000"
@@ -51,11 +52,13 @@ services:
       - "${LUCA_HTTP_PORT:-80}:80"
       - "${LUCA_HTTPS_PORT:-443}:443"
     cap_add: [NET_BIND_SERVICE]
+    # LUCA_CADDYFILE=Caddyfile.ip when there's no domain, only a fixed IP (deploy/aws/README.md).
+    command: ["caddy", "run", "--config", "/etc/caddy/${LUCA_CADDYFILE:-Caddyfile}", "--adapter", "caddyfile"]
     environment:
-      LUCA_DOMAIN: "${LUCA_DOMAIN:?definí LUCA_DOMAIN en .env (dominio público)}"
+      LUCA_DOMAIN: "${LUCA_DOMAIN:?definí LUCA_DOMAIN en .env (dominio público o IP fija)}"
       LUCA_ACME_EMAIL: "${LUCA_ACME_EMAIL:?definí LUCA_ACME_EMAIL en .env (avisos de Let's Encrypt)}"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

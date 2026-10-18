@@ -1,0 +1,23 @@
+# Configuración del sitio, compartida por Caddyfile (dominio) y Caddyfile.ip (IP fija).
+
+encode zstd gzip
+
+header {
+	Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	X-Content-Type-Options "nosniff"
+	-Server
+	-Via
+}
+
+request_body {
+	max_size 1MB
+}
+
+reverse_proxy luca:5000 {
+	health_uri /healthz
+}
+
+log {
+	output stdout
+	format console
+}

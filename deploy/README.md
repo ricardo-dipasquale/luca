@@ -2,6 +2,8 @@
 
 Guía para levantar LUCA en un servidor (por ejemplo, una instancia EC2 con Ubuntu) con `docker-compose.prod.yml`.
 
+En AWS, con apagado por inactividad y despertar a demanda (y sin dominio, sólo con una IP fija): [aws/README.md](aws/README.md).
+
 La key de OpenAI ya fue robada una vez. Por eso esta guía está armada para que la key esté siempre en un solo lugar del servidor (un archivo legible sólo por la app) y para que ningún servicio interno quede expuesto a internet.
 
 ## Qué protege esta configuración

@@ -32,7 +32,7 @@ class FakePractices:
 
 def _load_app(monkeypatch, tmp_path, **env):
     monkeypatch.setenv("LUCA_DB_PATH", str(tmp_path / "luca.db"))
-    for key in ("FLASK_ENV", "FLASK_SECRET_KEY", "LUCA_COOKIE_SECURE", "LUCA_BEHIND_PROXY"):
+    for key in ("FLASK_ENV", "FLASK_SECRET_KEY", "LUCA_COOKIE_SECURE", "LUCA_BEHIND_PROXY", "LUCA_ACTIVITY_FILE"):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
@@ -99,6 +99,19 @@ def test_login_is_throttled_after_repeated_failures(app_module):
     response = _login(client)  # even the right password is refused while throttled
     assert response.status_code == 429 and "Demasiados intentos" in response.json["error"]
     assert _login(client, "beto@uca.edu.ar", "otra-clave").status_code == 200  # other accounts unaffected
+
+
+def test_only_logged_in_use_counts_as_activity(monkeypatch, tmp_path):
+    marker = tmp_path / "last_activity"
+    module = _load_app(monkeypatch, tmp_path, LUCA_ACTIVITY_FILE=str(marker))
+    db.upsert_user("ana@uca.edu.ar", "clave-correcta", "Ana")
+    client = module.app.test_client()
+    client.get("/healthz")
+    client.get("/practicas")
+    _login(client, password="mala")
+    assert not marker.exists()  # bots, health checks and failed logins don't keep the server awake
+    assert _login(client).status_code == 200
+    assert marker.exists()
 
 
 def test_cannot_use_someone_elses_conversation(app_module):

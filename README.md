@@ -86,7 +86,7 @@ storage/     SQLite
 guardrails/  seguridad y validación
 frontend/    Flask y plantillas
 tools/       configuración del LLM y carga de Docker secrets
-deploy/      Caddyfile y guía de publicación
+deploy/      Caddy, guía de publicación y despliegue en AWS (deploy/aws)
 content/     material de la materia
 scripts/     administración
 test/        tests
