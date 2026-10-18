@@ -81,3 +81,31 @@ def test_reimport_keeps_a_changed_password_unless_reset(path):
     assert db.authenticate("ana@uca.edu.ar", "elegida-por-ana", path=path)["nombre"] == "Ana María"
     db.upsert_user("ana@uca.edu.ar", "blanqueada", None, path=path, reset_password=True)
     assert db.authenticate("ana@uca.edu.ar", "blanqueada", path=path)
+
+
+def test_old_databases_get_the_provisional_password_column(tmp_path):
+    path = tmp_path / "vieja.db"
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE usuarios (email TEXT PRIMARY KEY, nombre TEXT, password_hash TEXT NOT NULL, "
+                "created_at TEXT NOT NULL, last_login TEXT)")
+    con.execute("INSERT INTO usuarios VALUES ('ana@uca.edu.ar', 'Ana', 'x', '2025-01-01', NULL)")
+    con.commit()
+    con.close()
+    assert db.auth_state("ana@uca.edu.ar", path=path)["provisional"] is False
+
+
+def test_provisional_password_is_cleared_when_changed(path):
+    db.upsert_user("ana@uca.edu.ar", "provisoria-1", "Ana", path=path, provisional=True)
+    assert db.auth_state("ana@uca.edu.ar", path=path)["provisional"] is True
+    db.change_password("ana@uca.edu.ar", "provisoria-1", "propia-de-ana", path=path)
+    assert db.auth_state("ana@uca.edu.ar", path=path)["provisional"] is False
+    db.upsert_user("ana@uca.edu.ar", "x", None, path=path, reset_password=False, provisional=True)
+    assert db.auth_state("ana@uca.edu.ar", path=path)["provisional"] is False  # untouched password stays hers
+
+
+def test_generated_provisional_passwords_pass_the_rules():
+    from storage.user_admin import generate_provisional_password, password_problem
+
+    passwords = {generate_provisional_password() for _ in range(50)}
+    assert len(passwords) == 50
+    assert all(password_problem(p, "ana@uca.edu.ar") is None for p in passwords)

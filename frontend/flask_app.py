@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from functools import wraps
 
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, g, render_template, request, jsonify, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Add project root to path
@@ -23,6 +23,8 @@ from agent.executor import TutorExecutor
 from course.practices import get_practice_repository
 from auth import authenticate_user, generate_conversation_title
 from storage import db
+from storage.user_admin import (email_problem, generate_provisional_password, import_users, password_problem,
+                                read_planilla)
 from utils import get_subjects as load_subjects
 
 
@@ -93,11 +95,25 @@ get_practice_repository()
 # Global tutor (shared across requests: conversation memory lives in its checkpointer)
 tutor = TutorExecutor()
 
+# Only these accounts see /admin (user management). Configuration, not data: the app can't grant it.
+ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get('LUCA_ADMINS', '').split(',') if e.strip()}
+
+# With a provisional password the user can only load the page and change it.
+ALLOWED_WITH_PROVISIONAL_PASSWORD = {'index', 'change_password', 'logout', 'get_subjects', 'get_practicas',
+                                     'get_conversations'}
+
+
 def check_session() -> bool:
     """True if logged in. A password change (or a deleted user) invalidates the user's other sessions."""
-    if 'authenticated' in session and session.get('pwd') != db.password_fingerprint(session.get('user_email', '')):
+    state = db.auth_state(session['user_email']) if 'authenticated' in session else None
+    if 'authenticated' in session and (state is None or session.get('pwd') != state['fingerprint']):
         session.clear()
+    g.provisional_password = bool(state and state['provisional'])
     return 'authenticated' in session
+
+
+def is_admin() -> bool:
+    return session.get('user_email') in ADMIN_EMAILS
 
 
 def require_auth(f):
@@ -109,6 +125,23 @@ def require_auth(f):
                 return jsonify({'error': 'Not authenticated'}), 401
             else:
                 return render_template('login.html')
+        if g.provisional_password and request.endpoint not in ALLOWED_WITH_PROVISIONAL_PASSWORD:
+            return jsonify({'success': False, 'must_change_password': True,
+                            'error': 'Tenés que cambiar tu contraseña provisoria para seguir'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_admin(f):
+    """Like require_auth, and only for LUCA_ADMINS. Anyone else gets a 404: the page doesn't exist for them."""
+    @require_auth
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not is_admin():
+            return jsonify({'error': 'Not found'}), 404
+        # Cross-site forms can't set custom headers, and fetch from another origin would need a preflight.
+        if request.method != 'GET' and request.headers.get('X-Requested-With') != 'luca':
+            return jsonify({'success': False, 'error': 'Pedido inválido'}), 400
         return f(*args, **kwargs)
     return decorated_function
 
@@ -162,7 +195,9 @@ def index():
     return render_template('chat.html', 
                          subjects=subjects,
                          conversations=conversations,
-                         user_email=user_email)
+                         user_email=user_email,
+                         is_admin=is_admin(),
+                         must_change_password=g.provisional_password)
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -219,10 +254,6 @@ def logout():
     session.clear()
     return jsonify({'success': True})
 
-MIN_PASSWORD_CHARS = 8
-MAX_PASSWORD_CHARS = 128
-
-
 @app.route('/password', methods=['POST'])
 @require_auth
 def change_password():
@@ -236,15 +267,11 @@ def change_password():
     if not isinstance(current, str) or not isinstance(new, str) or not current.strip() or not new:
         return jsonify({'success': False, 'error': 'Completá la contraseña actual y la nueva'}), 400
     current = current.strip()  # the login strips it too
-    if new != new.strip():
-        return jsonify({'success': False, 'error': 'La contraseña no puede empezar ni terminar con espacios'}), 400
-    if not MIN_PASSWORD_CHARS <= len(new) <= MAX_PASSWORD_CHARS:
-        return jsonify({'success': False, 'error': f'La contraseña nueva tiene que tener entre {MIN_PASSWORD_CHARS} '
-                                                   f'y {MAX_PASSWORD_CHARS} caracteres'}), 400
+    problem = password_problem(new, email)
+    if problem:
+        return jsonify({'success': False, 'error': problem[0].upper() + problem[1:]}), 400
     if new == current:
         return jsonify({'success': False, 'error': 'La contraseña nueva tiene que ser distinta de la actual'}), 400
-    if new.strip().lower() == email:
-        return jsonify({'success': False, 'error': 'La contraseña no puede ser tu email'}), 400
     # Same throttle as the login: a stolen session must not allow guessing the current password.
     if login_throttle.blocked(ip, email):
         return jsonify({'success': False, 'error': 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.'}), 429
@@ -257,6 +284,71 @@ def change_password():
     session['pwd'] = db.password_fingerprint(email)  # keep this session, drop the others
     print(f"🔑 Password changed for user: {email} from IP: {ip}")
     return jsonify({'success': True})
+
+
+# ---------- administración de usuarios (sólo LUCA_ADMINS) ----------
+
+MAX_PLANILLA_BYTES = 1024 * 1024
+
+
+@app.route('/admin')
+@require_admin
+def admin_page():
+    return render_template('admin.html', user_email=session['user_email'])
+
+
+@app.route('/admin/usuarios')
+@require_admin
+def admin_list_users():
+    return jsonify([{**u, 'password_provisoria': bool(u['password_provisoria'])} for u in db.list_users()])
+
+
+@app.route('/admin/usuarios', methods=['POST'])
+@require_admin
+def admin_create_user():
+    """One user with a provisional password (generated if empty). With reset, an existing one gets a new one."""
+    data = request.get_json(silent=True) or {}
+    nombre = str(data.get('nombre', '')).strip()
+    email = str(data.get('email', '')).strip().lower()
+    password = str(data.get('password', '') or '')
+    reset = data.get('reset') is True
+    if not nombre or not email:
+        return jsonify({'success': False, 'error': 'Completá el nombre y el email'}), 400
+    problem = email_problem(email)
+    generated = not password
+    password = password or generate_provisional_password()
+    problem = problem or password_problem(password, email)
+    if problem:
+        return jsonify({'success': False, 'error': problem[0].upper() + problem[1:]}), 400
+    if db.user_exists(email) and not reset:
+        return jsonify({'success': False, 'error': 'Ya existe un usuario con ese email. Para darle una contraseña '
+                                                   'provisoria nueva, marcá «blanquear».'}), 409
+
+    created = db.upsert_user(email, password, nombre, reset_password=True, provisional=True)
+    print(f"👤 Admin {session['user_email']} {'created' if created else 'reset the password of'} {email}")
+    # The password goes back only when generated, so the admin can hand it over; it's never logged.
+    return jsonify({'success': True, 'created': created, 'password': password if generated else None})
+
+
+@app.route('/admin/usuarios/planilla', methods=['POST'])
+@require_admin
+def admin_upload_users():
+    """Same as scripts/import_usuarios.py: the passwords in the file are provisional."""
+    request.max_content_length = MAX_PLANILLA_BYTES
+    file = request.files.get('planilla')
+    if file is None or not file.filename.lower().endswith('.xlsx'):
+        return jsonify({'success': False, 'error': 'Elegí una planilla .xlsx'}), 400
+    try:
+        users, skipped = read_planilla(file.stream)
+    except Exception as e:  # not a valid xlsx: pandas/openpyxl raise many types
+        print(f"⚠️ Admin {session['user_email']} uploaded an unreadable file: {e}")
+        return jsonify({'success': False, 'error': 'No se pudo leer la planilla. ¿Es un .xlsx de Excel?'}), 400
+    reset = request.form.get('reset') == 'true'
+    result = import_users(users, reset_passwords=reset)
+    print(f"👥 Admin {session['user_email']} imported users: {len(result.created)} created, "
+          f"{len(result.updated)} updated (reset={reset}), {len(skipped)} skipped")
+    return jsonify({'success': True, 'created': result.created, 'updated': result.updated, 'skipped': skipped,
+                    'reset': reset})
 
 
 @app.route('/auth/status')

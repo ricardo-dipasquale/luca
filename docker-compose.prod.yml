@@ -29,6 +29,7 @@ x-luca-env: &luca-env
   LUCA_BEHIND_PROXY: "1"
   LUCA_COOKIE_SECURE: "1"
   LUCA_DB_PATH: "/app/data/luca.db"
+  LUCA_ADMINS: "${LUCA_ADMINS:-}"   # accounts that see /admin (user management)
   PRACTICAS_PATH: "/app/artifacts/practicas.json"
   CHROMA_HOST: "chroma"
   CHROMA_PORT: "8000"

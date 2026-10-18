@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombre TEXT,
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    last_login TEXT
+    last_login TEXT,
+    password_provisoria INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS conversaciones (
     id TEXT PRIMARY KEY,
@@ -48,6 +49,22 @@ CREATE INDEX IF NOT EXISTS idx_mensajes_conv ON mensajes(conversation_id, ord);
 """
 
 
+# Columns added after the first release: databases created before them get them on first use.
+MIGRATIONS = {
+    ("usuarios", "password_provisoria"): "ALTER TABLE usuarios ADD COLUMN password_provisoria INTEGER NOT NULL DEFAULT 0",
+}
+_migrated: set[str] = set()
+
+
+def _migrate(con: sqlite3.Connection, path: Path) -> None:
+    if str(path) in _migrated:
+        return
+    for (table, column), ddl in MIGRATIONS.items():
+        if column not in {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}:
+            con.execute(ddl)
+    _migrated.add(str(path))
+
+
 def db_path() -> Path:
     return Path(os.environ.get("LUCA_DB_PATH", DEFAULT_PATH))
 
@@ -66,6 +83,7 @@ def connect(path: Optional[Path] = None) -> Iterator[sqlite3.Connection]:
     con.execute("PRAGMA journal_mode = WAL")  # Flask serves requests from several threads
     try:
         con.executescript(SCHEMA)
+        _migrate(con, path)
         yield con
         con.commit()
     finally:
@@ -75,10 +93,11 @@ def connect(path: Optional[Path] = None) -> Iterator[sqlite3.Connection]:
 # ---------- usuarios ----------
 
 def upsert_user(email: str, password: str, nombre: Optional[str] = None, path: Optional[Path] = None,
-                reset_password: bool = True) -> bool:
+                reset_password: bool = True, provisional: bool = False) -> bool:
     """Creates or updates a user; returns True if it was created.
 
     With reset_password=False an existing user keeps their password (it may have been changed by them).
+    A provisional password must be changed at the next login (it is set whenever the password is).
     """
     email = email.strip().lower()
     with connect(path) as con:
@@ -86,12 +105,18 @@ def upsert_user(email: str, password: str, nombre: Optional[str] = None, path: O
         if existe:
             con.execute("UPDATE usuarios SET nombre = COALESCE(?, nombre) WHERE email = ?", (nombre, email))
             if reset_password:
-                con.execute("UPDATE usuarios SET password_hash = ? WHERE email = ?",
-                            (generate_password_hash(password), email))
+                con.execute("UPDATE usuarios SET password_hash = ?, password_provisoria = ? WHERE email = ?",
+                            (generate_password_hash(password), int(provisional), email))
         else:
-            con.execute("INSERT INTO usuarios (email, nombre, password_hash, created_at) VALUES (?, ?, ?, ?)",
-                        (email, nombre, generate_password_hash(password), _now()))
+            con.execute("INSERT INTO usuarios (email, nombre, password_hash, created_at, password_provisoria) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (email, nombre, generate_password_hash(password), _now(), int(provisional)))
         return not existe
+
+
+def user_exists(email: str, path: Optional[Path] = None) -> bool:
+    with connect(path) as con:
+        return con.execute("SELECT 1 FROM usuarios WHERE email = ?", (email.strip().lower(),)).fetchone() is not None
 
 
 def authenticate(email: str, password: str, path: Optional[Path] = None) -> Optional[dict[str, Any]]:
@@ -111,23 +136,35 @@ def change_password(email: str, current: str, new: str, path: Optional[Path] = N
         row = con.execute("SELECT password_hash FROM usuarios WHERE email = ?", (email,)).fetchone()
         if row is None or not check_password_hash(row["password_hash"], current):
             return False
-        con.execute("UPDATE usuarios SET password_hash = ? WHERE email = ?", (generate_password_hash(new), email))
+        con.execute("UPDATE usuarios SET password_hash = ?, password_provisoria = 0 WHERE email = ?",
+                    (generate_password_hash(new), email))
         return True
 
 
-def password_fingerprint(email: str, path: Optional[Path] = None) -> Optional[str]:
-    """Changes whenever the password does: sessions store it so a password change logs out other devices.
+def auth_state(email: str, path: Optional[Path] = None) -> Optional[dict[str, Any]]:
+    """What a session needs on every request; None if the user doesn't exist.
 
-    A digest of the stored hash, so the (readable) session cookie reveals neither the hash nor its salt.
+    fingerprint changes whenever the password does: sessions store it so a password change logs out other
+    devices. It's a digest of the stored hash, so the (readable) session cookie reveals neither hash nor salt.
     """
     with connect(path) as con:
-        row = con.execute("SELECT password_hash FROM usuarios WHERE email = ?", (email.strip().lower(),)).fetchone()
-    return hashlib.sha256(row["password_hash"].encode()).hexdigest()[:32] if row else None
+        row = con.execute("SELECT password_hash, password_provisoria FROM usuarios WHERE email = ?",
+                          (email.strip().lower(),)).fetchone()
+    if row is None:
+        return None
+    return {"fingerprint": hashlib.sha256(row["password_hash"].encode()).hexdigest()[:32],
+            "provisional": bool(row["password_provisoria"])}
+
+
+def password_fingerprint(email: str, path: Optional[Path] = None) -> Optional[str]:
+    state = auth_state(email, path)
+    return state["fingerprint"] if state else None
 
 
 def list_users(path: Optional[Path] = None) -> list[dict[str, Any]]:
     with connect(path) as con:
-        return [dict(r) for r in con.execute("SELECT email, nombre, created_at, last_login FROM usuarios ORDER BY email")]
+        return [dict(r) for r in con.execute(
+            "SELECT email, nombre, created_at, last_login, password_provisoria FROM usuarios ORDER BY email")]
 
 
 # ---------- conversaciones ----------

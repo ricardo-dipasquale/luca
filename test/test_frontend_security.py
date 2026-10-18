@@ -1,10 +1,12 @@
 """Security behaviour of the Flask app, with the tutor and the practice data faked (no Chroma, no OpenAI)."""
 
 import importlib
+import io
 import json
 import sys
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 import agent.executor
@@ -32,7 +34,7 @@ class FakePractices:
 
 def _load_app(monkeypatch, tmp_path, **env):
     monkeypatch.setenv("LUCA_DB_PATH", str(tmp_path / "luca.db"))
-    for key in ("FLASK_ENV", "FLASK_SECRET_KEY", "LUCA_COOKIE_SECURE", "LUCA_BEHIND_PROXY"):
+    for key in ("FLASK_ENV", "FLASK_SECRET_KEY", "LUCA_COOKIE_SECURE", "LUCA_BEHIND_PROXY", "LUCA_ADMINS"):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
@@ -168,3 +170,95 @@ def test_docker_secrets_are_loaded_without_overriding(tmp_path, monkeypatch):
     assert load_docker_secrets(tmp_path) == ["OPENAI_API_KEY"]
     import os
     assert os.environ["OPENAI_API_KEY"] == "sk-desde-secreto" and os.environ["FLASK_SECRET_KEY"] == "ya-definida"
+
+
+ADMIN = {"X-Requested-With": "luca"}
+
+
+@pytest.fixture
+def admin_app(monkeypatch, tmp_path):
+    module = _load_app(monkeypatch, tmp_path, LUCA_ADMINS="docente@uca.edu.ar")
+    db.upsert_user("docente@uca.edu.ar", "clave-docente", "Docente")
+    db.upsert_user("ana@uca.edu.ar", "clave-correcta", "Ana")
+    return module
+
+
+def _xlsx(rows):
+    buffer = io.BytesIO()
+    pd.DataFrame(rows, columns=["Nombre", "Legajo", "Email", "Contraseña"]).to_excel(buffer, index=False)
+    buffer.seek(0)
+    return buffer
+
+
+def test_admin_is_only_for_the_configured_accounts(admin_app):
+    student = admin_app.app.test_client()
+    _login(student)
+    assert b"/admin" not in student.get("/").data
+    for method, path in (("get", "/admin"), ("get", "/admin/usuarios"), ("post", "/admin/usuarios"),
+                         ("post", "/admin/usuarios/planilla")):
+        assert getattr(student, method)(path, headers=ADMIN).status_code == 404, path
+    assert b"loginForm" in admin_app.app.test_client().get("/admin/usuarios").data
+
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    assert b"/admin" in admin.get("/").data
+    assert admin.get("/admin").status_code == 200
+    emails = [u["email"] for u in admin.get("/admin/usuarios").json]
+    assert emails == ["ana@uca.edu.ar", "docente@uca.edu.ar"]
+    assert all("password" not in key for u in admin.get("/admin/usuarios").json for key in u if key != "password_provisoria")
+    # Without the custom header (what a cross-site form would send) writes are refused.
+    assert admin.post("/admin/usuarios", json={"nombre": "X", "email": "x@uca.edu.ar"}).status_code == 400
+
+
+def test_admin_creates_a_user_with_a_provisional_password(admin_app):
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    response = admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "Carla", "email": "Carla@UCA.edu.ar"})
+    generated = response.json["password"]
+    assert response.json["success"] and response.json["created"] and len(generated) == 14
+    assert admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "Carla", "email": "carla@uca.edu.ar",
+                                                              "password": "otra-clave-1"}).status_code == 409
+    assert admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "D", "email": "d@gmail.com"}).status_code == 400
+    assert admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "D", "email": "d@uca.edu.ar",
+                                                              "password": "corta"}).status_code == 400
+
+    carla = admin_app.app.test_client()
+    assert _login(carla, "carla@uca.edu.ar", generated).status_code == 200
+    assert b"MUST_CHANGE_PASSWORD = true" in carla.get("/").data
+    blocked = carla.post("/chat", json={"message": "hola"})
+    assert blocked.status_code == 403 and blocked.json["must_change_password"]
+    assert carla.get("/practicas").status_code == 200  # the page can load behind the modal
+    assert _change_password(carla, generated, "elegida-por-carla").json == {"success": True}
+    assert carla.post("/chat", json={"message": "hola"}).status_code == 200
+    assert b"MUST_CHANGE_PASSWORD = false" in carla.get("/").data
+
+    # Forgotten password: reset with a provisional one; her open session is logged out.
+    reset = admin.post("/admin/usuarios", headers=ADMIN, json={"nombre": "Carla", "email": "carla@uca.edu.ar",
+                                                                "password": "blanqueo-123", "reset": True})
+    assert reset.json == {"success": True, "created": False, "password": None}
+    assert carla.get("/auth/status").json == {"authenticated": False}
+    assert _login(carla, "carla@uca.edu.ar", "blanqueo-123").status_code == 200
+    assert carla.post("/chat", json={"message": "hola"}).status_code == 403
+
+
+def test_admin_uploads_a_planilla(admin_app):
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    planilla = _xlsx([
+        ["Ana Pérez", "1", "ana@uca.edu.ar", "no-se-usa-123"],
+        ["Beto", "2", "BETO@uca.edu.ar", "01234567"],
+        ["Ceci", "3", "ceci@gmail.com", "clave-ceci-1"],
+        ["Dani", "4", "dani@uca.edu.ar", "corta"],
+        ["", "5", "eli@uca.edu.ar", "clave-eli-12"],
+    ])
+    response = admin.post("/admin/usuarios/planilla", headers=ADMIN,
+                          data={"planilla": (planilla, "usuarios.xlsx"), "reset": "false"})
+    assert response.json["created"] == ["beto@uca.edu.ar"] and response.json["updated"] == ["ana@uca.edu.ar"]
+    assert [r.split(":")[0] for r in response.json["skipped"]] == ["fila 4", "fila 5", "fila 6"]
+    assert _login(admin_app.app.test_client()).status_code == 200  # Ana keeps her password
+    assert _login(admin_app.app.test_client(), "beto@uca.edu.ar", "01234567").status_code == 200  # leading 0 kept
+
+    bad = admin.post("/admin/usuarios/planilla", headers=ADMIN, data={"planilla": (io.BytesIO(b"hola"), "x.xlsx")})
+    assert bad.status_code == 400 and "No se pudo leer" in bad.json["error"]
+    assert admin.post("/admin/usuarios/planilla", headers=ADMIN,
+                      data={"planilla": (io.BytesIO(b"a,b"), "x.csv")}).status_code == 400

@@ -66,9 +66,11 @@ uv run python scripts/export_conversaciones.py [--output conversaciones.xlsx] [-
 uv run python scripts/generate_ssl_certs.py      # certificado autofirmado para HTTPS local
 ```
 
-Cada estudiante puede cambiar su contraseña desde LUCA (botón con la llave, junto a «Salir»); al cambiarla se cierran sus otras sesiones. Volver a importar la planilla no pisa esas contraseñas: para blanquear la de alguien que la olvidó, usar `--reset-passwords` con una planilla que tenga sólo esas filas.
+Las cuentas listadas en `LUCA_ADMINS` ven el botón «Usuarios», que lleva a `/admin`: alta individual (con contraseña provisoria escrita o generada), subida de la planilla, blanqueo de contraseñas y la lista de usuarios. Para el resto de las cuentas, `/admin` no existe (404). La cuenta de administración se crea como cualquier otra (planilla o `db.upsert_user`).
 
-La planilla de usuarios lleva el nombre en la 1.ª columna, el email (`@uca.edu.ar`) en la 3.ª y la contraseña en la 4.ª. Las contraseñas se guardan con hash.
+La planilla de usuarios lleva el nombre en la 1.ª columna, el email (`@uca.edu.ar`) en la 3.ª y la contraseña (8 caracteres o más) en la 4.ª. Las contraseñas se guardan con hash.
+
+Las contraseñas que carga la administración (planilla, script o `/admin`) son **provisorias**: al entrar, LUCA pide cambiarla antes de dejar usar el chat. Después cada estudiante puede cambiarla cuando quiera (botón «Contraseña», junto a «Salir»); al cambiarla se cierran sus otras sesiones. Volver a importar la planilla no pisa esas contraseñas: para blanquear la de alguien que la olvidó, usar el alta individual con «blanquear», o `--reset-passwords` con una planilla que tenga sólo esas filas.
 
 ## Tests
 

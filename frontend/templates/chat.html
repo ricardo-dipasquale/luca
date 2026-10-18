@@ -13,6 +13,11 @@
             </div>
             <div class="col-auto">
                 <span class="me-3">{{ user_email }}</span>
+                {% if is_admin %}
+                <a class="btn btn-outline-light btn-sm me-2" href="/admin" title="Administrar usuarios">
+                    <i class="fas fa-users-cog"></i> Usuarios
+                </a>
+                {% endif %}
                 <button class="btn btn-outline-light btn-sm me-2" data-bs-toggle="modal" data-bs-target="#passwordModal"
                         title="Cambiar contraseña">
                     <i class="fas fa-key"></i> Contraseña
@@ -281,6 +286,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
+                <div class="alert alert-warning d-none" id="provisionalNotice">
+                    Tu contraseña es provisoria. Elegí una nueva para empezar a usar LUCA.
+                </div>
                 <div class="mb-3">
                     <label for="currentPassword" class="form-label">Contraseña actual</label>
                     <input type="password" class="form-control" id="currentPassword" autocomplete="current-password" required>
@@ -298,7 +306,7 @@
                 <div class="alert d-none mb-0" id="passwordMessage" role="alert"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="passwordCancel">Cancelar</button>
                 <button type="submit" class="btn btn-primary" id="passwordSubmit">Cambiar</button>
             </div>
         </form>
@@ -748,6 +756,10 @@ async function changePassword(event) {
         const result = await response.json();
         if (result.success) {
             document.getElementById('passwordForm').reset();
+            if (MUST_CHANGE_PASSWORD) {
+                window.location.reload();
+                return;
+            }
             showPasswordMessage('Listo, tu contraseña cambió.', true);
         } else {
             showPasswordMessage(result.error || 'No se pudo cambiar la contraseña.', false);
@@ -758,6 +770,15 @@ async function changePassword(event) {
     } finally {
         submit.disabled = false;
     }
+}
+
+const MUST_CHANGE_PASSWORD = {{ 'true' if must_change_password else 'false' }};
+if (MUST_CHANGE_PASSWORD) {
+    // Can't be dismissed: until the provisional password is changed the server refuses everything else.
+    document.getElementById('provisionalNotice').classList.remove('d-none');
+    document.querySelector('#passwordModal .btn-close').classList.add('d-none');
+    document.getElementById('passwordCancel').classList.add('d-none');
+    new bootstrap.Modal(document.getElementById('passwordModal'), {backdrop: 'static', keyboard: false}).show();
 }
 
 document.getElementById('passwordModal').addEventListener('hidden.bs.modal', () => {
