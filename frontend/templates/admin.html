@@ -64,6 +64,8 @@
                         Excel (.xlsx). La primera fila es el encabezado. Columnas por posición:
                         <strong>A</strong> nombre, <strong>B</strong> (no se usa), <strong>C</strong> email
                         @uca.edu.ar, <strong>D</strong> contraseña provisoria (8 caracteres o más).
+                        <a href="{{ url_for('static', filename='plantilla_usuarios.xlsx') }}" download>
+                            <i class="fas fa-download"></i> Descargar plantilla</a>
                     </p>
                     <div class="mb-3">
                         <input type="file" class="form-control" id="planilla" required

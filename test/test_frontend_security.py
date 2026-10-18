@@ -267,3 +267,22 @@ def test_admin_uploads_a_planilla(admin_app):
 def test_login_page_does_not_ship_credentials(app_module):
     page = app_module.app.test_client().get("/").data.decode()
     assert "visitante" not in page and ".value = '" not in page
+
+
+def test_the_downloadable_template_is_accepted_by_the_importer(admin_app):
+    from openpyxl import load_workbook
+    from storage.user_admin import read_planilla
+
+    template = FRONTEND / "static" / "plantilla_usuarios.xlsx"
+    assert read_planilla(template) == ([], [])  # empty: no users, no warnings for the formatted rows
+    workbook = load_workbook(template)
+    workbook.worksheets[0]["A2"], workbook.worksheets[0]["C2"], workbook.worksheets[0]["D2"] = (
+        "Ana", "ana.perez@uca.edu.ar", "01234567")
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    assert read_planilla(buffer)[0] == [{"nombre": "Ana", "email": "ana.perez@uca.edu.ar", "password": "01234567"}]
+
+    admin = admin_app.app.test_client()
+    _login(admin, "docente@uca.edu.ar", "clave-docente")
+    assert b"plantilla_usuarios.xlsx" in admin.get("/admin").data

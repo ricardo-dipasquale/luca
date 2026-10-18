@@ -60,6 +60,8 @@ def read_planilla(source: Union[Path, IO[bytes]]) -> tuple[list[dict[str, str]],
         nombre, email, password = (str(row.iloc[c]).strip() if c < len(row) and pd.notna(row.iloc[c]) else ""
                                    for c in (0, 2, 3))
         email = email.lower()
+        if not (nombre or email or password):
+            continue  # blank row (the template has formatted, empty rows)
         problem = ("faltan datos" if not (nombre and email and password)
                    else email_problem(email) or password_problem(password, email))
         if problem:
