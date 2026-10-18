@@ -81,8 +81,8 @@ Es el único permiso de la instancia: le permite registrarse en Session Manager.
 | Opción | Valor | Motivo |
 |---|---|---|
 | Name | `luca` | |
-| AMI | **Ubuntu Server 24.04 LTS**, 64-bit **(Arm)** | |
-| Instance type | **`t4g.medium`** (2 vCPU, 4 GB) | La app y Chroma usan hasta 1 GB cada una, y la imagen se construye en el servidor |
+| AMI | **Ubuntu Server 24.04 LTS**, y en el selector *Architecture* (a la derecha) **64-bit (Arm)** | La consola propone x86 por defecto, y `t4g` no la acepta |
+| Instance type | **`t4g.medium`** (2 vCPU, 4 GB, Arm) | La app y Chroma usan hasta 1 GB cada una, y la imagen se construye en el servidor. Con una AMI x86, el equivalente es `t3.medium` (alrededor de un 20 % más cara) |
 | Key pair | *Proceed without a key pair* | Se entra por Session Manager |
 | Subnet | Una pública (con ruta a un Internet Gateway) | |
 | Auto-assign public IP | **Disable** | La IP pública es la Elastic IP |
