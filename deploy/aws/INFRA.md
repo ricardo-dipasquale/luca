@@ -109,7 +109,7 @@ Si no se registra en unos 10 minutos:
 
 ## 5. Lambda `luca-wake`
 
-**5.1 Crear.** **Lambda → Create function → Author from scratch**:
+**5.1 Crear.** **Lambda → Create function** → tipo **Event function** (en español, *Función de evento*: la Lambda clásica; las *Web functions* sólo aceptan Node.js) → **Author from scratch**:
 - Nombre `luca-wake`, runtime **Python 3.13**, arquitectura **arm64**.
 - *Execution role*: **Create a new role with basic Lambda permissions**. Incluye sólo los logs de CloudWatch.
 
