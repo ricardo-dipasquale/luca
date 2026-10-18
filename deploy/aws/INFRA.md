@@ -96,7 +96,11 @@ Es el único permiso de la instancia: le permite registrarse en Session Manager.
 
 **Launch instance.** Cuando esté *Running*: **Elastic IPs** → la IP `luca` → **Actions → Associate Elastic IP address** → instancia `luca`.
 
-**Comprobación:** a los pocos minutos, la instancia aparece en **Systems Manager → Fleet Manager** como *Online*. Si no aparece, revisá el rol (paso 3) y que la subnet tenga salida a internet.
+**Comprobación** (a los pocos minutos de asociar la Elastic IP): **EC2 → Instances** → tildá `luca` → **Connect** → pestaña **Session Manager**. Si el botón **Connect** está habilitado, la instancia quedó registrada. También aparece en **Systems Manager → Node Tools → Fleet Manager** con *SSM Agent ping status* **Online**. Si Systems Manager ofrece configurarse para la organización («Get started»), no hace falta.
+
+Si no se registra en unos 10 minutos:
+- **El rol.** En la pestaña **Security** de la instancia tiene que figurar *IAM Role* `luca-ec2`. Si no está, asignalo en **Actions → Security → Modify IAM role** y reiniciá la instancia.
+- **La salida a internet.** La Elastic IP tiene que estar asociada, porque la instancia no tiene otra IP pública, y la subnet necesita una ruta a un Internet Gateway.
 
 ## 5. Lambda `luca-wake`
 
