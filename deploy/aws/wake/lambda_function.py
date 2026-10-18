@@ -89,7 +89,7 @@ def redirect(location: str, status: int) -> dict:
     return {"statusCode": status, "headers": {"Location": location, "Cache-Control": "no-store"}, "body": ""}
 
 
-def handler(event, context):
+def lambda_handler(event, context):
     instance_id = os.environ["LUCA_INSTANCE_ID"]
     app_url = os.environ["LUCA_APP_URL"].rstrip("/")
     method = event["requestContext"]["http"]["method"]

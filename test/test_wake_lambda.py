@@ -32,7 +32,7 @@ def wake(monkeypatch):
 
 
 def _call(module, method="GET", path="/"):
-    return module.handler({"rawPath": path, "requestContext": {"http": {"method": method}}}, None)
+    return module.lambda_handler({"rawPath": path, "requestContext": {"http": {"method": method}}}, None)
 
 
 def _setup(module, monkeypatch, state, ready=False):

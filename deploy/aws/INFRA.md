@@ -113,7 +113,7 @@ Si no se registra en unos 10 minutos:
 - Nombre `luca-wake`, runtime **Python 3.13**, arquitectura **arm64**.
 - *Execution role*: **Create a new role with basic Lambda permissions**. Incluye sólo los logs de CloudWatch.
 
-**5.2 Código.** En la pestaña **Code**, reemplazá el contenido de `lambda_function.py` por el archivo `deploy/aws/wake/lambda_function.py` que te pasa el equipo de LUCA. Usa sólo la biblioteca estándar y `boto3`, que ya viene en el runtime. Apretá **Deploy**. En **Runtime settings → Edit**, poné *Handler*: `lambda_function.handler`.
+**5.2 Código.** En la pestaña **Code**, reemplazá el contenido de `lambda_function.py` por el archivo `deploy/aws/wake/lambda_function.py` que te pasa el equipo de LUCA. Usa sólo la biblioteca estándar y `boto3`, que ya viene en el runtime. Apretá **Deploy** (en español, *Implementar*). El controlador queda en el valor por defecto, `lambda_function.lambda_handler`, y no hay que cambiarlo. Para verificarlo: debajo del editor, **Runtime settings** (*Configuración del tiempo de ejecución*), campo *Handler* (*Controlador*).
 
 **5.3 Configuración** (pestaña **Configuration**):
 
@@ -196,7 +196,7 @@ Si preferís que el equipo no prenda ni apague la instancia desde la consola, sa
 - [ ] Security group con entrada sólo 80 y 443; sin 22
 - [ ] Instancia: Ubuntu 24.04 Arm, `t4g.medium`, disco 30 GiB gp3 **cifrado**, IMDSv2, **Shutdown behavior = Stop**, termination protection
 - [ ] La instancia aparece *Online* en Fleet Manager
-- [ ] Lambda `luca-wake`: código, handler `lambda_function.handler`, timeout 10 s, variables de entorno, concurrencia reservada 5, política `luca-wake-start`
+- [ ] Lambda `luca-wake`: código desplegado, controlador `lambda_function.lambda_handler` (el que viene por defecto), timeout 10 s, variables de entorno, concurrencia reservada 5, política `luca-wake-start`
 - [ ] Function URL creada (NONE, BUFFERED). Al abrirla, muestra «Luca está dormida» si la instancia está apagada, o «Se está despertando…» si está prendida y la app todavía no está instalada
 - [ ] Snapshots diarios con retención 7
 - [ ] Presupuesto con alertas
