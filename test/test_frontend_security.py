@@ -262,3 +262,8 @@ def test_admin_uploads_a_planilla(admin_app):
     assert bad.status_code == 400 and "No se pudo leer" in bad.json["error"]
     assert admin.post("/admin/usuarios/planilla", headers=ADMIN,
                       data={"planilla": (io.BytesIO(b"a,b"), "x.csv")}).status_code == 400
+
+
+def test_login_page_does_not_ship_credentials(app_module):
+    page = app_module.app.test_client().get("/").data.decode()
+    assert "visitante" not in page and ".value = '" not in page

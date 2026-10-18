@@ -94,7 +94,6 @@ def main():
         else:
             print(f"🌐 Access the application at: {protocol}://{args.host}:{args.port}")
 
-        print("📝 Test credentials: visitante@uca.edu.ar / visitante!")
         print("-" * 60)
 
         # Run Flask application
