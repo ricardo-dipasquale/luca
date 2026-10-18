@@ -60,3 +60,24 @@ def test_conversations_are_listed_per_user_most_recent_first(path):
     db.rename_conversation(vieja, "renombrada", path=path)
     titulos = [c["title"] for c in db.list_conversations("ana@uca.edu.ar", path=path)]
     assert sorted(titulos) == ["nueva", "renombrada"]
+
+
+def test_change_password_requires_the_current_one(path):
+    db.upsert_user("ana@uca.edu.ar", "vieja-clave", "Ana", path=path)
+    before = db.password_fingerprint("ana@uca.edu.ar", path=path)
+    assert db.change_password("ana@uca.edu.ar", "equivocada", "nueva-clave", path=path) is False
+    assert db.change_password("ana@uca.edu.ar", "vieja-clave", "nueva-clave", path=path) is True
+    assert db.authenticate("ana@uca.edu.ar", "nueva-clave", path=path)
+    assert db.authenticate("ana@uca.edu.ar", "vieja-clave", path=path) is None
+    after = db.password_fingerprint("ana@uca.edu.ar", path=path)
+    assert after != before and "nueva-clave" not in after
+    assert db.password_fingerprint("nadie@uca.edu.ar", path=path) is None
+
+
+def test_reimport_keeps_a_changed_password_unless_reset(path):
+    db.upsert_user("ana@uca.edu.ar", "de-la-planilla", "Ana", path=path)
+    db.change_password("ana@uca.edu.ar", "de-la-planilla", "elegida-por-ana", path=path)
+    db.upsert_user("ana@uca.edu.ar", "de-la-planilla", "Ana María", path=path, reset_password=False)
+    assert db.authenticate("ana@uca.edu.ar", "elegida-por-ana", path=path)["nombre"] == "Ana María"
+    db.upsert_user("ana@uca.edu.ar", "blanqueada", None, path=path, reset_password=True)
+    assert db.authenticate("ana@uca.edu.ar", "blanqueada", path=path)

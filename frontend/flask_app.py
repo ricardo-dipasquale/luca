@@ -93,11 +93,18 @@ get_practice_repository()
 # Global tutor (shared across requests: conversation memory lives in its checkpointer)
 tutor = TutorExecutor()
 
+def check_session() -> bool:
+    """True if logged in. A password change (or a deleted user) invalidates the user's other sessions."""
+    if 'authenticated' in session and session.get('pwd') != db.password_fingerprint(session.get('user_email', '')):
+        session.clear()
+    return 'authenticated' in session
+
+
 def require_auth(f):
     """Decorator to require authentication for protected endpoints."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'authenticated' not in session:
+        if not check_session():
             if request.is_json:
                 return jsonify({'error': 'Not authenticated'}), 401
             else:
@@ -191,6 +198,7 @@ def login():
             session['authenticated'] = True
             session['user_email'] = email
             session['login_time'] = datetime.now().isoformat()
+            session['pwd'] = db.password_fingerprint(email)
             login_throttle.success(email)
             print(f"✅ Successful login for user: {email} from IP: {ip}")
             return jsonify({'success': True})
@@ -211,10 +219,50 @@ def logout():
     session.clear()
     return jsonify({'success': True})
 
+MIN_PASSWORD_CHARS = 8
+MAX_PASSWORD_CHARS = 128
+
+
+@app.route('/password', methods=['POST'])
+@require_auth
+def change_password():
+    """Change the logged-in user's password; other sessions of the user are logged out."""
+    data = request.get_json(silent=True) or {}
+    current = data.get('current_password', '')
+    new = data.get('new_password', '')
+    email = session['user_email']
+    ip = request.remote_addr or 'unknown'
+
+    if not isinstance(current, str) or not isinstance(new, str) or not current.strip() or not new:
+        return jsonify({'success': False, 'error': 'Completá la contraseña actual y la nueva'}), 400
+    current = current.strip()  # the login strips it too
+    if new != new.strip():
+        return jsonify({'success': False, 'error': 'La contraseña no puede empezar ni terminar con espacios'}), 400
+    if not MIN_PASSWORD_CHARS <= len(new) <= MAX_PASSWORD_CHARS:
+        return jsonify({'success': False, 'error': f'La contraseña nueva tiene que tener entre {MIN_PASSWORD_CHARS} '
+                                                   f'y {MAX_PASSWORD_CHARS} caracteres'}), 400
+    if new == current:
+        return jsonify({'success': False, 'error': 'La contraseña nueva tiene que ser distinta de la actual'}), 400
+    if new.strip().lower() == email:
+        return jsonify({'success': False, 'error': 'La contraseña no puede ser tu email'}), 400
+    # Same throttle as the login: a stolen session must not allow guessing the current password.
+    if login_throttle.blocked(ip, email):
+        return jsonify({'success': False, 'error': 'Demasiados intentos fallidos. Probá de nuevo en unos minutos.'}), 429
+    if not db.change_password(email, current, new):
+        login_throttle.failure(ip, email)
+        print(f"❌ Failed password change for user: {email} from IP: {ip}")
+        return jsonify({'success': False, 'error': 'La contraseña actual no es correcta'}), 403
+
+    login_throttle.success(email)
+    session['pwd'] = db.password_fingerprint(email)  # keep this session, drop the others
+    print(f"🔑 Password changed for user: {email} from IP: {ip}")
+    return jsonify({'success': True})
+
+
 @app.route('/auth/status')
 def auth_status():
     """Check authentication status."""
-    if 'authenticated' in session and 'user_email' in session:
+    if check_session():
         return jsonify({
             'authenticated': True,
             'user_email': session.get('user_email')

@@ -101,6 +101,36 @@ def test_login_is_throttled_after_repeated_failures(app_module):
     assert _login(client, "beto@uca.edu.ar", "otra-clave").status_code == 200  # other accounts unaffected
 
 
+def _change_password(client, current="clave-correcta", new="una-clave-nueva"):
+    return client.post("/password", json={"current_password": current, "new_password": new})
+
+
+def test_password_change_logs_out_other_sessions(app_module):
+    laptop, phone = app_module.app.test_client(), app_module.app.test_client()
+    _login(laptop)
+    _login(phone)
+    assert _change_password(laptop).json == {"success": True}
+    assert laptop.get("/conversations").status_code == 200  # the session that changed it stays in
+    assert phone.get("/auth/status").json == {"authenticated": False}
+    assert b"loginForm" in phone.get("/conversations").data
+    assert _login(phone).status_code == 401
+    assert _login(phone, password="una-clave-nueva").status_code == 200
+
+
+def test_password_change_validates_and_is_throttled(app_module):
+    client = app_module.app.test_client()
+    assert _change_password(client).status_code == 401  # login required
+    _login(client)
+    assert _change_password(client, new="corta").status_code == 400
+    assert _change_password(client, new="clave-correcta").status_code == 400
+    assert _change_password(client, new="ana@uca.edu.ar").status_code == 400
+    assert _change_password(client, new=" con-espacio ").status_code == 400
+    for _ in range(5):
+        assert _change_password(client, current="adivinando").status_code == 403
+    assert _change_password(client).status_code == 429  # a stolen session can't guess the password
+    assert _login(app_module.app.test_client()).status_code == 429  # nor keep guessing through the login
+
+
 def test_cannot_use_someone_elses_conversation(app_module):
     beto = app_module.app.test_client()
     _login(beto, "beto@uca.edu.ar", "otra-clave")

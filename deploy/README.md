@@ -84,6 +84,8 @@ docker compose -f docker-compose.prod.yml run --rm --no-deps \
 rm usuarios-luca.xlsx    # tiene contraseñas en texto plano
 ```
 
+A quien ya existe no se le cambia la contraseña, porque puede haberla cambiado desde LUCA. Para blanquear la de quien la olvidó, agregá `--reset-passwords` con una planilla que tenga sólo esas filas.
+
 ## 6. Verificar
 
 ```bash

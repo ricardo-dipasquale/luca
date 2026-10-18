@@ -2,9 +2,11 @@
 """Importa usuarios desde un Excel a SQLite (storage/db.py).
 
 Columnas por posición: 1.ª nombre, 3.ª email (debe terminar en @uca.edu.ar), 4.ª contraseña.
-Crea los usuarios nuevos y actualiza nombre y contraseña de los existentes. Las contraseñas se guardan con hash.
+Crea los usuarios nuevos y actualiza el nombre de los existentes. Las contraseñas se guardan con hash.
+A quien ya existe no se le cambia la contraseña (puede haberla cambiado desde LUCA), salvo con
+--reset-passwords: así se blanquea la de quienes la olvidaron (dejar en la planilla sólo esas filas).
 
-Uso: python scripts/import_usuarios.py [--file usuarios-luca.xlsx] [--dry-run]
+Uso: python scripts/import_usuarios.py [--file usuarios-luca.xlsx] [--dry-run] [--reset-passwords]
 """
 
 import argparse
@@ -35,6 +37,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--file", type=Path, default=Path("usuarios-luca.xlsx"))
     parser.add_argument("--dry-run", action="store_true", help="Mostrar qué se importaría sin escribir")
+    parser.add_argument("--reset-passwords", action="store_true",
+                        help="Reemplazar también la contraseña de los usuarios que ya existen")
     args = parser.parse_args()
     if not args.file.exists():
         print(f"No existe {args.file}")
@@ -43,11 +47,12 @@ def main() -> int:
     users = load_users(args.file)
     existentes = {u["email"] for u in db.list_users()}
     print(f"{len(users)} usuarios válidos en {args.file}: "
-          f"{sum(u['email'] not in existentes for u in users)} nuevos, {sum(u['email'] in existentes for u in users)} a actualizar")
+          f"{sum(u['email'] not in existentes for u in users)} nuevos, {sum(u['email'] in existentes for u in users)} a actualizar"
+          f" ({'con' if args.reset_passwords else 'sin'} cambio de contraseña)")
     if args.dry_run:
         return 0
     for u in users:
-        db.upsert_user(u["email"], u["password"], u["nombre"])
+        db.upsert_user(u["email"], u["password"], u["nombre"], reset_password=args.reset_passwords)
     print(f"Listo: {len(db.list_users())} usuarios en {db.db_path()}")
     return 0
 

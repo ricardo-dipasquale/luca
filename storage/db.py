@@ -3,6 +3,7 @@
 La memoria del agente (checkpoints de LangGraph) vive en el mismo archivo, en sus propias tablas.
 """
 
+import hashlib
 import os
 import sqlite3
 import uuid
@@ -73,14 +74,20 @@ def connect(path: Optional[Path] = None) -> Iterator[sqlite3.Connection]:
 
 # ---------- usuarios ----------
 
-def upsert_user(email: str, password: str, nombre: Optional[str] = None, path: Optional[Path] = None) -> bool:
-    """Creates or updates a user; returns True if it was created."""
+def upsert_user(email: str, password: str, nombre: Optional[str] = None, path: Optional[Path] = None,
+                reset_password: bool = True) -> bool:
+    """Creates or updates a user; returns True if it was created.
+
+    With reset_password=False an existing user keeps their password (it may have been changed by them).
+    """
     email = email.strip().lower()
     with connect(path) as con:
         existe = con.execute("SELECT 1 FROM usuarios WHERE email = ?", (email,)).fetchone()
         if existe:
-            con.execute("UPDATE usuarios SET nombre = COALESCE(?, nombre), password_hash = ? WHERE email = ?",
-                        (nombre, generate_password_hash(password), email))
+            con.execute("UPDATE usuarios SET nombre = COALESCE(?, nombre) WHERE email = ?", (nombre, email))
+            if reset_password:
+                con.execute("UPDATE usuarios SET password_hash = ? WHERE email = ?",
+                            (generate_password_hash(password), email))
         else:
             con.execute("INSERT INTO usuarios (email, nombre, password_hash, created_at) VALUES (?, ?, ?, ?)",
                         (email, nombre, generate_password_hash(password), _now()))
@@ -95,6 +102,27 @@ def authenticate(email: str, password: str, path: Optional[Path] = None) -> Opti
             return None
         con.execute("UPDATE usuarios SET last_login = ? WHERE email = ?", (_now(), email))
         return {"email": row["email"], "nombre": row["nombre"], "created_at": row["created_at"]}
+
+
+def change_password(email: str, current: str, new: str, path: Optional[Path] = None) -> bool:
+    """Replaces the password if `current` is right; returns False otherwise."""
+    email = email.strip().lower()
+    with connect(path) as con:
+        row = con.execute("SELECT password_hash FROM usuarios WHERE email = ?", (email,)).fetchone()
+        if row is None or not check_password_hash(row["password_hash"], current):
+            return False
+        con.execute("UPDATE usuarios SET password_hash = ? WHERE email = ?", (generate_password_hash(new), email))
+        return True
+
+
+def password_fingerprint(email: str, path: Optional[Path] = None) -> Optional[str]:
+    """Changes whenever the password does: sessions store it so a password change logs out other devices.
+
+    A digest of the stored hash, so the (readable) session cookie reveals neither the hash nor its salt.
+    """
+    with connect(path) as con:
+        row = con.execute("SELECT password_hash FROM usuarios WHERE email = ?", (email.strip().lower(),)).fetchone()
+    return hashlib.sha256(row["password_hash"].encode()).hexdigest()[:32] if row else None
 
 
 def list_users(path: Optional[Path] = None) -> list[dict[str, Any]]:

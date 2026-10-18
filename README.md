@@ -61,10 +61,12 @@ Al cambiar cualquiera de ellos, correr `python -m ingest` (ver [ingest/README.md
 ## Administración
 
 ```bash
-uv run python scripts/import_usuarios.py --file usuarios-luca.xlsx [--dry-run]   # alta/actualización de usuarios
+uv run python scripts/import_usuarios.py --file usuarios-luca.xlsx [--dry-run] [--reset-passwords]   # alta de usuarios
 uv run python scripts/export_conversaciones.py [--output conversaciones.xlsx] [--user EMAIL]
 uv run python scripts/generate_ssl_certs.py      # certificado autofirmado para HTTPS local
 ```
+
+Cada estudiante puede cambiar su contraseña desde LUCA (botón con la llave, junto a «Salir»); al cambiarla se cierran sus otras sesiones. Volver a importar la planilla no pisa esas contraseñas: para blanquear la de alguien que la olvidó, usar `--reset-passwords` con una planilla que tenga sólo esas filas.
 
 La planilla de usuarios lleva el nombre en la 1.ª columna, el email (`@uca.edu.ar`) en la 3.ª y la contraseña en la 4.ª. Las contraseñas se guardan con hash.
 
