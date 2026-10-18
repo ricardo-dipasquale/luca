@@ -1,6 +1,6 @@
 # LUCA en AWS: se apaga sola y se despierta cuando alguien entra
 
-Guía paso a paso desde la consola de AWS. Usa la misma configuración endurecida de [deploy/README.md](../README.md) (Caddy, secretos como archivos, contenedores sin privilegios) sobre una instancia EC2. Le agrega dos cosas:
+Guía de instalación en el servidor. La infraestructura de AWS (instancia, IP fija, Lambda, permisos y backups) se arma antes, a mano, con quien administra la cuenta: [INFRA.md](INFRA.md). Usa la misma configuración endurecida de [deploy/README.md](../README.md) (Caddy, secretos como archivos, contenedores sin privilegios) sobre una instancia EC2. Le agrega dos cosas:
 
 - **Apagado por inactividad**: si nadie usa LUCA durante 1 hora, la instancia se apaga sola.
 - **Despertar a demanda**: la URL que reciben las y los estudiantes es la de una Lambda que está siempre disponible. Si la instancia está apagada, muestra el botón "Despertar a Luca" y redirige a la app cuando está lista.
@@ -25,73 +25,18 @@ EC2: cada 5 min, luca-idle.timer mira la última actividad; tras 60 min sin uso,
 - **Qué se pierde al apagarse**: sólo lo que vive en memoria, es decir, los contadores del límite de intentos de login y de uso. Usuarios, conversaciones, memoria del tutor y apuntes están en el disco.
 - **Cuánto tarda en despertar**: alrededor de 1 a 2 minutos (arranque de la máquina, Docker, Chroma y la app).
 
-## Costos aproximados
+## Costos
 
-Son valores de referencia en `us-east-1`; confirmalos en la [calculadora de AWS](https://calculator.aws/). En `sa-east-1` (São Paulo) la latencia desde Argentina es menor y los precios, un 50 % más altos.
-
-| Recurso | Cuándo se paga | Aproximado |
-|---|---|---|
-| EC2 `t4g.medium` (2 vCPU, 4 GB) | sólo prendida | USD 0,034/hora |
-| Disco EBS gp3 30 GB | siempre | USD 2,4/mes |
-| Elastic IP | siempre (prendida o apagada) | USD 3,6/mes |
-| Lambda + Function URL | por uso | prácticamente USD 0 |
-| Snapshots diarios (7 días) | siempre | USD 1 a 2/mes |
-
-Por ejemplo, con 60 horas de uso por mes queda en unos USD 9 a 10. El costo grande sigue siendo OpenAI: configurá el límite de gasto (paso 1 de [deploy/README.md](../README.md#1-la-key-de-openai-antes-de-tocar-el-servidor)).
-
-`t4g.medium` usa procesadores ARM (Graviton). Todas las imágenes (Caddy, Chroma, la app) tienen versión ARM. Con 2 GB (`t4g.small`) la memoria queda justa: la app y Chroma tienen hasta 1 GB cada una, y además está el build de la imagen.
+Unos USD 9 a 10/mes con 60 horas de uso, en `us-east-1`; el detalle está en [INFRA.md](INFRA.md#qué-es-y-qué-se-arma). El costo grande sigue siendo OpenAI: configurá el límite de gasto (paso 1 de [deploy/README.md](../README.md#1-la-key-de-openai-antes-de-tocar-el-servidor)).
 
 ## 1. Antes de empezar
 
-- Hacé el paso 1 de [deploy/README.md](../README.md#1-la-key-de-openai-antes-de-tocar-el-servidor): una key de OpenAI nueva, exclusiva de producción y con límite de gasto.
-- Elegí la región en la consola (arriba a la derecha) y usá la misma en todos los pasos.
+- **La infraestructura**: se arma en la consola de AWS con quien administra la cuenta, siguiendo [INFRA.md](INFRA.md). Al terminar, te tiene que pasar la tabla de datos: región, Elastic IP, Instance ID, URL de la Lambda y tu acceso por Session Manager. En lo que sigue, `52.1.2.3` es la Elastic IP.
+- **La key de OpenAI**: hacé el paso 1 de [deploy/README.md](../README.md#1-la-key-de-openai-antes-de-tocar-el-servidor): una key nueva, exclusiva de producción y con límite de gasto.
 
-## 2. IP fija (Elastic IP)
+## 2. Instalar Docker y LUCA en la instancia
 
-**EC2 → Elastic IPs → Allocate Elastic IP address → Allocate.**
-
-Anotá la IP (por ejemplo `52.1.2.3`). Es la dirección de la app y no cambia al apagar y prender la instancia.
-
-## 3. Security group
-
-**EC2 → Security Groups → Create security group**, nombre `luca-web`:
-
-| Tipo | Puerto | Origen |
-|---|---|---|
-| HTTP | 80 | `0.0.0.0/0` |
-| HTTPS | 443 | `0.0.0.0/0` |
-
-No abras el 22 (SSH): se entra con Session Manager (paso 4), que no necesita puertos abiertos. El puerto 80 hace falta para que Let's Encrypt valide la IP; Caddy redirige todo lo demás a HTTPS.
-
-## 4. Rol de la instancia (para entrar sin SSH)
-
-**IAM → Roles → Create role** → *AWS service* → *EC2* → política **`AmazonSSMManagedInstanceCore`** → nombre `luca-ec2`.
-
-Con este rol, la instancia queda accesible desde **EC2 → la instancia → Connect → Session Manager**, sin claves SSH ni puertos abiertos. El rol no tiene ningún otro permiso: la instancia no puede tocar nada más de la cuenta.
-
-## 5. Crear la instancia
-
-**EC2 → Instances → Launch instances**:
-
-- **Name**: `luca`
-- **AMI**: Ubuntu Server 24.04 LTS, arquitectura **64-bit (Arm)**
-- **Instance type**: `t4g.medium`
-- **Key pair**: *Proceed without a key pair* (se entra por Session Manager)
-- **Network settings → Edit**: *Auto-assign public IP*: **Disable** (la IP pública es la Elastic IP); *Select existing security group*: `luca-web`
-- **Storage**: 30 GiB, **gp3**, y en *Advanced* → **Encrypted: Yes**
-- **Advanced details**:
-  - *IAM instance profile*: `luca-ec2`
-  - *Shutdown behavior*: **Stop**. **Importante**: con *Terminate*, el apagado por inactividad borraría la instancia.
-  - *Termination protection*: **Enable**
-  - *Metadata version*: **V2 only (token required)**
-
-**Launch instance.** Después, en **Elastic IPs**, elegí la IP → **Actions → Associate Elastic IP address** → la instancia `luca`.
-
-Anotá el **Instance ID** (`i-0...`): lo usa la Lambda.
-
-## 6. Instalar Docker y LUCA en la instancia
-
-Entrá por **Connect → Session Manager → Connect**. La sesión arranca como `ssm-user`.
+En la consola de AWS: **EC2 → la instancia `luca` → Connect → Session Manager → Connect**. La sesión arranca como `ssm-user`.
 
 ```bash
 sudo -i                                   # todo lo que sigue, como root
@@ -145,7 +90,7 @@ El resto de los usuarios se carga desde `https://52.1.2.3/admin`: de a uno, o co
 
 Si el certificado no sale, mirá `docker compose -f docker-compose.prod.yml logs caddy` (ver [Problemas frecuentes](#problemas-frecuentes)).
 
-## 7. Apagado por inactividad
+## 3. Apagado por inactividad
 
 En la instancia, como root, desde `/opt/luca`:
 
@@ -161,43 +106,9 @@ Para cambiar el tiempo sin uso (por defecto 60 minutos): `echo LUCA_IDLE_MINUTES
 
 **Mantenimiento**: mientras trabajás en la máquina, `touch /etc/luca-idle-disabled` evita que se apague. Al terminar, `rm /etc/luca-idle-disabled`.
 
-## 8. La Lambda que la despierta
+## 4. Verificar
 
-**8.1 Crear la función.** **Lambda → Create function**:
-
-- *Author from scratch*, nombre `luca-wake`, runtime **Python 3.13**, arquitectura **arm64**
-- *Permissions*: *Create a new role with basic Lambda permissions*
-
-En la pestaña **Code**, reemplazá el contenido de `lambda_function.py` por el de [wake/lambda_function.py](wake/lambda_function.py) y apretá **Deploy**. En **Runtime settings → Edit**, poné *Handler*: `lambda_function.handler`.
-
-**8.2 Configuración** (pestaña **Configuration**):
-
-- *General configuration → Edit*: **Timeout 10 s**, memoria 128 MB.
-- *Environment variables*:
-  - `LUCA_INSTANCE_ID` = `i-0...` (paso 5)
-  - `LUCA_APP_URL` = `https://52.1.2.3`
-- *Concurrency → Edit → Reserve concurrency*: **5**. Así, aunque alguien la bombardee, el costo queda acotado.
-
-**8.3 Permisos.** En *Permissions*, hacé clic en el rol → **Add permissions → Create inline policy → JSON**. Reemplazá región, cuenta e instancia:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    { "Effect": "Allow", "Action": "ec2:DescribeInstances", "Resource": "*" },
-    { "Effect": "Allow", "Action": "ec2:StartInstances",
-      "Resource": "arn:aws:ec2:REGION:CUENTA:instance/i-0..." }
-  ]
-}
-```
-
-`DescribeInstances` no admite limitarse a una instancia; `StartInstances` sí. La Lambda sólo puede prender esa máquina: no puede apagarla, borrarla ni tocar ninguna otra cosa.
-
-**8.4 URL pública.** *Configuration → Function URL → Create function URL*: **Auth type NONE**, *Invoke mode* **BUFFERED**. La URL que aparece (`https://xxxx.lambda-url.REGION.on.aws/`) es **la que se comparte con estudiantes**.
-
-## 9. Verificar
-
-1. Con la instancia prendida, abrí la URL de la Lambda: tiene que redirigir a `https://52.1.2.3/` y mostrar el login.
+1. Con la instancia prendida, abrí la URL de la Lambda: tiene que redirigir a `https://52.1.2.3/` y mostrar el login. Antes de terminar el paso 2 muestra «Se está despertando…», porque la app todavía no responde.
 2. Probá el ciclo completo con un tiempo corto:
    - `echo LUCA_IDLE_MINUTES=10 > /etc/default/luca-idle`.
    - Esperá a que la instancia pase a *Stopped* en la consola. Como el arranque cuenta como actividad, tarda entre 10 y 15 minutos desde que arrancó o desde el último uso.
@@ -205,20 +116,10 @@ En la pestaña **Code**, reemplazá el contenido de `lambda_function.py` por el 
    - Volvé a 60: `rm /etc/default/luca-idle`.
 3. Desde afuera, que no responda nada más que 80 y 443: `nc -zv 52.1.2.3 22 5000 8000`.
 
-## 10. Backups automáticos
-
-**EC2 → Lifecycle Manager → Create lifecycle policy** → *EBS snapshot policy*:
-
-- Target: la instancia `luca` (por tag `Name = luca`)
-- Frecuencia: diaria
-- Retención: 7
-
-El snapshot incluye la base SQLite (usuarios con sus hashes y conversaciones), así que no lo compartas. Para backups puntuales, ver *Backup* en [deploy/README.md](../README.md#operación).
-
 ## Operación
 
 - **Actualizar**: despertala, `touch /etc/luca-idle-disabled`, seguí *Actualizar* de [deploy/README.md](../README.md#operación) y después `rm /etc/luca-idle-disabled`.
-- **Apagarla a mano**: **EC2 → Instance state → Stop**. La próxima visita la puede despertar.
+- **Apagarla a mano**: **EC2 → Instance state → Stop**, o `systemctl poweroff` desde la sesión. La próxima visita la puede despertar.
 - **Dejarla prendida un día entero** (por ejemplo, un parcial): `touch /etc/luca-idle-disabled` y borrarlo al terminar.
 - **Ver cuándo se apagó**: `journalctl -u luca-idle.service`.
 
@@ -232,10 +133,10 @@ El snapshot incluye la base SQLite (usuarios con sus hashes y conversaciones), a
 ## Problemas frecuentes
 
 - **Caddy no obtiene el certificado de la IP.** Revisá estas tres cosas:
-  - que el puerto 80 esté abierto (paso 3);
+  - que el puerto 80 esté abierto en el security group ([INFRA.md](INFRA.md#2-security-group));
   - que `LUCA_DOMAIN` sea exactamente la Elastic IP;
   - que `LUCA_CADDYFILE=Caddyfile.ip` esté en `.env`.
 
-  Si Let's Encrypt sigue rechazando la IP, una alternativa sin dominio propio es `LUCA_DOMAIN=52-1-2-3.sslip.io` con `LUCA_CADDYFILE=Caddyfile`. Ese nombre resuelve a la IP y lleva un certificado común. En ese caso, `LUCA_APP_URL` de la Lambda también pasa a ese nombre.
-- **La Lambda siempre muestra "Se está despertando…"**: la instancia está prendida, pero la Lambda no llega a `LUCA_APP_URL/healthz`. Probá `curl -sI https://52.1.2.3/healthz` desde tu máquina y mirá los logs de la Lambda en **Monitor → View CloudWatch logs**.
+  Si Let's Encrypt sigue rechazando la IP, una alternativa sin dominio propio es `LUCA_DOMAIN=52-1-2-3.sslip.io` con `LUCA_CADDYFILE=Caddyfile`. Ese nombre resuelve a la IP y lleva un certificado común. En ese caso, `LUCA_APP_URL` de la Lambda también pasa a ese nombre: pedíselo a quien administra la cuenta.
+- **La Lambda siempre muestra "Se está despertando…"**: la instancia está prendida, pero la Lambda no llega a `LUCA_APP_URL/healthz`. Probá `curl -sI https://52.1.2.3/healthz` desde tu máquina y mirá los logs de la Lambda en **Lambda → luca-wake → Monitor → View CloudWatch logs**. Si cambió la Elastic IP, hay que actualizar `LUCA_APP_URL` en la Lambda ([INFRA.md](INFRA.md#5-lambda-luca-wake)).
 - **No se apaga nunca**: `journalctl -u luca-idle.service` muestra cada revisión. Revisá que no exista `/etc/luca-idle-disabled` y mirá la fecha de modificación del archivo de actividad: `stat $(docker volume inspect luca_luca_data -f '{{ .Mountpoint }}')/last_activity`.
