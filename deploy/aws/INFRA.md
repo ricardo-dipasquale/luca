@@ -190,6 +190,18 @@ Con Identity Center, la variable de sesión puede requerir `${aws:username}` en 
 
 Si preferís que el equipo no prenda ni apague la instancia desde la consola, sacá el bloque `StartStopLuca`. Pueden despertarla desde la URL de la Lambda.
 
+**Dónde se carga**, según cómo se entra a la consola:
+
+- **Usuarios de IAM** (usuario y contraseña):
+  1. **IAM → Policies → Create policy** → pestaña **JSON** → pegá la política de arriba → nombre `luca-operador`.
+  2. **IAM → User groups → Create group** `luca-operadores` → adjuntá `luca-operador` y la administrada `IAMUserChangePassword`.
+  3. **IAM → Users → Create user** → tildá *Provide user access to the AWS Management Console* → agregalo al grupo `luca-operadores`. Pasale la URL de inicio de sesión y la contraseña inicial por un canal privado, y pedile que active MFA.
+- **IAM Identity Center** (portal `https://….awsapps.com/start`):
+  1. **Permission sets → Create permission set → Custom permission set** → *Inline policy*: la política de arriba → nombre `luca-operador`.
+  2. **AWS accounts** → la cuenta → **Assign users or groups** → la persona del equipo de LUCA, con `luca-operador`.
+
+**Prueba:** con ese acceso, **EC2 → Instances → `luca` → Connect → Session Manager → Connect** tiene que abrir una terminal. Las demás pantallas de la consola muestran «acceso denegado»: es lo esperado.
+
 ## Lista de control
 
 - [ ] Elastic IP asociada a la instancia `luca`
