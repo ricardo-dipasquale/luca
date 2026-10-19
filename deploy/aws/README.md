@@ -44,7 +44,13 @@ curl -fsSL https://get.docker.com | sh    # Docker Engine + plugin de Compose (s
 systemctl enable docker                   # que Docker (y los contenedores) arranquen con la máquina
 ```
 
-**Código.** Si el repo es privado, usá una *deploy key* de sólo lectura:
+**Código.** Si el repo es público, alcanza con HTTPS:
+
+```bash
+git clone https://github.com/ricardo-dipasquale/luca.git /opt/luca && cd /opt/luca
+```
+
+Si el repo es privado, usá una *deploy key* de sólo lectura, generada y usada por el mismo usuario (root):
 
 ```bash
 ssh-keygen -t ed25519 -N "" -f ~/.ssh/luca_deploy
