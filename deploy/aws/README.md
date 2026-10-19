@@ -62,8 +62,6 @@ EOF
 git clone git@github.com:ricardo-dipasquale/luca.git /opt/luca && cd /opt/luca
 ```
 
-Mientras esto no esté en `main`, agregá `git checkout deploy-aws-autostop`.
-
 **Configuración** (`.env`, sin secretos). `LUCA_DOMAIN` es la Elastic IP:
 
 ```bash
